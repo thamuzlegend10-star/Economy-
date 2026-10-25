@@ -171,7 +171,9 @@ const $ = id => document.getElementById(id);
 const fresh = () => ({
   cash: 30, stock: { apple:5, bread:0, milk:0 }, up: { shelf:0, ads:0, prices:0 },
   day: 1, dayClock: 0, today: { cust:0, sales:0, miss:0 }, happy: 50, lastTick: Date.now(),
+  order: null,   // { item, qty, due } while a delivery truck is on the way
 });
+const DELIVERY_FEE = 2, DELIVERY_MS = 5000;
 let state = fresh();
 let user = null, sb = null, dirty = false, saving = false;
 
@@ -225,6 +227,12 @@ function step(dt) {
   state.dayClock += dt;
   if (state.dayClock >= DAY_SECONDS) {
     state.dayClock -= DAY_SECONDS; state.day++; state.today = { cust:0, sales:0, miss:0 }; dirty = true;
+  }
+  if (state.order && Date.now() >= state.order.due) {
+    const o = state.order, room = cap() - state.stock[o.item];
+    state.stock[o.item] += Math.max(0, Math.min(o.qty, room));
+    state.order = null; dirty = true; saveLocal();
+    setStatus(`Delivery arrived: ${o.qty} ${o.item}.`, "ok");
   }
   spawnTimer -= dt;
   const open = 0.5 + state.happy / 100;
@@ -340,12 +348,13 @@ function drawScene() {
   ctx.fillStyle = glow; ctx.fillRect(380, 90, 440, 330);
 
   // counter + register
+  // shopkeeper stands BEHIND the counter: draw first, counter covers the lower body
+  drawTop(COUNTER_X + 128, 276, { skin: SKIN[1], hair: "#1c1c28", shirt: "#ffb84d" }, 0, true);
   rr(COUNTER_X, 236, 190, 120, 12, "#9a6431");
   rr(COUNTER_X, 236, 190, 14, [12, 12, 0, 0], "#c68a4c");
   rr(COUNTER_X + 14, 262, 162, 80, 8, "rgba(0,0,0,.2)");
   rr(COUNTER_X + 20, 206, 54, 30, 6, "#2a2d5c"); rr(COUNTER_X + 26, 211, 42, 12, 3, "#5eead4");
   ctx.fillStyle = "#fbe7b5"; ctx.font = "700 13px 'DM Sans', sans-serif"; ctx.textAlign = "center"; ctx.fillText("COUNTER", COUNTER_X + 95, 308);
-  person(COUNTER_X + 128, FLOOR_Y - 60, { skin: SKIN[1], hair: "#1c1c28", shirt: "#ffb84d" }, 0, true);
 
   // customers
   for (const c of customers) {
@@ -353,6 +362,8 @@ function drawScene() {
     person(c.x, FLOOR_Y, c, walking ? clock * 9 + c.phase0 : 0, false);
     if (c.phase === "in" || c.phase === "buy" || c.phase === "wait") bubble(c.x, FLOOR_Y - 98, c.said, c.item.id);
   }
+
+  drawTruck();
 
   // particles
   for (const f of floats) { ctx.globalAlpha = Math.max(0, Math.min(1, f.life)); ctx.fillStyle = f.color; ctx.font = "800 20px Fraunces, serif"; ctx.textAlign = "center"; ctx.fillText(f.text, f.x, f.y); }
@@ -364,6 +375,51 @@ function drawScene() {
   if (night > 0) { ctx.fillStyle = `rgba(8,10,40,${0.42 * night})`; ctx.fillRect(0, 0, W, H); }
   ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(0, H - 5, W, 5);
   ctx.fillStyle = "#ffb84d"; ctx.fillRect(0, H - 5, W * t, 5);
+}
+
+// Delivery truck: drives in (30%), unloads (40%), drives off (30%) over DELIVERY_MS.
+function drawTruck() {
+  const o = state.order;
+  if (!o) return;
+  const p = Math.max(0, Math.min(1, 1 - (o.due - Date.now()) / DELIVERY_MS));
+  const stopX = 560, ease = k => 1 - Math.pow(1 - k, 3);
+  let x, moving = true;
+  if (p < 0.3) x = lerp(W + 230, stopX, ease(p / 0.3));
+  else if (p < 0.7) { x = stopX; moving = false; }
+  else x = lerp(stopX, -260, Math.pow((p - 0.7) / 0.3, 2));
+  const y = H - 14;                       // wheel baseline
+  const bounce = moving ? Math.sin(clock * 30) * 1 : 0;
+  ctx.save(); ctx.translate(x, y + bounce);
+  ctx.beginPath(); ctx.ellipse(70, 2, 110, 7, 0, 0, 7); ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fill();
+  rr(40, -78, 160, 66, 8, "#f6efe3");                    // cargo box
+  rr(40, -50, 160, 10, 0, "#ff6b6b");                    // stripe
+  ctx.fillStyle = "#2a1700"; ctx.font = "800 14px 'DM Sans', sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("DELIVERY", 120, -58);
+  rr(-30, -58, 72, 46, [18, 6, 4, 4], "#ffb84d");        // cab
+  rr(-20, -52, 34, 22, 6, "#bfe6ff");                    // window
+  rr(-34, -24, 238, 12, 3, "#2b2f5e");                   // chassis
+  [[10], [150]].forEach(([wx]) => {
+    ctx.beginPath(); ctx.arc(wx, -8, 14, 0, 7); ctx.fillStyle = "#14162e"; ctx.fill();
+    ctx.save(); ctx.translate(wx, -8); ctx.rotate(clock * (moving ? 12 : 0));
+    ctx.fillStyle = "#c9ced9"; ctx.fillRect(-2, -9, 4, 18); ctx.fillRect(-9, -2, 18, 4); ctx.restore();
+  });
+  if (!moving) {                                         // crates hopping out while unloading
+    const k = (p - 0.3) / 0.4, item = ITEMS.find(i => i.id === o.item);
+    for (let n = 0; n < 3; n++) {
+      const kk = Math.max(0, Math.min(1, k * 3 - n));
+      if (kk <= 0 || kk >= 1) continue;
+      rr(34 - kk * 150, -30 - Math.sin(kk * Math.PI) * 50, 20, 20, 3, item.color);
+    }
+  }
+  ctx.restore();
+  // order tag
+  if (!moving) {
+    const label = `${o.qty} ${o.item} arriving`;
+    ctx.font = "700 12px 'DM Sans', sans-serif";
+    const w = ctx.measureText(label).width + 20;
+    rr(stopX + 70 - w / 2, H - 126, w, 24, 12, "#fffaf0");
+    ctx.fillStyle = "#1a1a2e"; ctx.textAlign = "center"; ctx.fillText(label, stopX + 70, H - 110);
+  }
 }
 
 function person(x, floorY, look, walkT, keeper) {
@@ -406,10 +462,14 @@ function buildUI() {
       <button id="r-${it.id}"></button>`;
     $("items").appendChild(d);
     $("r-" + it.id).onclick = () => {
+      if (state.order) return;
       const qty = Math.min(RESTOCK, cap() - state.stock[it.id]);
-      const cost = qty * it.buy;
+      const cost = qty * it.buy + DELIVERY_FEE;
       if (qty <= 0 || state.cash < cost) return;
-      state.cash -= cost; state.stock[it.id] += qty; dirty = true; saveLocal(); render();
+      state.cash -= cost;
+      state.order = { item: it.id, qty, due: Date.now() + DELIVERY_MS };
+      dirty = true; saveLocal(); render();
+      setStatus(`Truck dispatched: ${qty} ${it.name} in 5 seconds.`);
     };
   });
   UPGRADES.forEach(u => {
@@ -442,8 +502,9 @@ function render() {
     $("b-" + it.id).style.width = (100 * state.stock[it.id] / cap()) + "%";
     const qty = Math.min(RESTOCK, cap() - state.stock[it.id]);
     const b = $("r-" + it.id);
-    b.textContent = qty <= 0 ? "Shelf full" : `Restock x${qty} · ${fmt(qty * it.buy)}`;
-    b.disabled = qty <= 0 || state.cash < qty * it.buy;
+    b.textContent = state.order ? "Truck on the way..." : qty <= 0 ? "Shelf full"
+      : `Order x${qty} · ${fmt(qty * it.buy)} + ${fmt(DELIVERY_FEE)} delivery`;
+    b.disabled = !!state.order || qty <= 0 || state.cash < qty * it.buy + DELIVERY_FEE;
   });
   UPGRADES.forEach(u => {
     $("ul-" + u.id).textContent = "Lv " + state.up[u.id];
