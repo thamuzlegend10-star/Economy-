@@ -15,3 +15,7 @@ create policy "insert own save" on public.game_saves
 
 create policy "update own save" on public.game_saves
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Required: let signed-in users reach the table (RLS still limits rows).
+grant usage on schema public to anon, authenticated;
+grant select, insert, update on public.game_saves to authenticated;
