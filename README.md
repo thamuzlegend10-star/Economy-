@@ -1,16 +1,28 @@
 # Economy
 
-Idle economy game. Earn cash, buy businesses, progress saves to Supabase.
+2D business simulation. Run a corner shop inside a small business district: order stock from suppliers, receive truck deliveries in the warehouse, fill shelves, serve customers, hire staff, use the bank, and read daily reports built from a double-entry ledger.
 
-## Setup
+## Modes
+- **Standard**: fixed number of days, then a score and final report.
+- **Infinite**: no end date, milestones and upgrades, recoverable bankruptcy.
+- **Online multiplayer**: planned for the next phase (Supabase Realtime).
 
-1. Supabase Dashboard > SQL Editor: run `supabase/schema.sql`.
-2. Dashboard > Project Settings > API: copy the **anon public** key into `config.js`.
-3. Dashboard > Authentication: for quick testing, turn off "Confirm email".
-4. Open `index.html` (or serve with GitHub Pages).
+## Run
+Modules need a web server (not `file://`):
+
+    python3 -m http.server 8000     # then open http://localhost:8000
+
+Tests: `npm test` (Node 20+, no dependencies).
+
+## Cloud save (optional)
+1. Supabase SQL Editor: run `supabase/schema.sql` (table, RLS policies, grants).
+2. Put your **publishable** key in `config.js`. It is public by design.
+3. Authentication: turn off "Confirm email" while testing.
 
 ## Security
-
-- Only the anon key goes in the repo. Never commit the database password or `service_role` key.
+- Never commit the database password, a `service_role` / `sb_secret_` key, or Metered credentials.
+- `.env*` files are git-ignored. Real secrets belong in a server or host secret manager.
 - Row Level Security limits each player to their own save row.
-- Without a key the game still works with a local browser save.
+
+## Layout
+`js/engine.js` rules and commands, `js/ledger.js` double-entry books, `js/data.js` tunable data, `js/world.js` + `js/art.js` canvas world, `js/ui.js` panels and reports, `js/main.js` app wiring, `js/cloud.js` Supabase save.

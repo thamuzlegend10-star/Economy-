@@ -7,615 +7,135 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg:#0c1226; --bg2:#141d3a; --glass:rgba(255,255,255,.06); --line:rgba(255,255,255,.12);
-    --fg:#f6efe3; --muted:#a9b3cf; --amber:#ffb84d; --amber2:#ff8a3d; --mint:#5eead4; --coral:#ff6b6b;
-    --display:"Fraunces",Georgia,serif; --body:"DM Sans",system-ui,sans-serif;
-  }
-  * { box-sizing:border-box; }
-  body {
-    margin:0; font-family:var(--body); color:var(--fg); min-height:100vh;
-    background:
-      radial-gradient(900px 500px at 15% -10%, rgba(255,184,77,.16), transparent 60%),
-      radial-gradient(800px 600px at 100% 10%, rgba(94,234,212,.10), transparent 55%),
-      var(--bg);
-  }
-  .wrap { max-width:1180px; margin:0 auto; padding:20px 20px 40px; }
-
-  /* top bar */
-  header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px 24px; margin-bottom:18px; }
-  .brand { display:flex; align-items:center; gap:12px; }
-  .logo { width:42px; height:42px; border-radius:12px; display:grid; place-items:center;
-          background:linear-gradient(145deg,var(--amber),var(--amber2)); box-shadow:0 8px 24px rgba(255,138,61,.35); }
-  .logo svg { width:24px; height:24px; }
-  .brand h1 { margin:0; font:800 1.6rem/1 var(--display); letter-spacing:-.02em; }
-  .brand small { display:block; color:var(--muted); font-size:.78rem; margin-top:3px; }
-  .pills { display:flex; gap:10px; flex-wrap:wrap; }
-  .pill { background:var(--glass); border:1px solid var(--line); backdrop-filter:blur(8px); border-radius:14px; padding:8px 14px; min-width:96px; }
-  .pill span { display:block; font-size:.68rem; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); }
-  .pill b { font:700 1.2rem/1.2 var(--display); }
-  .pill.cash b { color:var(--mint); font-size:1.5rem; }
-  .meter { height:6px; border-radius:6px; background:rgba(255,255,255,.1); margin-top:6px; overflow:hidden; }
-  .meter i { display:block; height:100%; width:50%; border-radius:6px; background:linear-gradient(90deg,var(--coral),var(--amber),var(--mint)); transition:width .4s; }
-
-  /* layout */
-  main { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr); gap:18px; align-items:start; }
-  @media (max-width:900px){ main{ grid-template-columns:1fr; } }
-  .stage-card { padding:10px; border-radius:22px; background:var(--glass); border:1px solid var(--line);
-                box-shadow:0 30px 60px -20px rgba(0,0,0,.6); }
-  canvas { width:100%; height:auto; display:block; border-radius:16px; }
-  .today { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
-  .stat { padding:12px 14px; border-radius:16px; background:var(--glass); border:1px solid var(--line); }
-  .stat small { display:block; color:var(--muted); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
-  .stat b { font:700 1.4rem/1.3 var(--display); }
-
-  .col { display:flex; flex-direction:column; gap:12px; }
-  h2 { margin:8px 2px 0; font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; }
-  .card { background:var(--glass); border:1px solid var(--line); border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:10px; }
-  .item-head { display:flex; align-items:center; gap:12px; }
-  .ico { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; flex:none; }
-  .ico svg { width:26px; height:26px; }
-  .item-head .t { flex:1; min-width:0; }
-  .item-head b { display:block; font:700 1.05rem/1.2 var(--display); }
-  .item-head small { color:var(--muted); font-size:.78rem; }
-  .bar { height:7px; border-radius:7px; background:rgba(255,255,255,.1); overflow:hidden; }
-  .bar i { display:block; height:100%; border-radius:7px; background:var(--amber); transition:width .3s; }
-
-  button { font:700 .95rem var(--body); color:#2a1700; border:0; cursor:pointer; min-height:44px; padding:10px 16px; border-radius:12px;
-           background:linear-gradient(180deg,#ffd07a,var(--amber)); box-shadow:0 6px 16px rgba(255,184,77,.25), inset 0 1px 0 rgba(255,255,255,.5);
-           transition:transform .12s, box-shadow .12s, opacity .2s; }
-  button:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 10px 22px rgba(255,184,77,.35), inset 0 1px 0 rgba(255,255,255,.5); }
-  button:active:not(:disabled) { transform:translateY(1px) scale(.98); }
-  button:disabled { opacity:.38; cursor:not-allowed; box-shadow:none; }
-  button.ghost { background:var(--glass); color:var(--fg); border:1px solid var(--line); box-shadow:none; }
-  button.ghost:hover:not(:disabled) { background:rgba(255,255,255,.12); box-shadow:none; }
-  button:focus-visible, input:focus-visible { outline:2px solid var(--mint); outline-offset:2px; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; }
-  .row > button { flex:1; }
-  input { padding:12px; border-radius:12px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:var(--fg); width:100%; margin:3px 0; font:1rem var(--body); }
-  .upg { display:flex; align-items:center; gap:12px; }
-  .upg .t { flex:1; min-width:0; }
-  .upg b { font:700 1rem var(--display); display:block; }
-  .upg small { color:var(--muted); }
-  .lv { font-size:.7rem; padding:2px 8px; border-radius:20px; background:rgba(94,234,212,.15); color:var(--mint); margin-left:6px; }
-
-  #status { padding:12px 14px; border-radius:14px; border:1px solid var(--line); background:var(--glass); font-size:.86rem; color:var(--muted); min-height:46px; }
-  #status.err { border-color:rgba(255,107,107,.6); color:#ffd0d0; background:rgba(255,107,107,.08); }
-  #status.ok  { border-color:rgba(94,234,212,.5); color:#bdfaf0; background:rgba(94,234,212,.07); }
-  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
-</style>
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="brand">
-      <div class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#2a1700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0"/></svg>
-      </div>
-      <div><h1>Economy</h1><small>Run the corner shop</small></div>
+      <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2a1700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0"/></svg></div>
+      <div><h1>Economy</h1><small id="modeLabel">Business simulation</small></div>
     </div>
-    <div class="pills">
-      <div class="pill"><span>Day</span><b id="day">1</b></div>
-      <div class="pill"><span>Happiness</span><b id="rep">0%</b><div class="meter"><i id="repbar"></i></div></div>
-      <div class="pill cash"><span>Cash</span><b id="cash">$0</b></div>
+    <div class="pills" id="hud">
+      <div class="pill"><span>Day</span><b id="hDay">1</b></div>
+      <div class="pill"><span>Time</span><b id="hTime">08:00</b></div>
+      <div class="pill cash"><span>Cash</span><b id="hCash">$0</b></div>
+      <div class="pill"><span>Bank</span><b id="hBank">$0</b></div>
+      <div class="pill"><span>Debt</span><b id="hDebt">$0</b></div>
+      <div class="pill"><span>Net worth</span><b id="hNet">$0</b></div>
+      <div class="pill"><span>Happiness</span><b id="hHappy">0%</b><div class="meter"><i id="hHappyBar"></i></div></div>
+    </div>
+    <div class="ctrl">
+      <button class="ghost" id="bPause" aria-label="Pause">Pause</button>
+      <button class="ghost spd" data-speed="1">1x</button><button class="ghost spd" data-speed="2">2x</button><button class="ghost spd" data-speed="4">4x</button>
+      <button class="ghost" id="bMenu">Menu</button>
     </div>
   </header>
 
   <main>
-    <section>
-      <div class="stage-card"><canvas id="stage" width="800" height="440" aria-label="Animated shop scene"></canvas></div>
+    <section class="stage">
+      <nav class="scenes" id="scenes" aria-label="Locations">
+        <button data-scene="district">District</button><button data-scene="shop">Shop</button><button data-scene="warehouse">Warehouse</button>
+        <button data-scene="bank">Bank</button><button data-scene="office">Office</button>
+        <span class="zoom"><button class="ghost mini" id="zIn" aria-label="Zoom in">+</button><button class="ghost mini" id="zOut" aria-label="Zoom out">-</button><button class="ghost mini" id="zReset">Center</button></span>
+      </nav>
+      <div class="stage-card"><canvas id="stage" aria-label="Animated business district"></canvas><div id="banner" class="banner" hidden></div></div>
       <div class="today">
         <div class="stat"><small>Customers</small><b id="tCust">0</b></div>
         <div class="stat"><small>Sales today</small><b id="tSales">$0</b></div>
         <div class="stat"><small>Missed</small><b id="tMiss">0</b></div>
+        <div class="stat"><small>Expected</small><b id="tExp">0</b></div>
       </div>
     </section>
 
-    <aside class="col">
-      <h2>Stock</h2>
-      <div class="col" id="items"></div>
-      <h2>Upgrades</h2>
-      <div class="col" id="upgrades"></div>
-
+    <aside class="side">
+      <h2>Manage</h2>
+      <div class="manage" id="manage"></div>
+      <h2>Alerts</h2>
+      <div id="alerts" class="alerts"></div>
+      <div id="tutorial" class="card"></div>
       <h2>Cloud save</h2>
-      <div class="card" id="account">
+      <div class="card" id="cloud">
         <div id="signedOut">
           <input id="email" type="email" placeholder="Email" autocomplete="email" aria-label="Email">
           <input id="password" type="password" placeholder="Password (min 6)" autocomplete="current-password" aria-label="Password">
-          <div class="row" style="margin-top:6px">
-            <button id="signin">Sign in</button>
-            <button id="signup" class="ghost">Sign up</button>
-          </div>
+          <div class="row"><button id="signin">Sign in</button><button id="signup" class="ghost">Sign up</button></div>
         </div>
-        <div id="signedIn" hidden>
-          <div id="who" style="color:var(--muted);font-size:.9rem;margin-bottom:8px"></div>
-          <div class="row">
-            <button id="saveNow">Save now</button>
-            <button id="signout" class="ghost">Sign out</button>
-          </div>
-        </div>
-        <button id="reset" class="ghost">Reset progress</button>
+        <div id="signedIn" hidden><div id="who" class="muted"></div><div class="row"><button id="saveCloud">Save now</button><button id="signout" class="ghost">Sign out</button></div></div>
       </div>
       <div id="status" role="status">Loading...</div>
+      <h2>Log</h2>
+      <div id="log" class="log"></div>
     </aside>
   </main>
 </div>
 
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<!-- management panel -->
+<div id="panel" class="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Management">
+    <div class="sheet-head"><nav id="panelTabs" class="tabs"></nav><button class="ghost" data-close aria-label="Close">Close</button></div>
+    <div id="panelBody" class="sheet-body" tabindex="-1"></div>
+  </div>
+</div>
+
+<!-- day report -->
+<dialog id="dayDlg"><form method="dialog" onsubmit="return false"><div id="dayBody"></div><div class="dlg-actions"><button id="dayNext" class="primary">Next</button></div></form></dialog>
+<!-- final report -->
+<dialog id="finalDlg"><form method="dialog" onsubmit="return false"><div id="finalBody"></div><div class="dlg-actions"><button id="finalContinue" class="ghost">Keep playing (Infinite)</button><button id="finalAgain" class="primary">New game</button></div></form></dialog>
+
+<!-- main menu -->
+<dialog id="menuDlg" class="menu">
+  <div id="menuMain">
+    <div class="hero"><div class="logo big" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2a1700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0"/></svg></div>
+      <h1>Economy</h1><p>Run a corner shop. Order stock, fill shelves, hire staff, borrow wisely and grow your business district.</p></div>
+    <div class="menu-grid">
+      <button class="primary" id="mContinue" hidden>Continue</button>
+      <button id="mStandard">New game: Standard</button>
+      <button id="mInfinite">New game: Infinite</button>
+      <button class="ghost" disabled title="Planned for the next update">Multiplayer (coming next)</button>
+      <button class="ghost" id="mSettings">Settings</button>
+      <button class="ghost" id="mHelp">How to play</button>
+      <button class="ghost" id="mImport">Load save file</button>
+      <button class="ghost" id="mClose" hidden>Back to game</button>
+    </div>
+    <p class="muted small center" id="mNote"></p>
+  </div>
+  <div id="menuSetup" hidden>
+    <h2 id="setupTitle">New game</h2>
+    <p class="muted" id="setupDesc"></p>
+    <label class="field">Difficulty<select id="sDiff"><option value="easy">Easy: more capital and demand</option><option value="normal" selected>Normal</option><option value="hard">Hard: costly and slow</option></select></label>
+    <label class="field">Starting capital ($300 to $20,000)<input id="sCap" type="number" min="300" max="20000" step="50" value="1000"></label>
+    <label class="field" id="sDaysWrap">Number of days<input id="sDays" type="number" min="5" max="120" step="1" value="30"></label>
+    <div class="dlg-actions"><button class="ghost" id="sBack">Back</button><button class="primary" id="sStart">Start</button></div>
+  </div>
+  <div id="menuHelp" hidden>
+    <h2>How to play</h2>
+    <ul class="help">
+      <li><b>Order stock</b> in Procurement. A truck drives from the supplier depot to your warehouse. Cheaper suppliers are slower. Goods are only sellable after they arrive and are unloaded.</li>
+      <li><b>Restock shelves</b> in Store. Stockers move goods from warehouse to shelf. Set an auto target to do it for you.</li>
+      <li><b>Customers</b> walk in, browse, queue and pay. Empty shelves, high prices and long queues lower satisfaction and reputation.</li>
+      <li><b>Each day closes</b> with rent, utilities, wages, marketing and interest, then a report that explains what changed.</li>
+      <li><b>Bank:</b> sales land in the till as cash. Deposit it, borrow if needed, or an overdraft will cover bills at a high interest rate.</li>
+      <li><b>Modes:</b> Standard ends after a set number of days with a score. Infinite never ends: bankruptcy gives you a recovery option instead.</li>
+      <li><b>Keys:</b> Space pause, 1 / 2 / 3 speed, Esc close windows. Click buildings and objects in the world to open their tools.</li>
+    </ul>
+    <div class="dlg-actions"><button class="primary" data-back>Back</button></div>
+  </div>
+  <div id="menuSettings" hidden>
+    <h2>Settings</h2>
+    <label class="check"><input type="checkbox" id="setMotion"> Reduce motion (freeze ambient animation)</label>
+    <label class="check"><input type="checkbox" id="setConfirm" checked> Ask before expensive actions</label>
+    <p class="muted small">Autosave runs every 20 seconds. You can also export your save as a file.</p>
+    <div class="row gap"><button class="ghost" id="setExport">Export save file</button><button class="ghost" id="setReset">Delete local save</button></div>
+    <div class="dlg-actions"><button class="primary" data-back>Back</button></div>
+  </div>
+</dialog>
+<input type="file" id="fileIn" accept="application/json,.json" hidden>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
-<script>
-// ---------- data ----------
-const ICONS = {
-  apple: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-2-2-7-1-7 5 0 4 3 8 5 8 1 0 1.5-.5 2-.5s1 .5 2 .5c2 0 5-4 5-8 0-6-5-7-7-5z"/><path d="M12 7c0-2 1-3 3-4"/></svg>',
-  bread: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12c0-4 4-7 8-7s8 3 8 7v7H4z"/><path d="M9 9l2 3M13 9l2 3"/></svg>',
-  milk:  '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l2 4v14H6V7z"/><path d="M6 7h12M9 13h6"/></svg>',
-  shelf: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h18M3 19h18M6 5v14M18 5v14"/></svg>',
-  ads:   '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v3l12 5V6z"/><path d="M15 9a4 4 0 010 6"/><path d="M6 14l1 6h3l-1-5"/></svg>',
-  prices:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M16 7.5c-1-1.5-7-2-7 1.5 0 4 7 2 7 6 0 3.5-6 3-7 1.5"/></svg>',
-};
-const ITEMS = [
-  { id:"apple", name:"Apple", buy:1, sell:3, color:"#ef4444", bg:"linear-gradient(145deg,#ff6b6b,#d63a3a)" },
-  { id:"bread", name:"Bread", buy:2, sell:5, color:"#d9a05b", bg:"linear-gradient(145deg,#e0a867,#b9783a)" },
-  { id:"milk",  name:"Milk",  buy:4, sell:9, color:"#e2e8f0", bg:"linear-gradient(145deg,#7aa2ff,#4a6fd6)" },
-];
-const UPGRADES = [
-  { id:"shelf",  name:"Bigger shelf",  desc:"+10 stock capacity", base:150, grow:1.8, bg:"linear-gradient(145deg,#8d6b4a,#5e4026)" },
-  { id:"ads",    name:"Advertising",   desc:"More customers",     base:200, grow:2.0, bg:"linear-gradient(145deg,#c084fc,#7c3aed)" },
-  { id:"prices", name:"Better prices", desc:"+10% sell price",    base:300, grow:2.2, bg:"linear-gradient(145deg,#34d399,#059669)" },
-];
-const BASE_CAP = 10, RESTOCK = 5, DAY_SECONDS = 60;
-const LOCAL_KEY = "economy-save-v2";
-const $ = id => document.getElementById(id);
-
-const fresh = () => ({
-  cash: 30, stock: { apple:5, bread:0, milk:0 }, up: { shelf:0, ads:0, prices:0 },
-  day: 1, dayClock: 0, today: { cust:0, sales:0, miss:0 }, happy: 50, lastTick: Date.now(),
-  order: null,   // { item, qty, due } while a delivery truck is on the way
-});
-const DELIVERY_FEE = 2, DELIVERY_MS = 5000;
-let state = fresh();
-let user = null, sb = null, dirty = false, saving = false;
-
-const cap = () => BASE_CAP + 10 * state.up.shelf;
-const priceMult = () => 1 + 0.1 * state.up.prices;
-const sellPrice = it => Math.round(it.sell * priceMult() * 10) / 10;
-const spawnEvery = () => 5 / (1 + 0.35 * state.up.ads);
-const upCost = u => Math.ceil(u.base * Math.pow(u.grow, state.up[u.id]));
-const fmt = n => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 1 });
-
-function setStatus(text, kind) { const el = $("status"); el.textContent = text; el.className = kind || ""; }
-
-// ---------- shop sim ----------
-const W = 800, H = 440;
-const customers = [], floats = [], coins = [];
-const COUNTER_X = 470, FLOOR_Y = 356, EXIT_X = W + 50, SPAWN_X = -50;
-let spawnTimer = 2, clock = 0;
-
-const SKIN = ["#f5d0b0", "#e0a97d", "#b87a4f", "#8a5a3a"];
-const HAIR = ["#2b1b12", "#5a3320", "#c98a3b", "#1c1c28", "#8a2f2f"];
-const SHIRT = ["#f472b6", "#38bdf8", "#facc15", "#a78bfa", "#34d399", "#fb923c"];
-const pick = a => a[Math.floor(Math.random() * a.length)];
-
-function spawnCustomer() {
-  const it = pick(ITEMS);
-  customers.push({ x: SPAWN_X, item: it, phase: "in", t: 0, said: it.name + ", please",
-                   skin: pick(SKIN), hair: pick(HAIR), shirt: pick(SHIRT), phase0: Math.random() * 6 });
-}
-
-function serve(c) {
-  state.today.cust++;
-  if (state.stock[c.item.id] > 0) {
-    state.stock[c.item.id]--;
-    const p = sellPrice(c.item);
-    state.cash += p; state.today.sales += p;
-    state.happy = Math.min(100, state.happy + 2);
-    c.said = "Thanks!";
-    floats.push({ x: COUNTER_X + 60, y: 230, text: "+" + fmt(p), life: 1.3, color: "#5eead4" });
-    for (let i = 0; i < 7; i++) coins.push({ x: COUNTER_X + 40 + Math.random() * 40, y: 250, vx: (Math.random() - .5) * 90, vy: -120 - Math.random() * 90, life: 1 });
-  } else {
-    state.today.miss++;
-    state.happy = Math.max(0, state.happy - 4);
-    c.said = "No " + c.item.name.toLowerCase() + "?!";
-    floats.push({ x: COUNTER_X + 60, y: 230, text: "Out of stock", life: 1.3, color: "#ff8a8a" });
-  }
-  dirty = true;
-}
-
-function step(dt) {
-  clock += dt;
-  state.dayClock += dt;
-  if (state.dayClock >= DAY_SECONDS) {
-    state.dayClock -= DAY_SECONDS; state.day++; state.today = { cust:0, sales:0, miss:0 }; dirty = true;
-  }
-  if (state.order && Date.now() >= state.order.due) {
-    const o = state.order, room = cap() - state.stock[o.item];
-    state.stock[o.item] += Math.max(0, Math.min(o.qty, room));
-    state.order = null; dirty = true; saveLocal();
-    setStatus(`Delivery arrived: ${o.qty} ${o.item}.`, "ok");
-  }
-  spawnTimer -= dt;
-  const open = 0.5 + state.happy / 100;
-  if (spawnTimer <= 0) { spawnCustomer(); spawnTimer = spawnEvery() / open * (0.7 + Math.random() * 0.6); }
-
-  const speed = 95;
-  for (const c of customers) {
-    if (c.phase === "in") { c.x += speed * dt; if (c.x >= COUNTER_X - 36) { c.x = COUNTER_X - 36; c.phase = "buy"; c.t = 0.8; } }
-    else if (c.phase === "buy") { c.t -= dt; if (c.t <= 0) { serve(c); c.phase = "wait"; c.t = 1.0; } }
-    else if (c.phase === "wait") { c.t -= dt; if (c.t <= 0) c.phase = "out"; }
-    else c.x += speed * dt;
-  }
-  for (let i = customers.length - 1; i >= 0; i--) if (customers[i].x > EXIT_X) customers.splice(i, 1);
-  for (let i = floats.length - 1; i >= 0; i--) { const f = floats[i]; f.life -= dt; f.y -= 28 * dt; if (f.life <= 0) floats.splice(i, 1); }
-  for (let i = coins.length - 1; i >= 0; i--) { const c = coins[i]; c.life -= dt * 1.2; c.vy += 420 * dt; c.x += c.vx * dt; c.y += c.vy * dt; if (c.life <= 0) coins.splice(i, 1); }
-}
-
-function simulateOffline(secs) {
-  secs = Math.min(secs, 8 * 3600);
-  if (secs < 10) return null;
-  const n = Math.floor(secs / (spawnEvery() * 1.2));
-  let sales = 0, count = 0;
-  for (let i = 0; i < n; i++) {
-    const it = pick(ITEMS); count++;
-    if (state.stock[it.id] > 0) { state.stock[it.id]--; const p = sellPrice(it); state.cash += p; sales += p; }
-  }
-  return { count, sales };
-}
-
-// ---------- drawing ----------
-const cv = $("stage"), ctx = cv.getContext("2d");
-const rr = (x, y, w, h, r, fill) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fillStyle = fill; ctx.fill(); };
-const lerp = (a, b, t) => a + (b - a) * t;
-const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-const mix = (c1, c2, t) => { const a = hex(c1), b = hex(c2); return `rgb(${a.map((v, i) => Math.round(lerp(v, b[i], t))).join(",")})`; };
-
-// time of day: dawn -> noon -> dusk -> night
-const SKY = [
-  { t: 0.00, top: "#f7b267", bot: "#fde2b3" }, { t: 0.25, top: "#5fb3ff", bot: "#cfeaff" },
-  { t: 0.60, top: "#f0745a", bot: "#ffc98a" }, { t: 0.80, top: "#141a4a", bot: "#3a3f86" }, { t: 1.00, top: "#f7b267", bot: "#fde2b3" },
-];
-function skyAt(t) {
-  for (let i = 0; i < SKY.length - 1; i++) {
-    if (t >= SKY[i].t && t <= SKY[i + 1].t) { const k = (t - SKY[i].t) / (SKY[i + 1].t - SKY[i].t); return { top: mix(SKY[i].top, SKY[i + 1].top, k), bot: mix(SKY[i].bot, SKY[i + 1].bot, k) }; }
-  }
-  return SKY[0];
-}
-const nightness = t => t < 0.6 ? 0 : t < 0.8 ? (t - 0.6) / 0.2 : t < 0.93 ? 1 : (1 - t) / 0.07;
-
-function drawItem(id, x, y) {
-  if (id === "apple") {
-    ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.fillStyle = "#ef4444"; ctx.fill();
-    ctx.beginPath(); ctx.arc(x - 3, y - 3, 2.5, 0, 7); ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.fill();
-    ctx.fillStyle = "#3d8f3d"; ctx.fillRect(x, y - 12, 2, 5);
-  } else if (id === "bread") {
-    ctx.beginPath(); ctx.ellipse(x, y, 12, 7, 0, 0, 7); ctx.fillStyle = "#d9a05b"; ctx.fill();
-    ctx.strokeStyle = "#a8702f"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 4, y - 5); ctx.lineTo(x - 1, y + 4); ctx.moveTo(x + 3, y - 5); ctx.lineTo(x + 6, y + 4); ctx.stroke();
-  } else {
-    rr(x - 6, y - 10, 12, 20, 2, "#f1f5f9"); rr(x - 6, y - 10, 12, 7, 2, "#4a6fd6");
-  }
-}
-
-function drawScene() {
-  const t = state.dayClock / DAY_SECONDS, night = nightness(t), sky = skyAt(t);
-
-  // back wall
-  const wall = ctx.createLinearGradient(0, 0, 0, FLOOR_Y);
-  wall.addColorStop(0, "#3b3f78"); wall.addColorStop(1, "#2a2d5c");
-  ctx.fillStyle = wall; ctx.fillRect(0, 0, W, FLOOR_Y);
-  ctx.fillStyle = "rgba(255,255,255,.035)";
-  for (let y = 70; y < FLOOR_Y; y += 28) for (let x = (y / 28 % 2) * 30; x < W; x += 60) ctx.fillRect(x, y, 56, 24);
-
-  // window with sky
-  rr(40, 70, 150, 170, 10, "#1a1d3f");
-  const sg = ctx.createLinearGradient(0, 80, 0, 230); sg.addColorStop(0, sky.top); sg.addColorStop(1, sky.bot);
-  ctx.save(); ctx.beginPath(); ctx.roundRect(48, 78, 134, 154, 6); ctx.clip();
-  ctx.fillStyle = sg; ctx.fillRect(48, 78, 134, 154);
-  if (night > 0.3) { ctx.fillStyle = `rgba(255,255,255,${night})`; [[70,100],[120,95],[150,130],[90,150],[165,105]].forEach(([sx, sy]) => ctx.fillRect(sx, sy, 2, 2)); }
-  const sx = lerp(60, 170, t), sy = 190 - Math.sin(Math.min(t / 0.8, 1) * Math.PI) * 90;
-  ctx.beginPath(); ctx.arc(sx, sy, 12, 0, 7); ctx.fillStyle = night > 0.5 ? "#f1f5ff" : "#fff3b0"; ctx.fill();
-  ctx.fillStyle = "#1c2150"; ctx.fillRect(48, 205, 134, 30); ctx.fillRect(60, 195, 20, 12); ctx.fillRect(100, 188, 26, 19); ctx.fillRect(140, 198, 24, 9);
-  ctx.restore();
-  ctx.fillStyle = "#1a1d3f"; ctx.fillRect(113, 78, 4, 154); ctx.fillRect(48, 152, 134, 4);
-
-  // shelves
-  ITEMS.forEach((it, i) => {
-    const x = 250 + i * 170, y = 82;
-    rr(x, y + 78, 150, 10, 4, "#8d5a2b");              // plank
-    rr(x + 6, y + 88, 6, 10, 2, "#6b4220"); rr(x + 138, y + 88, 6, 10, 2, "#6b4220");
-    rr(x, y - 6, 150, 16, 8, "rgba(0,0,0,.35)");
-    ctx.fillStyle = "#f6efe3"; ctx.font = "700 12px 'DM Sans', sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(`${it.name}  ${state.stock[it.id]}/${cap()}`, x + 75, y + 6);
-    const shown = Math.min(state.stock[it.id], 14);
-    for (let k = 0; k < shown; k++) drawItem(it.id, x + 18 + (k % 7) * 19, y + 66 - Math.floor(k / 7) * 26);
-  });
-
-  // floor
-  const fl = ctx.createLinearGradient(0, FLOOR_Y, 0, H); fl.addColorStop(0, "#6a4a30"); fl.addColorStop(1, "#46301f");
-  ctx.fillStyle = fl; ctx.fillRect(0, FLOOR_Y, W, H - FLOOR_Y);
-  ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 70) { ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x - 30, H); ctx.stroke(); }
-  rr(0, FLOOR_Y - 6, W, 8, 0, "#2a1a10");
-
-  // awning
-  for (let i = 0; i < 10; i++) rr(i * 80, 0, 80, 40, [0, 0, 18, 18], i % 2 ? "#f6efe3" : "#ff6b6b");
-  ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.fillRect(0, 40, W, 6);
-
-  // hanging lamp
-  ctx.strokeStyle = "#111"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(620, 46); ctx.lineTo(620, 100); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(604, 118); ctx.lineTo(636, 118); ctx.lineTo(628, 100); ctx.lineTo(612, 100); ctx.closePath(); ctx.fillStyle = "#ffb84d"; ctx.fill();
-  const glow = ctx.createRadialGradient(620, 122, 4, 620, 150, 200);
-  glow.addColorStop(0, `rgba(255,200,110,${0.25 + night * 0.45})`); glow.addColorStop(1, "rgba(255,200,110,0)");
-  ctx.fillStyle = glow; ctx.fillRect(380, 90, 440, 330);
-
-  // counter + register
-  // shopkeeper stands BEHIND the counter: draw first, counter covers the lower body
-  drawTop(COUNTER_X + 128, 276, { skin: SKIN[1], hair: "#1c1c28", shirt: "#ffb84d" }, 0, true);
-  rr(COUNTER_X, 236, 190, 120, 12, "#9a6431");
-  rr(COUNTER_X, 236, 190, 14, [12, 12, 0, 0], "#c68a4c");
-  rr(COUNTER_X + 14, 262, 162, 80, 8, "rgba(0,0,0,.2)");
-  rr(COUNTER_X + 20, 206, 54, 30, 6, "#2a2d5c"); rr(COUNTER_X + 26, 211, 42, 12, 3, "#5eead4");
-  ctx.fillStyle = "#fbe7b5"; ctx.font = "700 13px 'DM Sans', sans-serif"; ctx.textAlign = "center"; ctx.fillText("COUNTER", COUNTER_X + 95, 308);
-
-  // customers
-  for (const c of customers) {
-    const walking = c.phase === "in" || c.phase === "out";
-    person(c.x, FLOOR_Y, c, walking ? clock * 9 + c.phase0 : 0, false);
-    if (c.phase === "in" || c.phase === "buy" || c.phase === "wait") bubble(c.x, FLOOR_Y - 98, c.said, c.item.id);
-  }
-
-  drawTruck();
-
-  // particles
-  for (const f of floats) { ctx.globalAlpha = Math.max(0, Math.min(1, f.life)); ctx.fillStyle = f.color; ctx.font = "800 20px Fraunces, serif"; ctx.textAlign = "center"; ctx.fillText(f.text, f.x, f.y); }
-  ctx.globalAlpha = 1;
-  for (const c of coins) { ctx.globalAlpha = Math.max(0, c.life); ctx.beginPath(); ctx.arc(c.x, c.y, 5, 0, 7); ctx.fillStyle = "#ffd36b"; ctx.fill(); ctx.strokeStyle = "#c98a1b"; ctx.lineWidth = 1.5; ctx.stroke(); }
-  ctx.globalAlpha = 1;
-
-  // night tint + day bar
-  if (night > 0) { ctx.fillStyle = `rgba(8,10,40,${0.42 * night})`; ctx.fillRect(0, 0, W, H); }
-  ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(0, H - 5, W, 5);
-  ctx.fillStyle = "#ffb84d"; ctx.fillRect(0, H - 5, W * t, 5);
-}
-
-// Delivery truck: drives in (30%), unloads (40%), drives off (30%) over DELIVERY_MS.
-function drawTruck() {
-  const o = state.order;
-  if (!o) return;
-  const p = Math.max(0, Math.min(1, 1 - (o.due - Date.now()) / DELIVERY_MS));
-  const stopX = 560, ease = k => 1 - Math.pow(1 - k, 3);
-  let x, moving = true;
-  if (p < 0.3) x = lerp(W + 230, stopX, ease(p / 0.3));
-  else if (p < 0.7) { x = stopX; moving = false; }
-  else x = lerp(stopX, -260, Math.pow((p - 0.7) / 0.3, 2));
-  const y = H - 14;                       // wheel baseline
-  const bounce = moving ? Math.sin(clock * 30) * 1 : 0;
-  ctx.save(); ctx.translate(x, y + bounce);
-  ctx.beginPath(); ctx.ellipse(70, 2, 110, 7, 0, 0, 7); ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fill();
-  rr(40, -78, 160, 66, 8, "#f6efe3");                    // cargo box
-  rr(40, -50, 160, 10, 0, "#ff6b6b");                    // stripe
-  ctx.fillStyle = "#2a1700"; ctx.font = "800 14px 'DM Sans', sans-serif"; ctx.textAlign = "center";
-  ctx.fillText("DELIVERY", 120, -58);
-  rr(-30, -58, 72, 46, [18, 6, 4, 4], "#ffb84d");        // cab
-  rr(-20, -52, 34, 22, 6, "#bfe6ff");                    // window
-  rr(-34, -24, 238, 12, 3, "#2b2f5e");                   // chassis
-  [[10], [150]].forEach(([wx]) => {
-    ctx.beginPath(); ctx.arc(wx, -8, 14, 0, 7); ctx.fillStyle = "#14162e"; ctx.fill();
-    ctx.save(); ctx.translate(wx, -8); ctx.rotate(clock * (moving ? 12 : 0));
-    ctx.fillStyle = "#c9ced9"; ctx.fillRect(-2, -9, 4, 18); ctx.fillRect(-9, -2, 18, 4); ctx.restore();
-  });
-  if (!moving) {                                         // crates hopping out while unloading
-    const k = (p - 0.3) / 0.4, item = ITEMS.find(i => i.id === o.item);
-    for (let n = 0; n < 3; n++) {
-      const kk = Math.max(0, Math.min(1, k * 3 - n));
-      if (kk <= 0 || kk >= 1) continue;
-      rr(34 - kk * 150, -30 - Math.sin(kk * Math.PI) * 50, 20, 20, 3, item.color);
-    }
-  }
-  ctx.restore();
-  // order tag
-  if (!moving) {
-    const label = `${o.qty} ${o.item} arriving`;
-    ctx.font = "700 12px 'DM Sans', sans-serif";
-    const w = ctx.measureText(label).width + 20;
-    rr(stopX + 70 - w / 2, H - 126, w, 24, 12, "#fffaf0");
-    ctx.fillStyle = "#1a1a2e"; ctx.textAlign = "center"; ctx.fillText(label, stopX + 70, H - 110);
-  }
-}
-
-function person(x, floorY, look, walkT, keeper) {
-  const bob = Math.abs(Math.sin(walkT)) * 3;
-  ctx.beginPath(); ctx.ellipse(x, floorY + 2, 18, 5, 0, 0, 7); ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.fill();
-  const sw = Math.sin(walkT) * 6;
-  rr(x - 9, floorY - 24 + (sw > 0 ? 0 : 0), 8, 24 + Math.max(0, -sw) * .3, 3, "#25284f");
-  rr(x + 1, floorY - 24, 8, 24 + Math.max(0, sw) * .3, 3, "#25284f");
-  if (keeper) return drawTop(x, floorY - 4, look, 0, true);
-  drawTop(x, floorY - bob, look, sw, false);
-}
-function drawTop(x, y, look, sw, keeper) {
-  rr(x - 15, y - 70, 30, 48, [14, 14, 8, 8], look.shirt);
-  if (keeper) rr(x - 11, y - 52, 22, 30, 6, "#f6efe3");
-  ctx.fillStyle = look.skin; ctx.beginPath(); ctx.arc(x, y - 84, 13, 0, 7); ctx.fill();
-  ctx.fillStyle = look.hair; ctx.beginPath(); ctx.arc(x, y - 88, 13, Math.PI, 0); ctx.fill();
-  ctx.fillStyle = "#1a1a1a"; ctx.fillRect(x + 3, y - 85, 2, 3); ctx.fillRect(x - 5, y - 85, 2, 3);
-  rr(x - 18 + sw * .4, y - 66, 7, 26, 4, look.skin); rr(x + 11 - sw * .4, y - 66, 7, 26, 4, look.skin);
-}
-
-function bubble(x, y, text, itemId) {
-  ctx.font = "700 12px 'DM Sans', sans-serif";
-  const w = ctx.measureText(text).width + 40;
-  rr(x - w / 2, y - 26, w, 28, 14, "#fffaf0");
-  ctx.beginPath(); ctx.moveTo(x - 6, y + 1); ctx.lineTo(x, y + 9); ctx.lineTo(x + 6, y + 1); ctx.fillStyle = "#fffaf0"; ctx.fill();
-  drawItem(itemId, x - w / 2 + 16, y - 12);
-  ctx.fillStyle = "#1a1a2e"; ctx.textAlign = "left"; ctx.fillText(text, x - w / 2 + 30, y - 8);
-}
-
-// ---------- UI ----------
-function buildUI() {
-  ITEMS.forEach(it => {
-    const d = document.createElement("div");
-    d.className = "card";
-    d.innerHTML = `<div class="item-head">
-        <div class="ico" style="background:${it.bg}">${ICONS[it.id]}</div>
-        <div class="t"><b>${it.name}</b><small id="p-${it.id}"></small></div>
-      </div>
-      <div class="bar"><i id="b-${it.id}"></i></div>
-      <button id="r-${it.id}"></button>`;
-    $("items").appendChild(d);
-    $("r-" + it.id).onclick = () => {
-      if (state.order) return;
-      const qty = Math.min(RESTOCK, cap() - state.stock[it.id]);
-      const cost = qty * it.buy + DELIVERY_FEE;
-      if (qty <= 0 || state.cash < cost) return;
-      state.cash -= cost;
-      state.order = { item: it.id, qty, due: Date.now() + DELIVERY_MS };
-      dirty = true; saveLocal(); render();
-      setStatus(`Truck dispatched: ${qty} ${it.name} in 5 seconds.`);
-    };
-  });
-  UPGRADES.forEach(u => {
-    const d = document.createElement("div");
-    d.className = "card";
-    d.innerHTML = `<div class="upg">
-        <div class="ico" style="background:${u.bg}">${ICONS[u.id]}</div>
-        <div class="t"><b>${u.name}<span class="lv" id="ul-${u.id}"></span></b><small>${u.desc}</small></div>
-        <button class="ghost" id="u-${u.id}"></button>
-      </div>`;
-    $("upgrades").appendChild(d);
-    $("u-" + u.id).onclick = () => {
-      const c = upCost(u);
-      if (state.cash < c) return;
-      state.cash -= c; state.up[u.id]++; dirty = true; saveLocal(); render();
-    };
-  });
-}
-
-function render() {
-  $("cash").textContent = fmt(state.cash);
-  $("day").textContent = state.day;
-  $("rep").textContent = Math.round(state.happy) + "%";
-  $("repbar").style.width = state.happy + "%";
-  $("tCust").textContent = state.today.cust;
-  $("tSales").textContent = fmt(state.today.sales);
-  $("tMiss").textContent = state.today.miss;
-  ITEMS.forEach(it => {
-    $("p-" + it.id).textContent = `Buy ${fmt(it.buy)} · Sell ${fmt(sellPrice(it))} · ${state.stock[it.id]}/${cap()}`;
-    $("b-" + it.id).style.width = (100 * state.stock[it.id] / cap()) + "%";
-    const qty = Math.min(RESTOCK, cap() - state.stock[it.id]);
-    const b = $("r-" + it.id);
-    b.textContent = state.order ? "Truck on the way..." : qty <= 0 ? "Shelf full"
-      : `Order x${qty} · ${fmt(qty * it.buy)} + ${fmt(DELIVERY_FEE)} delivery`;
-    b.disabled = !!state.order || qty <= 0 || state.cash < qty * it.buy + DELIVERY_FEE;
-  });
-  UPGRADES.forEach(u => {
-    $("ul-" + u.id).textContent = "Lv " + state.up[u.id];
-    const b = $("u-" + u.id);
-    b.textContent = fmt(upCost(u));
-    b.disabled = state.cash < upCost(u);
-  });
-}
-
-// ---------- saving ----------
-function saveLocal() { try { state.lastTick = Date.now(); localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch {} }
-function loadLocal() { try { const s = JSON.parse(localStorage.getItem(LOCAL_KEY)); if (s && s.stock) return Object.assign(fresh(), s); } catch {} return null; }
-
-async function saveCloud(manual) {
-  if (!sb) { setStatus("Cloud save off: add the key in config.js.", "err"); return false; }
-  if (!user) { setStatus("Not signed in. Sign in first.", "err"); return false; }
-  if (saving) return false;
-  saving = true;
-  if (manual) setStatus("Saving...");
-  try {
-    state.lastTick = Date.now();
-    const { error } = await sb.from("game_saves").upsert(
-      { user_id: user.id, data: state, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-    if (error) { setStatus("Save failed: " + error.message, "err"); return false; }
-    dirty = false;
-    setStatus("Saved to cloud at " + new Date().toLocaleTimeString(), "ok");
-    return true;
-  } catch (e) {
-    setStatus("Save failed: " + (e && e.message ? e.message : e), "err"); return false;
-  } finally { saving = false; }
-}
-
-function applyLoaded(data) {
-  state = Object.assign(fresh(), data);
-  const away = simulateOffline((Date.now() - state.lastTick) / 1000);
-  state.lastTick = Date.now(); customers.length = 0; saveLocal();
-  return away;
-}
-
-async function loadCloud() {
-  if (!sb || !user) return;
-  const { data, error } = await sb.from("game_saves").select("data").eq("user_id", user.id).maybeSingle();
-  if (error) { setStatus("Load failed: " + error.message, "err"); return; }
-  if (data && data.data) {
-    const away = applyLoaded(data.data);
-    setStatus(away ? `Loaded. While away: ${away.count} customers, ${fmt(away.sales)} earned.` : "Loaded cloud save.", "ok");
-  } else { await saveCloud(true); }
-  render();
-}
-
-function showAuth() {
-  $("signedOut").hidden = !!user; $("signedIn").hidden = !user;
-  $("who").textContent = user ? "Signed in as " + user.email : "";
-}
-
-async function auth(kind) {
-  if (!sb) return setStatus("Add the key in config.js first.", "err");
-  const email = $("email").value.trim(), password = $("password").value;
-  if (!email || password.length < 6) return setStatus("Enter email and a password of 6+ characters.", "err");
-  setStatus(kind === "up" ? "Signing up..." : "Signing in...");
-  const res = kind === "up" ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
-  if (res.error) return setStatus(res.error.message, "err");
-  if (!res.data.session) return setStatus("Check your email to confirm, then sign in.", "ok");
-  user = res.data.user; showAuth(); await loadCloud();
-}
-
-// ---------- boot ----------
-async function init() {
-  buildUI();
-  const local = loadLocal();
-  if (local) {
-    state = local;
-    const away = simulateOffline((Date.now() - state.lastTick) / 1000);
-    if (away) setStatus(`While away: ${away.count} customers, ${fmt(away.sales)} earned.`, "ok");
-  }
-  state.lastTick = Date.now();
-
-  $("signin").onclick = () => auth("in");
-  $("signup").onclick = () => auth("up");
-  $("saveNow").onclick = () => saveCloud(true);
-  $("signout").onclick = async () => { await saveCloud(false); await sb.auth.signOut(); user = null; showAuth(); setStatus("Signed out."); };
-  $("reset").onclick = async () => {
-    if (!confirm("Erase all progress?")) return;
-    state = fresh(); customers.length = 0; saveLocal(); render();
-    if (user) await saveCloud(true);
-  };
-
-  const ok = window.SUPABASE_ANON_KEY && !window.SUPABASE_ANON_KEY.startsWith("PASTE_");
-  if (ok && window.supabase) sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-  if (sb) {
-    const { data } = await sb.auth.getSession();
-    user = data.session ? data.session.user : null;
-    showAuth();
-    if (user) await loadCloud(); else if (!local) setStatus("Playing offline. Sign in to save to cloud.");
-  } else {
-    showAuth();
-    setStatus(window.supabase ? "Local save only. Add the key in config.js." : "Supabase library failed to load. Check your connection.", "err");
-  }
-  render();
-
-  let last = performance.now();
-  (function loop(now) {
-    const dt = Math.min((now - last) / 1000, 0.25); last = now;
-    step(dt); drawScene();
-    requestAnimationFrame(loop);
-  })(last);
-  setInterval(render, 250);
-  setInterval(() => { saveLocal(); if (dirty && user) saveCloud(false); }, 30000);
-  window.addEventListener("beforeunload", saveLocal);
-}
-init();
-</script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
