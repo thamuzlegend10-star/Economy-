@@ -5,147 +5,359 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Economy</title>
 <style>
-  :root { --bg:#0f172a; --card:#1e293b; --fg:#e2e8f0; --muted:#94a3b8; --accent:#22c55e; }
+  :root { --bg:#14213d; --bar:#0b1426; --card:#1d2f55; --card2:#263b69; --fg:#f1f5f9; --muted:#cbd5e1; --accent:#fbbf24; }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); color:var(--fg); padding:16px; }
-  main { max-width:560px; margin:0 auto; }
-  h1 { margin:0 0 4px; }
-  .card { background:var(--card); border-radius:12px; padding:16px; margin:12px 0; }
-  .money { font-size:2rem; font-weight:700; color:var(--accent); }
-  button { background:var(--accent); color:#052e16; border:0; border-radius:8px; padding:10px 14px; font-weight:600; cursor:pointer; }
+  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; flex-wrap:wrap; gap:8px 24px; align-items:center; justify-content:space-between; padding:14px 20px; background:var(--bar); }
+  header h1 { margin:0; font-size:1.3rem; color:var(--accent); }
+  .stats { display:flex; gap:20px; align-items:center; flex-wrap:wrap; color:var(--muted); font-size:.9rem; }
+  #cash { font-size:1.6rem; font-weight:800; color:var(--accent); }
+  main { display:flex; flex-wrap:wrap; gap:16px; padding:16px 20px; max-width:1100px; margin:0 auto; }
+  .left { flex:1 1 560px; min-width:0; }
+  .right { flex:1 1 280px; display:flex; flex-direction:column; gap:12px; }
+  canvas { width:100%; height:auto; border-radius:14px; background:var(--card); display:block; }
+  .today { display:flex; gap:10px; margin-top:12px; }
+  .today div { flex:1; background:var(--card); border-radius:12px; padding:10px 14px; }
+  .today small { display:block; color:var(--muted); font-size:.75rem; }
+  .today b { font-size:1.2rem; }
+  h2 { margin:6px 0 0; font-size:.8rem; letter-spacing:.06em; color:var(--muted); }
+  .item { background:var(--card); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .item .top { display:flex; justify-content:space-between; font-weight:600; gap:8px; }
+  .item .top small { color:var(--muted); font-weight:400; }
+  button { background:var(--accent); color:#1c1300; border:0; border-radius:8px; padding:11px 14px; font-weight:700; cursor:pointer; min-height:44px; }
   button:disabled { opacity:.4; cursor:not-allowed; }
-  button.ghost { background:transparent; color:var(--fg); border:1px solid var(--muted); }
-  input { padding:9px; border-radius:8px; border:1px solid var(--muted); background:var(--bg); color:var(--fg); width:100%; margin:4px 0; }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-top:1px solid #334155; }
-  .row:first-of-type { border-top:0; }
-  small, .muted { color:var(--muted); }
-  #status { min-height:1.2em; }
+  button.ghost { background:var(--card2); color:var(--fg); }
+  .upg { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  input { padding:10px; border-radius:8px; border:1px solid #64748b; background:var(--bg); color:var(--fg); width:100%; margin:4px 0; font-size:1rem; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  #status { padding:10px; border-radius:8px; border:1px solid #64748b; font-size:.85rem; color:var(--muted); min-height:42px; }
+  #status.err { border-color:#f87171; color:#fecaca; }
+  #status.ok { border-color:#34d399; color:#a7f3d0; }
 </style>
 </head>
 <body>
-<main>
+<header>
   <h1>Economy</h1>
-  <div class="muted" id="status">Loading...</div>
-
-  <div class="card">
-    <div class="muted">Cash</div>
-    <div class="money" id="cash">$0</div>
-    <div class="muted" id="income">$0 / sec</div>
-    <p><button id="work">Work (+$1)</button></p>
+  <div class="stats">
+    <span id="day">Day 1</span>
+    <span id="rep">Happy 0%</span>
+    <span id="cash">$0</span>
   </div>
+</header>
 
-  <div class="card" id="shop"><strong>Businesses</strong></div>
+<main>
+  <section class="left">
+    <canvas id="stage" width="640" height="360" aria-label="Shop scene"></canvas>
+    <div class="today">
+      <div><small>Customers today</small><b id="tCust">0</b></div>
+      <div><small>Sales today</small><b id="tSales">$0</b></div>
+      <div><small>Missed (no stock)</small><b id="tMiss">0</b></div>
+    </div>
+  </section>
 
-  <div class="card" id="account">
-    <strong>Cloud save</strong>
-    <div id="signedOut">
-      <input id="email" type="email" placeholder="Email" autocomplete="email">
-      <input id="password" type="password" placeholder="Password (min 6)" autocomplete="current-password">
-      <button id="signin">Sign in</button>
-      <button id="signup" class="ghost">Sign up</button>
+  <aside class="right">
+    <h2>STOCK</h2>
+    <div id="items"></div>
+    <h2>UPGRADES</h2>
+    <div id="upgrades"></div>
+
+    <h2>CLOUD SAVE</h2>
+    <div class="item" id="account">
+      <div id="signedOut">
+        <input id="email" type="email" placeholder="Email" autocomplete="email">
+        <input id="password" type="password" placeholder="Password (min 6)" autocomplete="current-password">
+        <div class="row">
+          <button id="signin">Sign in</button>
+          <button id="signup" class="ghost">Sign up</button>
+        </div>
+      </div>
+      <div id="signedIn" hidden>
+        <div id="who" style="color:var(--muted)"></div>
+        <div class="row">
+          <button id="saveNow">Save now</button>
+          <button id="signout" class="ghost">Sign out</button>
+        </div>
+      </div>
+      <button id="reset" class="ghost">Reset progress</button>
     </div>
-    <div id="signedIn" hidden>
-      <div class="muted" id="who"></div>
-      <button id="saveNow">Save now</button>
-      <button id="signout" class="ghost">Sign out</button>
-    </div>
-    <p><button id="reset" class="ghost">Reset progress</button></p>
-  </div>
+    <div id="status" role="status">Loading...</div>
+  </aside>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script>
-const BUSINESSES = [
-  { id:"lemonade", name:"Lemonade Stand", cost:15,    income:0.2 },
-  { id:"shop",     name:"Corner Shop",    cost:120,   income:1.5 },
-  { id:"factory",  name:"Factory",        cost:1100,  income:12  },
-  { id:"bank",     name:"Bank",           cost:13000, income:90  },
+// ---------- data ----------
+const ITEMS = [
+  { id:"apple", name:"Apple", buy:1, sell:3, color:"#ef4444" },
+  { id:"bread", name:"Bread", buy:2, sell:5, color:"#d9a05b" },
+  { id:"milk",  name:"Milk",  buy:4, sell:9, color:"#e2e8f0" },
 ];
-const GROWTH = 1.15;
-const LOCAL_KEY = "economy-save-v1";
+const UPGRADES = [
+  { id:"shelf",  name:"Bigger shelf",  desc:"+10 stock capacity", base:150, grow:1.8 },
+  { id:"ads",    name:"Advertising",   desc:"More customers",     base:200, grow:2.0 },
+  { id:"prices", name:"Better prices", desc:"+10% sell price",    base:300, grow:2.2 },
+];
+const BASE_CAP = 10, RESTOCK = 5;
+const DAY_SECONDS = 60;       // one shop day
+const LOCAL_KEY = "economy-save-v2";
 const $ = id => document.getElementById(id);
 
-const fresh = () => ({ cash:0, owned:{}, lastTick:Date.now() });
+const fresh = () => ({
+  cash: 30, stock: { apple:5, bread:0, milk:0 }, up: { shelf:0, ads:0, prices:0 },
+  day: 1, dayClock: 0, today: { cust:0, sales:0, miss:0 }, happy: 50, lastTick: Date.now(),
+});
 let state = fresh();
-let user = null;
-let sb = null;
-let dirty = false;
+let user = null, sb = null, dirty = false, saving = false;
 
-const configured = window.SUPABASE_ANON_KEY && !window.SUPABASE_ANON_KEY.startsWith("PASTE_");
-if (configured) sb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+// ---------- derived ----------
+const cap = () => BASE_CAP + 10 * state.up.shelf;
+const priceMult = () => 1 + 0.1 * state.up.prices;
+const sellPrice = it => Math.round(it.sell * priceMult() * 10) / 10;
+const spawnEvery = () => 5 / (1 + 0.35 * state.up.ads);   // seconds between customers
+const upCost = u => Math.ceil(u.base * Math.pow(u.grow, state.up[u.id]));
+const fmt = n => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
-const owned = id => state.owned[id] || 0;
-const price = b => Math.ceil(b.cost * Math.pow(GROWTH, owned(b.id)));
-const perSec = () => BUSINESSES.reduce((s,b) => s + b.income * owned(b.id), 0);
-const fmt = n => "$" + (n >= 1e6 ? n.toExponential(2) : n.toLocaleString(undefined,{maximumFractionDigits:1}));
-const setStatus = t => $("status").textContent = t;
-
-function render() {
-  $("cash").textContent = fmt(state.cash);
-  $("income").textContent = fmt(perSec()) + " / sec";
-  BUSINESSES.forEach(b => {
-    const btn = $("buy-" + b.id);
-    btn.disabled = state.cash < price(b);
-    btn.textContent = "Buy " + fmt(price(b));
-    $("own-" + b.id).textContent = "Owned: " + owned(b.id);
-  });
+// ---------- status ----------
+function setStatus(text, kind) {
+  const el = $("status");
+  el.textContent = text;
+  el.className = kind || "";
 }
 
-function buildShop() {
-  BUSINESSES.forEach(b => {
-    const row = document.createElement("div");
-    row.className = "row";
-    row.innerHTML = `<div>${b.name}<br><small>+${b.income}/sec · <span id="own-${b.id}"></span></small></div>
-                     <button id="buy-${b.id}"></button>`;
-    $("shop").appendChild(row);
-    row.querySelector("button").onclick = () => {
-      const p = price(b);
-      if (state.cash < p) return;
-      state.cash -= p;
-      state.owned[b.id] = owned(b.id) + 1;
-      dirty = true; saveLocal(); render();
+// ---------- shop sim ----------
+const customers = [];   // { x, y, item, phase, t, color, said }
+const floats = [];      // { x, y, text, life, color }
+const COUNTER_X = 360, EXIT_X = 700, SPAWN_X = -30, FLOOR_Y = 290;
+let spawnTimer = 2;
+
+function spawnCustomer() {
+  const it = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+  const colors = ["#f472b6", "#38bdf8", "#facc15", "#a78bfa", "#34d399"];
+  customers.push({ x: SPAWN_X, y: FLOOR_Y, item: it, phase: "in", t: 0,
+                   color: colors[Math.floor(Math.random() * colors.length)], said: it.name + ", please" });
+}
+
+function serve(c) {
+  state.today.cust++;
+  if (state.stock[c.item.id] > 0) {
+    state.stock[c.item.id]--;
+    const p = sellPrice(c.item);
+    state.cash += p;
+    state.today.sales += p;
+    state.happy = Math.min(100, state.happy + 2);
+    c.said = "Thanks!";
+    floats.push({ x: COUNTER_X, y: 200, text: "+" + fmt(p), life: 1.2, color: "#34d399" });
+  } else {
+    state.today.miss++;
+    state.happy = Math.max(0, state.happy - 4);
+    c.said = "No " + c.item.name.toLowerCase() + "?!";
+    floats.push({ x: COUNTER_X, y: 200, text: "Out of stock", life: 1.2, color: "#f87171" });
+  }
+  dirty = true;
+}
+
+function step(dt) {
+  state.dayClock += dt;
+  if (state.dayClock >= DAY_SECONDS) {
+    state.dayClock -= DAY_SECONDS;
+    state.day++;
+    state.today = { cust: 0, sales: 0, miss: 0 };
+    dirty = true;
+  }
+  spawnTimer -= dt;
+  const open = 0.5 + state.happy / 100;           // happy shop draws more people
+  if (spawnTimer <= 0) { spawnCustomer(); spawnTimer = spawnEvery() / open * (0.7 + Math.random() * 0.6); }
+
+  const speed = 90;
+  for (const c of customers) {
+    if (c.phase === "in") {
+      c.x += speed * dt;
+      if (c.x >= COUNTER_X - 30) { c.x = COUNTER_X - 30; c.phase = "buy"; c.t = 0.7; }
+    } else if (c.phase === "buy") {
+      c.t -= dt;
+      if (c.t <= 0) { serve(c); c.phase = "wait"; c.t = 0.9; }
+    } else if (c.phase === "wait") {
+      c.t -= dt;
+      if (c.t <= 0) c.phase = "out";
+    } else {
+      c.x += speed * dt;
+    }
+  }
+  for (let i = customers.length - 1; i >= 0; i--) if (customers[i].x > EXIT_X) customers.splice(i, 1);
+  for (let i = floats.length - 1; i >= 0; i--) { floats[i].life -= dt; floats[i].y -= 25 * dt; if (floats[i].life <= 0) floats.splice(i, 1); }
+}
+
+// Offline: customers keep coming, capped at 8 hours.
+function simulateOffline(secs) {
+  secs = Math.min(secs, 8 * 3600);
+  if (secs < 10) return null;
+  const n = Math.floor(secs / (spawnEvery() * 1.2));
+  let sales = 0, count = 0;
+  for (let i = 0; i < n; i++) {
+    const it = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+    count++;
+    if (state.stock[it.id] > 0) { state.stock[it.id]--; const p = sellPrice(it); state.cash += p; sales += p; }
+  }
+  return { count, sales };
+}
+
+// ---------- drawing ----------
+const cv = $("stage"), ctx = cv.getContext("2d");
+
+function roundRect(x, y, w, h, r, fill) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fillStyle = fill; ctx.fill();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, 640, 360);
+  roundRect(0, 0, 640, 360, 0, "#1d2f55");
+  roundRect(0, FLOOR_Y + 30, 640, 40, 0, "#263b69");
+
+  // shelves with stock
+  ITEMS.forEach((it, i) => {
+    const x = 170 + i * 150, y = 40;
+    roundRect(x, y, 130, 70, 8, "#3b5a9a");
+    ctx.fillStyle = "#f1f5f9"; ctx.font = "bold 13px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(it.name + " x" + state.stock[it.id], x + 65, y + 18);
+    const shown = Math.min(state.stock[it.id], 12);
+    for (let k = 0; k < shown; k++) {
+      ctx.beginPath(); ctx.arc(x + 14 + (k % 6) * 20, y + 38 + Math.floor(k / 6) * 20, 7, 0, 7);
+      ctx.fillStyle = it.color; ctx.fill();
+    }
+  });
+
+  // counter + shopkeeper
+  roundRect(COUNTER_X, 190, 160, 90, 10, "#8d5a2b");
+  ctx.fillStyle = "#fde68a"; ctx.font = "bold 14px system-ui"; ctx.textAlign = "center";
+  ctx.fillText("Counter", COUNTER_X + 80, 240);
+  person(COUNTER_X + 105, 175, "#fbbf24", true);
+
+  for (const c of customers) {
+    person(c.x, c.y - 40, c.color, false);
+    if (c.phase === "in" || c.phase === "buy" || c.phase === "wait") bubble(c.x, c.y - 60, c.said);
+  }
+  for (const f of floats) {
+    ctx.globalAlpha = Math.max(0, Math.min(1, f.life));
+    ctx.fillStyle = f.color; ctx.font = "bold 18px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(f.text, f.x + 40, f.y);
+    ctx.globalAlpha = 1;
+  }
+  // day progress bar
+  roundRect(0, 354, 640, 6, 0, "#0b1426");
+  roundRect(0, 354, 640 * (state.dayClock / DAY_SECONDS), 6, 0, "#fbbf24");
+}
+
+function person(x, y, color, keeper) {
+  ctx.beginPath(); ctx.arc(x, y - 18, 12, 0, 7); ctx.fillStyle = "#fcd9b6"; ctx.fill();
+  roundRect(x - 14, y - 4, 28, 46, [14, 14, 6, 6], color);
+  if (keeper) { roundRect(x - 14, y - 32, 28, 8, 4, "#0b1426"); }
+}
+
+function bubble(x, y, text) {
+  ctx.font = "600 12px system-ui";
+  const w = ctx.measureText(text).width + 16;
+  roundRect(x - w / 2, y - 22, w, 22, 10, "#f8fafc");
+  ctx.fillStyle = "#0f172a"; ctx.textAlign = "center"; ctx.fillText(text, x, y - 7);
+}
+
+// ---------- UI ----------
+function buildUI() {
+  const box = $("items");
+  ITEMS.forEach(it => {
+    const d = document.createElement("div");
+    d.className = "item";
+    d.innerHTML = `<div class="top"><span>${it.name}</span><small id="p-${it.id}"></small></div>
+                   <button id="r-${it.id}"></button>`;
+    box.appendChild(d);
+    $("r-" + it.id).onclick = () => {
+      const space = cap() - state.stock[it.id];
+      const qty = Math.min(RESTOCK, space);
+      const cost = qty * it.buy;
+      if (qty <= 0 || state.cash < cost) return;
+      state.cash -= cost; state.stock[it.id] += qty; dirty = true; saveLocal(); render();
+    };
+  });
+  const ub = $("upgrades");
+  UPGRADES.forEach(u => {
+    const d = document.createElement("div");
+    d.className = "item";
+    d.innerHTML = `<div class="upg"><div><b>${u.name}</b><br><small style="color:var(--muted)">${u.desc} · <span id="ul-${u.id}"></span></small></div>
+                   <button class="ghost" id="u-${u.id}"></button></div>`;
+    ub.appendChild(d);
+    $("u-" + u.id).onclick = () => {
+      const c = upCost(u);
+      if (state.cash < c) return;
+      state.cash -= c; state.up[u.id]++; dirty = true; saveLocal(); render();
     };
   });
 }
 
-function saveLocal() {
-  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch {}
-}
-function loadLocal() {
-  try { const s = JSON.parse(localStorage.getItem(LOCAL_KEY)); if (s) return s; } catch {}
-  return null;
-}
-
-// Offline earnings: credit income for time away, capped at 8 hours.
-function applyOffline() {
-  const secs = Math.min((Date.now() - (state.lastTick || Date.now())) / 1000, 8 * 3600);
-  if (secs > 5) state.cash += perSec() * secs;
-  state.lastTick = Date.now();
-}
-
-async function saveCloud() {
-  if (!sb || !user) return;
-  state.lastTick = Date.now();
-  const { error } = await sb.from("game_saves").upsert({
-    user_id: user.id, data: state, updated_at: new Date().toISOString(),
+function render() {
+  $("cash").textContent = fmt(state.cash);
+  $("day").textContent = "Day " + state.day;
+  $("rep").textContent = "Happy " + Math.round(state.happy) + "%";
+  $("tCust").textContent = state.today.cust;
+  $("tSales").textContent = fmt(state.today.sales);
+  $("tMiss").textContent = state.today.miss;
+  ITEMS.forEach(it => {
+    $("p-" + it.id).textContent = `Buy ${fmt(it.buy)} · Sell ${fmt(sellPrice(it))} · ${state.stock[it.id]}/${cap()}`;
+    const qty = Math.min(RESTOCK, cap() - state.stock[it.id]);
+    const b = $("r-" + it.id);
+    b.textContent = qty <= 0 ? "Shelf full" : `Restock x${qty} (${fmt(qty * it.buy)})`;
+    b.disabled = qty <= 0 || state.cash < qty * it.buy;
   });
-  if (error) { setStatus("Cloud save failed: " + error.message); return; }
-  dirty = false;
-  setStatus("Saved to cloud " + new Date().toLocaleTimeString());
+  UPGRADES.forEach(u => {
+    $("ul-" + u.id).textContent = "Lv " + state.up[u.id];
+    const b = $("u-" + u.id);
+    b.textContent = fmt(upCost(u));
+    b.disabled = state.cash < upCost(u);
+  });
+}
+
+// ---------- saving ----------
+function saveLocal() { try { state.lastTick = Date.now(); localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); } catch {} }
+function loadLocal() { try { const s = JSON.parse(localStorage.getItem(LOCAL_KEY)); if (s && s.stock) return Object.assign(fresh(), s); } catch {} return null; }
+
+async function saveCloud(manual) {
+  if (!sb) { setStatus("Cloud save off: add the key in config.js.", "err"); return false; }
+  if (!user) { setStatus("Not signed in. Sign in first.", "err"); return false; }
+  if (saving) return false;
+  saving = true;
+  if (manual) setStatus("Saving...");
+  try {
+    state.lastTick = Date.now();
+    const { error } = await sb.from("game_saves").upsert(
+      { user_id: user.id, data: state, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" });
+    if (error) { setStatus("Save failed: " + error.message, "err"); return false; }
+    dirty = false;
+    setStatus("Saved to cloud at " + new Date().toLocaleTimeString(), "ok");
+    return true;
+  } catch (e) {
+    setStatus("Save failed: " + (e && e.message ? e.message : e), "err");
+    return false;
+  } finally { saving = false; }
+}
+
+function applyLoaded(data) {
+  state = Object.assign(fresh(), data);
+  const away = simulateOffline((Date.now() - state.lastTick) / 1000);
+  state.lastTick = Date.now();
+  customers.length = 0;
+  saveLocal();
+  return away;
 }
 
 async function loadCloud() {
   if (!sb || !user) return;
   const { data, error } = await sb.from("game_saves").select("data").eq("user_id", user.id).maybeSingle();
-  if (error) { setStatus("Cloud load failed: " + error.message); return; }
+  if (error) { setStatus("Load failed: " + error.message, "err"); return; }
   if (data && data.data) {
-    state = data.data;
-    applyOffline();
-    saveLocal();
-    setStatus("Loaded cloud save.");
+    const away = applyLoaded(data.data);
+    setStatus(away ? `Loaded. While away: ${away.count} customers, ${fmt(away.sales)} earned.` : "Loaded cloud save.", "ok");
   } else {
-    await saveCloud(); // first login: upload local progress
+    await saveCloud(true);
   }
   render();
 }
@@ -157,45 +369,59 @@ function showAuth() {
 }
 
 async function auth(kind) {
-  if (!sb) return setStatus("Add your anon key to config.js first.");
+  if (!sb) return setStatus("Add the key in config.js first.", "err");
   const email = $("email").value.trim(), password = $("password").value;
-  const fn = kind === "up" ? sb.auth.signUp : sb.auth.signInWithPassword;
-  const { data, error } = await fn.call(sb.auth, { email, password });
-  if (error) return setStatus(error.message);
-  if (kind === "up" && !data.session) return setStatus("Check your email to confirm, then sign in.");
-  user = data.user; showAuth(); await loadCloud();
+  if (!email || password.length < 6) return setStatus("Enter email and a password of 6+ characters.", "err");
+  setStatus(kind === "up" ? "Signing up..." : "Signing in...");
+  const res = kind === "up" ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
+  if (res.error) return setStatus(res.error.message, "err");
+  if (!res.data.session) return setStatus("Check your email to confirm, then sign in.", "ok");
+  user = res.data.user; showAuth(); await loadCloud();
 }
 
+// ---------- boot ----------
 async function init() {
-  buildShop();
-  state = loadLocal() || fresh();
-  applyOffline();
+  buildUI();
+  const local = loadLocal();
+  if (local) {
+    state = local;
+    const away = simulateOffline((Date.now() - state.lastTick) / 1000);
+    if (away) setStatus(`While away: ${away.count} customers, ${fmt(away.sales)} earned.`, "ok");
+  }
+  state.lastTick = Date.now();
 
-  $("work").onclick = () => { state.cash += 1; dirty = true; render(); };
   $("signin").onclick = () => auth("in");
   $("signup").onclick = () => auth("up");
-  $("signout").onclick = async () => { await saveCloud(); await sb.auth.signOut(); user = null; showAuth(); setStatus("Signed out."); };
-  $("saveNow").onclick = saveCloud;
-  $("reset").onclick = () => { if (confirm("Erase all progress?")) { state = fresh(); saveLocal(); dirty = true; saveCloud(); render(); } };
+  $("saveNow").onclick = () => saveCloud(true);
+  $("signout").onclick = async () => { await saveCloud(false); await sb.auth.signOut(); user = null; showAuth(); setStatus("Signed out."); };
+  $("reset").onclick = async () => {
+    if (!confirm("Erase all progress?")) return;
+    state = fresh(); customers.length = 0; saveLocal(); render();
+    if (user) await saveCloud(true);
+  };
 
+  const ok = window.SUPABASE_ANON_KEY && !window.SUPABASE_ANON_KEY.startsWith("PASTE_");
+  if (ok && window.supabase) sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
   if (sb) {
     const { data } = await sb.auth.getSession();
     user = data.session ? data.session.user : null;
     showAuth();
-    if (user) await loadCloud(); else setStatus("Playing offline. Sign in to save to cloud.");
+    if (user) await loadCloud(); else if (!local) setStatus("Playing offline. Sign in to save to cloud.");
   } else {
     showAuth();
-    setStatus("Local save only. Add your anon key in config.js for cloud save.");
+    setStatus(window.supabase ? "Local save only. Add the key in config.js." : "Supabase library failed to load. Check your connection.", "err");
   }
   render();
 
-  setInterval(() => {            // game tick, 10x per second
-    const now = Date.now();
-    state.cash += perSec() * ((now - state.lastTick) / 1000);
-    state.lastTick = now;
-    render();
-  }, 100);
-  setInterval(() => { saveLocal(); if (dirty) saveCloud(); }, 30000); // autosave
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min((now - last) / 1000, 0.25); last = now;
+    step(dt); draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  setInterval(render, 250);
+  setInterval(() => { saveLocal(); if (dirty && user) saveCloud(false); }, 30000);
   window.addEventListener("beforeunload", saveLocal);
 }
 init();
