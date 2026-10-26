@@ -453,6 +453,10 @@ setInterval(() => { if (state) { saveLocal(); } }, 20000);
 window.addEventListener("beforeunload", saveLocal);
 document.addEventListener("visibilitychange", () => { if (document.hidden) { saveLocal(); paused = paused || false; } });
 
+// ---------- phone helpers ----------
+try { if (sessionStorage.getItem("economy-rotate-hint")) $("rotateHint").hidden = true; } catch { /* blocked */ }
+$("rotateOk").onclick = () => { $("rotateHint").hidden = true; try { sessionStorage.setItem("economy-rotate-hint", "1"); } catch { /* blocked */ } };
+
 // ---------- boot ----------
 (async function boot() {
   window.__economyBooted = true;

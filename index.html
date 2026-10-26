@@ -2,13 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1319">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Economy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/refine.css">
+<link rel="stylesheet" href="css/mobile.css">
 </head>
 <body>
 <div class="wrap">
@@ -44,6 +47,7 @@
         <span class="zoom"><button class="ghost mini" id="zIn" aria-label="Zoom in">+</button><button class="ghost mini" id="zOut" aria-label="Zoom out">-</button><button class="ghost mini" id="zReset">Center</button></span>
       </nav>
       <div class="stage-card"><canvas id="stage" aria-label="Animated business district"></canvas><div id="banner" class="banner" hidden></div></div>
+      <div class="rotate-hint" id="rotateHint"><span>Tip: turn your phone sideways for a bigger map.</span><button class="ghost" id="rotateOk">OK</button></div>
       <div class="today">
         <div class="stat"><small>Customers</small><b id="tCust">0</b></div>
         <div class="stat"><small>Sales today</small><b id="tSales">$0</b></div>

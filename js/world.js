@@ -21,6 +21,7 @@ function along(path, f) {
 }
 
 export function createWorld(canvas, { getState, onOpen, onScene }) {
+  const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
   const SS = 2;                          // backing-store scale: crisp when the canvas is shown wider than 960px
   canvas.width = W * SS; canvas.height = H * SS;
   const ctx = canvas.getContext("2d");
@@ -50,18 +51,34 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     for (let i = hotspots.length - 1; i >= 0; i--) { const h = hotspots[i]; if (q.x >= h.x && q.x <= h.x + h.w && q.y >= h.y && q.y <= h.y + h.h) return h; }
     return null;
   };
+  // Pointer input: mouse drag to pan, touch drag to pan (when zoomed in), two-finger pinch to zoom.
+  const ptrs = new Map(); let pinch = null;
+  const zoomAt = (p, z) => { const before = toWorld(p); cam.z = z; clampCam(); cam.x = p.x - before.x * cam.z; cam.y = p.y - before.y * cam.z; clampCam(); };
   canvas.addEventListener("pointermove", e => {
     const p = toLocal(e); mouse = p;
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, p);
+    if (pinch && ptrs.size >= 2 && scene === "district") {
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      zoomAt({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, pinch.z * d / pinch.d); pinch.moved = true; return;
+    }
     if (drag) { cam.x += p.x - drag.x; cam.y += p.y - drag.y; drag.moved += Math.abs(p.x - drag.x) + Math.abs(p.y - drag.y); drag.x = p.x; drag.y = p.y; clampCam(); }
-    hover = hit(p); canvas.style.cursor = hover ? "pointer" : scene === "district" ? "grab" : "default";
+    hover = e.pointerType === "mouse" ? hit(p) : null; canvas.style.cursor = hover ? "pointer" : scene === "district" ? "grab" : "default";
   });
-  canvas.addEventListener("pointerdown", e => { if (scene === "district") { canvas.setPointerCapture(e.pointerId); drag = { ...toLocal(e), moved: 0 }; } });
+  canvas.addEventListener("pointerdown", e => {
+    const p = toLocal(e); ptrs.set(e.pointerId, p);
+    if (scene !== "district") return;
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: cam.z, moved: false }; drag = null; }
+    else drag = { ...p, moved: 0 };
+  });
   canvas.addEventListener("pointerup", e => {
-    const wasDrag = drag && drag.moved > 6; drag = null;
-    if (wasDrag) return;
+    const wasPinch = !!pinch, wasDrag = drag && drag.moved > 6; drag = null; ptrs.delete(e.pointerId);
+    if (ptrs.size === 0) pinch = null;
+    if (wasPinch || wasDrag) return;
     const h = hit(toLocal(e));
     if (h) activate(h);
   });
+  canvas.addEventListener("pointercancel", e => { ptrs.delete(e.pointerId); drag = null; if (!ptrs.size) pinch = null; });
   canvas.addEventListener("pointerleave", () => { hover = null; mouse = { x: -1, y: -1 }; });
   canvas.addEventListener("wheel", e => {
     if (scene !== "district" || !(e.ctrlKey || e.metaKey)) return;   // plain wheel scrolls the page; Ctrl/Cmd + wheel zooms the map
@@ -85,6 +102,8 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     if (!s) return;
     trackOrders(s);
     hotspots = [];
+    // On touch screens: when the map is zoomed in, one finger pans it; otherwise a swipe scrolls the page.
+    canvas.style.touchAction = scene === "district" && cam.z > Math.max(W / WW, H / WH) * 1.03 ? "none" : "pan-y";
     ctx.setTransform(SS, 0, 0, SS, 0, 0);
     ctx.clearRect(0, 0, W, H);
     ({ district: drawDistrict, shop: drawShop, warehouse: drawWarehouse, bank: drawBank, office: drawOffice })[scene](s);
@@ -164,7 +183,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     ctx.restore();
     // HUD bits (screen space)
     chip(ctx, 62, 28, hourText(s) + (n > 0.5 ? "  night" : t < 0.25 ? "  morning" : t < 0.6 ? "  day" : "  evening"), { size: 13 });
-    chip(ctx, W - 100, 28, "Drag to pan · Ctrl + wheel to zoom", { size: 11, bg: "rgba(10,14,36,.6)" });
+    chip(ctx, W - 100, 28, (coarse ? "Drag to pan · pinch to zoom" : "Drag to pan · Ctrl + wheel to zoom"), { size: 11, bg: "rgba(10,14,36,.6)" });
   }
 
   function orderTruckY(o) {
