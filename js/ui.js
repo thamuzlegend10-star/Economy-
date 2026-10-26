@@ -66,7 +66,8 @@ export function createUI(ctx) {
   function refresh() {
     if (!isOpen() || !view.panel) return;
     const s = S(); if (!s) return;
-    const scroll = body.scrollTop;
+    // remember the scroll position of the sheet AND of every inner scroll box (e.g. the product table)
+    const scroll = body.scrollTop, inner = [...body.querySelectorAll(".scroll")].map(e => e.scrollTop);
     tabs.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.id === view.panel));
     const tp = TIPS[view.panel];
     const tipHtml = tp ? `<details class="tip" data-tip="${view.panel}" ${tipState[view.panel] === false ? "" : "open"}><summary>${tp[0]}: how it works</summary><p>${tp[1]}</p></details>` : "";
@@ -75,9 +76,21 @@ export function createUI(ctx) {
     lastHtml = html; lastPanel = view.panel;
     body.innerHTML = html;
     body.scrollTop = scroll;
+    body.querySelectorAll(".scroll").forEach((e, i) => { if (inner[i]) e.scrollTop = inner[i]; });
   }
   // live refresh while open, but never while the player is typing
-  setInterval(() => { if (isOpen() && !(document.activeElement && document.activeElement.matches("input,select"))) refresh(); }, 1000);
+  // ...and never while the player is scrolling or pressing a button (a rebuild would cancel the scroll or swallow the click)
+  let pressing = false, lastScroll = 0;
+  body.addEventListener("pointerdown", () => { pressing = true; });
+  window.addEventListener("pointerup", () => { setTimeout(() => { pressing = false; }, 0); });
+  window.addEventListener("pointercancel", () => { pressing = false; });
+  body.addEventListener("scroll", () => { lastScroll = performance.now(); }, true);
+  body.addEventListener("wheel", () => { lastScroll = performance.now(); }, { passive: true });
+  setInterval(() => {
+    if (!isOpen() || pressing || performance.now() - lastScroll < 800) return;
+    if (document.activeElement && document.activeElement.matches("input,select")) return;
+    refresh();
+  }, 1000);
 
   // ---------- STORE ----------
   function store(s) {
