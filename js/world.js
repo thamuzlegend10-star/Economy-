@@ -30,7 +30,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   const leaving = new Map();             // orderId -> time the truck started leaving
   const seenOrders = new Map();          // orderId -> last known order (to animate departure after receipt)
   const flashes = [];                    // {kind, t}
-  let reduced = false;
+  let reduced = false, frozen = false;   // frozen: pause every animation (walking, trucks, bobbing)
 
   const minZ = () => Math.max(W / WW, H / WH) * 0.98;
   const fit = () => { cam.z = Math.max(W / WW, H / WH); cam.x = (W - WW * cam.z) / 2; cam.y = (H - WH * cam.z) / 2; };
@@ -80,7 +80,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   // ----- frame -----
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    if (!reduced) clock += dt; else clock += dt * 0.0001;
+    if (frozen) { /* paused: clock stands still */ } else if (!reduced) clock += dt; else clock += dt * 0.0001;
     const s = getState();
     if (!s) return;
     trackOrders(s);
@@ -497,7 +497,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   }
 
   return {
-    frame, setScene, scene: () => scene,
+    frame, setFrozen: v => { frozen = !!v; }, setScene, scene: () => scene,
     zoom: f => { const p = { x: W / 2, y: H / 2 }, before = toWorld(p); cam.z *= f; clampCam(); cam.x = p.x - before.x * cam.z; cam.y = p.y - before.y * cam.z; clampCam(); },
     reset: fit, flash: (text, color) => flashes.push({ text, color, t: 1.6 }), setReduced: v => { reduced = !!v; },
   };

@@ -18,7 +18,7 @@ const PACE = 0.5;   // game seconds per real second at 1x: one day lasts about 4
 
 let mpMatch = false;
 let state = null, speed = 1, paused = false, reportShown = false, finalShown = false;
-let dirtyCloud = false, setupMode = "standard", lastHud = 0, lastSideKey = "";
+let setupMode = "standard", lastHud = 0, lastSideKey = "";
 const settings = Object.assign({ reduceMotion: false, confirm: true, sound: true, volume: 0.5 }, readJSON(SETTINGS_KEY));
 sound.setEnabled(settings.sound); sound.setVolume(settings.volume);
 const nativeConfirm = window.confirm.bind(window);
@@ -44,7 +44,7 @@ const world = createWorld($("stage"), {
   onOpen: panel => ui && ui.open(panel),
   onScene: name => document.querySelectorAll("#scenes [data-scene]").forEach(b => b.classList.toggle("on", b.dataset.scene === name)),
 });
-ui = createUI({ getState: () => state, onChange: () => { E.updateDerived(state); dirtyCloud = true; saveLocal(); updateHud(true); }, toast, world });
+ui = createUI({ getState: () => state, onChange: () => { E.updateDerived(state); saveLocal(); updateHud(true); }, toast, world });
 const tut = createTutorial({ getState: () => state, ui, world, setPaused: v => { paused = v; updateHud(true); } });
 world.setReduced(settings.reduceMotion);
 if (!settings.confirm) window.confirm = () => true;
@@ -59,48 +59,7 @@ function loadLocal() {
 }
 const cloud = createCloud();
 
-async function saveCloud(manual) {
-  if (mpMatch) return false;                      // matches are never mixed into the single-player cloud save
-  if (!cloud.available()) { if (manual) setStatus(cloud.reason() || "Cloud save is off.", "err"); return false; }
-  if (!cloud.user()) { if (manual) setStatus("Not signed in. Sign in first.", "err"); return false; }
-  if (!state) return false;
-  if (manual) setStatus("Saving...");
-  const r = await cloud.save(E.serialize(state));
-  if (r.error) { setStatus("Cloud save failed: " + r.error, "err"); return false; }
-  dirtyCloud = false;
-  setStatus("Saved to cloud at " + new Date().toLocaleTimeString(), "ok");
-  return true;
-}
-
-function showAuth() {
-  const u = cloud.user();
-  $("signedOut").hidden = !!u; $("signedIn").hidden = !u;
-  $("who").textContent = u ? "Signed in as " + u.email : "";
-}
-
-async function afterSignIn() {
-  showAuth();
-  const r = await cloud.load();
-  if (r.error) { setStatus("Cloud load failed: " + r.error, "err"); return; }
-  if (!r.data) { setStatus("Signed in. No cloud save yet.", "ok"); if (state) await saveCloud(false); return; }
-  const v = E.validateSave(r.data);
-  if (!v.ok) { setStatus("Cloud save not usable: " + v.error, "err"); return; }
-  const cloudDay = v.state.day, localDay = state ? state.day : 0;
-  if (!state || cloudDay > localDay || nativeConfirm(`Cloud save is on day ${cloudDay}. Your current game is on day ${localDay}. Load the cloud save?`)) {
-    startState(v.state);
-    setStatus(`Loaded cloud save (day ${cloudDay}).`, "ok");
-  } else { await saveCloud(false); }
-}
-
-async function auth(kind) {
-  const email = $("email").value.trim(), password = $("password").value;
-  if (!email || password.length < 6) return setStatus("Enter your email and a password of 6+ characters.", "err");
-  setStatus(kind === "up" ? "Signing up..." : "Signing in...");
-  const r = kind === "up" ? await cloud.signUp(email, password) : await cloud.signIn(email, password);
-  if (r.error) return setStatus(r.error, "err");
-  if (r.notice) return setStatus(r.notice, "ok");
-  await afterSignIn();
-}
+// Progress is saved in this browser only. Supabase is used just for the online multiplayer channel.
 
 // ---------- game flow ----------
 function startState(s) {
@@ -119,7 +78,7 @@ function maybeDialogs() {
     ui.dayReport(state, () => {
       reportShown = false;
       if (state.ended) { showFinal(); return; }
-      E.nextDay(state); dirtyCloud = true; saveLocal(); updateHud(true);
+      E.nextDay(state); saveLocal(); updateHud(true);
       if (mpMatch) mp.reportProgress(state);
       world.flash("Day " + state.day, "#ffb84d");
     });
@@ -225,7 +184,7 @@ function openMenu(inGame) {
   const vw = mp.view();
   $("mRejoin").hidden = !!vw.code || !mp.savedSession();
   $("mLeaveMp").hidden = !vw.code;
-  $("mNote").textContent = cloud.available() ? "" : "Cloud save is off. " + cloud.reason();
+  $("mNote").textContent = "";
   showSection("menuMain");
   if (!menu.open) menu.showModal();
 }
@@ -247,7 +206,6 @@ $("sStart").onclick = () => {
   const s = E.newGame({ mode: setupMode, difficulty: $("sDiff").value, capital: Number($("sCap").value), dayLimit: Number($("sDays").value) });
   writeLS(TUT_KEY, "false"); localStorage.removeItem(TUT_KEY);
   menu.close(); startState(s); world.setScene("district"); world.reset();
-  dirtyCloud = true; saveCloud(false);
   paused = false; tut.start();
 };
 $("mContinue").onclick = () => { if (mpBlock()) return; if (!state) { const s = loadLocal(); if (s) startState(s); } menu.close(); paused = false; tut.resume(); };
@@ -269,7 +227,7 @@ $("setExport").onclick = () => {
   a.href = URL.createObjectURL(new Blob([E.serialize(state)], { type: "application/json" }));
   a.download = `economy-day${state.day}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
-$("setReset").onclick = () => { if (nativeConfirm("Delete the local save? Cloud saves are not affected.")) { localStorage.removeItem(SAVE_KEY); toast("Local save deleted.", "ok"); $("mContinue").hidden = !state; } };
+$("setReset").onclick = () => { if (nativeConfirm("Delete the local save?")) { localStorage.removeItem(SAVE_KEY); toast("Local save deleted.", "ok"); $("mContinue").hidden = !state; } };
 $("mImport").onclick = () => { if (!mpBlock()) $("fileIn").click(); };
 $("fileIn").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -340,9 +298,6 @@ document.querySelectorAll("#scenes [data-scene]").forEach(b => b.onclick = () =>
 $("zIn").onclick = () => world.zoom(1.2); $("zOut").onclick = () => world.zoom(1 / 1.2); $("zReset").onclick = () => world.reset();
 document.querySelectorAll(".spd").forEach(b => b.onclick = () => { speed = Number(b.dataset.speed); paused = false; updateHud(true); });
 $("bPause").onclick = () => { paused = !paused; updateHud(true); };
-$("signin").onclick = () => auth("in"); $("signup").onclick = () => auth("up");
-$("saveCloud").onclick = () => saveCloud(true);
-$("signout").onclick = async () => { await saveCloud(false); await cloud.signOut(); showAuth(); setStatus("Signed out."); };
 document.addEventListener("keydown", e => {
   if (e.target.matches("input,select,textarea") || menu.open || $("dayDlg").open || $("finalDlg").open) return;
   if (e.code === "Space") { e.preventDefault(); paused = !paused; updateHud(true); }
@@ -423,11 +378,12 @@ function renderMp(v) {
     $("lbMsg").className = "mp-msg" + (v.error ? " err" : "");
   }
 }
-const mpName = () => { const n = $("mpName").value.trim(); try { localStorage.setItem("economy-mp-name", n); } catch { /* blocked */ } return n || "Player"; };
+const mpName = () => { const n = $("mpName").value.trim().slice(0, 16); if (n) { try { localStorage.setItem("economy-mp-name", n); } catch { /* blocked */ } } return n; };
+function needName() { if (mpName()) return true; $("mpMsg").textContent = "Enter your name first."; $("mpMsg").className = "mp-msg err"; $("mpName").focus(); return false; }
 $("mMulti").onclick = () => {
   if (mpBlock()) return;
   $("mpName").value = (() => { try { return localStorage.getItem("economy-mp-name") || ""; } catch { return ""; } })();
-  $("mpNote").textContent = net.kind === "supabase" ? "Compete shop against shop across devices. Everyone gets the same start settings and seed. Highest score wins." : "Supabase did not load, so this is LOCAL TEST mode: it only works between tabs of this browser.";
+  $("mpNote").textContent = net.kind === "supabase" ? "Enter your name, then compete shop against shop across devices. Everyone gets the same start settings and seed. Highest score wins." : "Supabase did not load, so this is LOCAL TEST mode: it only works between tabs of this browser.";
   $("mpMsg").textContent = ""; showSection("menuMulti");
 };
 async function enterRoom(promise) {
@@ -436,8 +392,8 @@ async function enterRoom(promise) {
   if (r.error) { $("mpMsg").textContent = r.error; $("mpMsg").className = "mp-msg err"; return; }
   $("mpMsg").textContent = ""; showSection("menuLobby"); renderMp(mp.view());
 }
-$("mpCreate").onclick = () => enterRoom(mp.create(mpName()));
-$("mpJoin").onclick = () => enterRoom(mp.join($("mpCode").value, mpName()));
+$("mpCreate").onclick = () => { if (needName()) enterRoom(mp.create(mpName())); };
+$("mpJoin").onclick = () => { if (needName()) enterRoom(mp.join($("mpCode").value, mpName())); };
 $("mpCode").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6); });
 $("mpCode").addEventListener("keydown", e => { if (e.key === "Enter") $("mpJoin").click(); });
 $("mRejoin").onclick = async () => {
@@ -479,8 +435,9 @@ function frame(now) {
   const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
   if (state && !paused && !menu.open && state.phase === "open" && !state.ended) {
     E.tick(state, dt * speed * PACE * FAST);
-    if (state.phase !== "open" || state.ended) { dirtyCloud = true; saveLocal(); maybeDialogs(); updateHud(true); }
+    if (state.phase !== "open" || state.ended) { saveLocal(); maybeDialogs(); updateHud(true); }
   }
+  world.setFrozen(!!state && (paused || menu.open || state.phase !== "open"));
   world.frame(now);
   tweenHud(); watchSounds();
   tut.update();
@@ -489,22 +446,18 @@ function frame(now) {
 }
 
 // ---------- autosave & lifecycle ----------
-setInterval(() => { if (state) { saveLocal(); if (dirtyCloud && cloud.user()) saveCloud(false); } }, 20000);
+setInterval(() => { if (state) { saveLocal(); } }, 20000);
 window.addEventListener("beforeunload", saveLocal);
 document.addEventListener("visibilitychange", () => { if (document.hidden) { saveLocal(); paused = paused || false; } });
 
 // ---------- boot ----------
 (async function boot() {
-  renderManage(); showAuth();
+  renderManage();
   $("bSound").textContent = settings.sound ? "Sound on" : "Sound off"; $("bSound").classList.toggle("on", settings.sound);
   world.setScene("district");
   requestAnimationFrame(frame);
   const saved = loadLocal();
   if (saved) { state = saved; E.updateDerived(state); paused = true; }
   openMenu(false);
-  if (cloud.available()) {
-    await cloud.restore(); showAuth();
-    if (cloud.user()) setStatus(`Signed in as ${cloud.user().email}. Your cloud save loads when you press Continue or sign in again.`, "ok");
-    else setStatus("Playing offline. Sign in to save to the cloud.");
-  } else setStatus(cloud.reason() || "Local save only.", "err");
+  setStatus("Progress is saved on this device.");
 })();

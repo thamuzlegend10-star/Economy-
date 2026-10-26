@@ -18,18 +18,15 @@ Modules need a web server (not `file://`):
 Tests: `npm test` (Node 20+, no dependencies).
 Balance check: `node tools/balance.mjs` plays 30 days with simple bots on every difficulty and prints outcomes.
 
-## Cloud save (optional)
-1. Supabase SQL Editor: run `supabase/schema.sql` (table, RLS policies, grants).
-2. Put your **publishable** key in `config.js`. It is public by design.
-3. Authentication: turn off "Confirm email" while testing.
+## Saving
+Progress is saved in this browser only (localStorage, plus export/import of a save file from the menu). There is no database save. Supabase is used only for the online multiplayer channel; put the **publishable** key in `config.js`.
 
 ## Security
 - Never commit the database password, a `service_role` / `sb_secret_` key, or Metered credentials.
 - `.env*` files are git-ignored. Real secrets belong in a server or host secret manager.
-- Row Level Security limits each player to their own save row.
 
 ## Layout
-`js/engine.js` rules and commands, `js/ledger.js` double-entry books, `js/data.js` tunable data, `js/world.js` + `js/art.js` canvas world, `js/ui.js` panels and reports, `js/main.js` app wiring, `js/cloud.js` Supabase save, `js/tutorial.js` guided tour, `js/sound.js` synthesized sound effects.
+`js/engine.js` rules and commands, `js/ledger.js` double-entry books, `js/data.js` tunable data, `js/world.js` + `js/art.js` canvas world, `js/ui.js` panels and reports, `js/main.js` app wiring, `js/cloud.js` Supabase client for multiplayer, `js/tutorial.js` guided tour, `js/sound.js` synthesized sound effects.
 
 ## Online multiplayer
 

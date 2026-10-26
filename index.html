@@ -60,15 +60,6 @@
       <h2>Alerts</h2>
       <div id="alerts" class="alerts"></div>
       <div id="tutorial" class="card"></div>
-      <h2>Cloud save</h2>
-      <div class="card" id="cloud">
-        <div id="signedOut">
-          <input id="email" type="email" placeholder="Email" autocomplete="email" aria-label="Email">
-          <input id="password" type="password" placeholder="Password (min 6)" autocomplete="current-password" aria-label="Password">
-          <div class="row"><button id="signin">Sign in</button><button id="signup" class="ghost">Sign up</button></div>
-        </div>
-        <div id="signedIn" hidden><div id="who" class="muted"></div><div class="row"><button id="saveCloud">Save now</button><button id="signout" class="ghost">Sign out</button></div></div>
-      </div>
       <div id="status" role="status">Loading...</div>
       <h2>Log</h2>
       <div id="log" class="log"></div>
@@ -138,7 +129,7 @@
   <div id="menuMulti" hidden>
     <h2>Online multiplayer</h2>
     <p class="muted" id="mpNote">Compete shop against shop. Everyone starts with the same settings and seed. Highest score wins.</p>
-    <label class="field">Your name<input id="mpName" maxlength="16" placeholder="Player" autocomplete="nickname"></label>
+    <label class="field">Enter your name<input id="mpName" maxlength="16" placeholder="Your name" required autocomplete="nickname"></label>
     <div class="mp-actions">
       <button class="primary" id="mpCreate">Create room</button>
       <div class="mp-join"><input id="mpCode" inputmode="numeric" maxlength="6" placeholder="6-digit code" aria-label="Room code" autocomplete="off"><button id="mpJoin">Join</button></div>
