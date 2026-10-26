@@ -29,4 +29,4 @@ Balance check: `node tools/balance.mjs` plays 30 days with simple bots on every 
 - Row Level Security limits each player to their own save row.
 
 ## Layout
-`js/engine.js` rules and commands, `js/ledger.js` double-entry books, `js/data.js` tunable data, `js/world.js` + `js/art.js` canvas world, `js/ui.js` panels and reports, `js/main.js` app wiring, `js/cloud.js` Supabase save.
+`js/engine.js` rules and commands, `js/ledger.js` double-entry books, `js/data.js` tunable data, `js/world.js` + `js/art.js` canvas world, `js/ui.js` panels and reports, `js/main.js` app wiring, `js/cloud.js` Supabase save, `js/tutorial.js` guided tour, `js/sound.js` synthesized sound effects.

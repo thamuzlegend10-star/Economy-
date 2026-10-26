@@ -28,6 +28,7 @@
     <div class="ctrl">
       <button class="ghost" id="bPause" aria-label="Pause">Pause</button>
       <button class="ghost spd" data-speed="1">1x</button><button class="ghost spd" data-speed="2">2x</button><button class="ghost spd" data-speed="4">4x</button>
+      <button class="ghost" id="bSound" aria-label="Toggle sound">Sound on</button>
       <button class="ghost" id="bHelp" aria-label="How to play">? Help</button>
       <button class="ghost" id="bMenu">Menu</button>
     </div>
@@ -130,6 +131,8 @@
   </div>
   <div id="menuSettings" hidden>
     <h2>Settings</h2>
+    <label class="check"><input type="checkbox" id="setSound" checked> Sound effects</label>
+    <label class="field">Volume<input type="range" id="setVol" min="0" max="100" step="5" value="50"></label>
     <label class="check"><input type="checkbox" id="setMotion"> Reduce motion (freeze ambient animation)</label>
     <label class="check"><input type="checkbox" id="setConfirm" checked> Ask before expensive actions</label>
     <p class="muted small">Autosave runs every 20 seconds. You can also export your save as a file.</p>

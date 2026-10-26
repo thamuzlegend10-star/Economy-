@@ -5,6 +5,7 @@ import { createWorld } from "./world.js";
 import { createUI, money, money0 } from "./ui.js";
 import { createCloud } from "./cloud.js";
 import { createTutorial } from "./tutorial.js";
+import { sound } from "./sound.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -13,7 +14,8 @@ const SPEEDS = [1, 2, 4];
 
 let state = null, speed = 1, paused = false, reportShown = false, finalShown = false;
 let dirtyCloud = false, setupMode = "standard", lastHud = 0, lastSideKey = "";
-const settings = Object.assign({ reduceMotion: false, confirm: true }, readJSON(SETTINGS_KEY));
+const settings = Object.assign({ reduceMotion: false, confirm: true, sound: true, volume: 0.5 }, readJSON(SETTINGS_KEY));
+sound.setEnabled(settings.sound); sound.setVolume(settings.volume);
 const nativeConfirm = window.confirm.bind(window);
 
 function readJSON(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
@@ -23,6 +25,7 @@ function writeLS(key, val) { try { localStorage.setItem(key, val); return true; 
 function toast(msg, kind = "info") {
   const el = document.createElement("div");
   el.className = "toast " + kind; el.textContent = msg;
+  if (kind === "err") sound.play("error");
   $("toasts").appendChild(el);
   requestAnimationFrame(() => el.classList.add("show"));
   setTimeout(() => { el.classList.remove("show"); setTimeout(() => el.remove(), 300); }, kind === "err" ? 4500 : 2600);
@@ -125,6 +128,25 @@ function showFinal() {
 }
 
 // ---------- HUD ----------
+// Money numbers glide to their new value and the pill flashes green (up) or red (down).
+const hud = {};
+function setTarget(id, v) {
+  const h = hud[id] || (hud[id] = { shown: v, target: v });
+  if (v === h.target) return;
+  const pill = $(id).parentElement, dir = v > h.target ? "up" : "down";
+  const good = id === "hDebt" ? dir === "down" : dir === "up";   // less debt is good news
+  pill.classList.remove("flash-up", "flash-down"); void pill.offsetWidth; pill.classList.add(good ? "flash-up" : "flash-down");
+  h.target = v;
+}
+function tweenHud() {
+  for (const [id, h] of Object.entries(hud)) {
+    if (h.shown === h.target) continue;
+    h.shown += (h.target - h.shown) * (settings.reduceMotion ? 1 : 0.18);
+    if (Math.abs(h.target - h.shown) < 0.5) h.shown = h.target;
+    $(id).textContent = money0(h.shown);
+  }
+}
+
 function clockText(s) {
   const f = Math.min(1, s.clock / D.DAY_LEN), mins = Math.floor(D.OPEN_HOUR * 60 + f * (D.CLOSE_HOUR - D.OPEN_HOUR) * 60);
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
@@ -136,10 +158,7 @@ function updateHud(force) {
   const s = state, d = E.updateDerived(s), t = E.liveToday(s);
   $("hDay").textContent = s.dayLimit ? `${s.day} / ${s.dayLimit}` : s.day;
   $("hTime").textContent = s.phase === "open" ? clockText(s) : "Closed";
-  $("hCash").textContent = money0(d.cash ?? 0);
-  $("hBank").textContent = money0(d.bank ?? 0);
-  $("hDebt").textContent = money0(d.debt ?? 0);
-  $("hNet").textContent = money0(d.netWorth ?? 0);
+  setTarget("hCash", d.cash ?? 0); setTarget("hBank", d.bank ?? 0); setTarget("hDebt", d.debt ?? 0); setTarget("hNet", d.netWorth ?? 0);
   $("hHappy").textContent = Math.round(s.sat) + "%";
   $("hHappyBar").style.width = Math.max(0, Math.min(100, s.sat)) + "%";
   $("modeLabel").textContent = s.mode === "infinite" ? "Infinite mode" : "Standard mode";
@@ -221,10 +240,14 @@ $("mClose").onclick = () => menu.close();
 $("mHelp").onclick = () => { showHelp("goal"); showSection("menuHelp"); };
 $("bHelp").onclick = () => { openMenu(!!state); showHelp("goal"); showSection("menuHelp"); };
 $("mTutorial").onclick = () => { if (!state) return toast("Start or continue a game first.", "err"); menu.close(); ui.close(); tut.start(); };
-$("mSettings").onclick = () => { $("setMotion").checked = settings.reduceMotion; $("setConfirm").checked = settings.confirm; showSection("menuSettings"); };
+$("mSettings").onclick = () => { $("setSound").checked = settings.sound; $("setVol").value = Math.round(settings.volume * 100); $("setMotion").checked = settings.reduceMotion; $("setConfirm").checked = settings.confirm; showSection("menuSettings"); };
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => showSection("menuMain"));
 $("setMotion").onchange = e => { settings.reduceMotion = e.target.checked; world.setReduced(settings.reduceMotion); writeLS(SETTINGS_KEY, JSON.stringify(settings)); };
 $("setConfirm").onchange = e => { settings.confirm = e.target.checked; window.confirm = settings.confirm ? nativeConfirm : () => true; writeLS(SETTINGS_KEY, JSON.stringify(settings)); };
+$("setSound").onchange = e => { settings.sound = e.target.checked; sound.setEnabled(settings.sound); writeLS(SETTINGS_KEY, JSON.stringify(settings)); if (settings.sound) sound.play("order"); };
+$("setVol").oninput = e => { settings.volume = Number(e.target.value) / 100; sound.setVolume(settings.volume); writeLS(SETTINGS_KEY, JSON.stringify(settings)); };
+$("setVol").onchange = () => sound.play("sale");
+$("bSound").onclick = () => { settings.sound = !settings.sound; sound.setEnabled(settings.sound); writeLS(SETTINGS_KEY, JSON.stringify(settings)); $("bSound").textContent = settings.sound ? "Sound on" : "Sound off"; $("bSound").classList.toggle("on", settings.sound); if (settings.sound) sound.play("order"); };
 $("setExport").onclick = () => {
   if (!state) return toast("Start a game first.", "err");
   const a = document.createElement("a");
@@ -312,6 +335,24 @@ document.addEventListener("keydown", e => {
   else if (e.code === "Escape" && ui.isOpen()) ui.close();
 });
 
+// ---------- sound cues (derived from state changes, never from animation) ----------
+let prev = { sales: 0, done: 0, ms: 0, staff: 0, orders: 0, day: 0, phase: "" };
+function watchSounds() {
+  if (!state) { prev = { sales: 0, done: 0, ms: 0, staff: 0, orders: 0, day: 0, phase: "" }; return; }
+  const cur = { sales: state.stats.totalSales, done: state.doneOrders.length + (state.orderSeq || 0) * 0, ms: state.milestones.length, staff: state.staff.length, orders: state.orderSeq || 0, day: state.day, phase: state.phase };
+  if (prev.day === state.day || prev.day === 0) {
+    if (cur.sales > prev.sales && prev.sales > 0) sound.play("sale");
+    if (state.doneOrders.length && state.doneOrders[state.doneOrders.length - 1].id !== prev.lastDone && prev.lastDone !== undefined) sound.play("delivery");
+    if (cur.orders > prev.orders && prev.orders > 0) sound.play("order");
+    if (cur.ms > prev.ms && prev.ms > 0) sound.play("milestone");
+    if (cur.staff > prev.staff && prev.staff > 0) sound.play("hire");
+  }
+  if (cur.phase === "report" && prev.phase === "open") sound.play("dayend");
+  cur.lastDone = state.doneOrders.length ? state.doneOrders[state.doneOrders.length - 1].id : null;
+  prev = cur;
+}
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("button"); if (b && !b.disabled) sound.play("click"); });
+
 // ---------- main loop ----------
 let lastT = performance.now();
 function frame(now) {
@@ -321,6 +362,7 @@ function frame(now) {
     if (state.phase !== "open" || state.ended) { dirtyCloud = true; saveLocal(); maybeDialogs(); updateHud(true); }
   }
   world.frame(now);
+  tweenHud(); watchSounds();
   tut.update();
   updateHud(false);
   requestAnimationFrame(frame);
@@ -334,6 +376,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) { sav
 // ---------- boot ----------
 (async function boot() {
   renderManage(); showAuth();
+  $("bSound").textContent = settings.sound ? "Sound on" : "Sound off"; $("bSound").classList.toggle("on", settings.sound);
   world.setScene("district");
   requestAnimationFrame(frame);
   const saved = loadLocal();
