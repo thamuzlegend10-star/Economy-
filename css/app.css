@@ -240,3 +240,31 @@ input[type=range] { width:100%; accent-color:var(--pink-400); }
 @keyframes popIn { from { opacity:0; transform:scale(.92) translateY(10px); } to { opacity:1; transform:none; } }
 @keyframes riseIn { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion:reduce){ .pill.flash-up, .pill.flash-down, dialog[open], .overlay .sheet, .tutcard { animation:none !important; } }
+
+/* ---------- multiplayer ---------- */
+.netpill .dot { width:9px; height:9px; border-radius:50%; background:currentColor; }
+.netpill { display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:20px; font-size:.78rem; font-weight:700; background:rgba(255,255,255,.08); color:var(--muted); }
+.netpill.ok { color:var(--mint); } .netpill.wait { color:var(--amber); } .netpill.bad { color:#ff9b9b; }
+.roomcode { font-size:2.4rem; font-weight:800; letter-spacing:.3em; font-variant-numeric:tabular-nums; color:var(--mint); }
+.lobby-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:space-between; margin-bottom:10px; }
+.lb-players { display:grid; gap:8px; margin:10px 0; }
+.lbrow { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:12px; background:rgba(255,255,255,.06); }
+.lbrow.off { opacity:.5; }
+.lbrow .av { width:32px; height:32px; border-radius:50%; display:grid; place-items:center; font-weight:800; background:linear-gradient(135deg,#7aa2ff,#b07cff); color:#fff; }
+.lbname { flex:1; font-weight:600; }
+.lb-config { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin:10px 0; }
+.lb-config label { display:grid; gap:4px; font-size:.8rem; color:var(--muted); }
+.mp-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+.mp-join { display:flex; gap:8px; margin:10px 0; }
+.mp-join input { flex:1; letter-spacing:.25em; font-size:1.2rem; text-align:center; }
+.mp-msg { min-height:1.3em; font-size:.85rem; color:var(--muted); margin-top:8px; }
+.mp-msg.err { color:#ff9b9b; }
+#lbReady.on { background:var(--mint); color:#062; }
+.mpboard { display:grid; gap:6px; }
+.mprow { display:grid; grid-template-columns:22px 1fr auto auto; gap:8px; align-items:center; padding:6px 10px; border-radius:10px; background:rgba(255,255,255,.06); font-size:.82rem; }
+.mprow.me { outline:2px solid var(--mint); }
+.mprow .mpname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.mprow .tag { grid-column:2 / -1; justify-self:start; }
+.mpnw { font-weight:700; font-variant-numeric:tabular-nums; }
+.tbl td.r, .tbl th.r { text-align:right; }
+.tbl tr.me td { background:rgba(94,234,212,.12); }

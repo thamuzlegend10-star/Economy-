@@ -2,5 +2,5 @@
   "name": "economy",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/engine.test.js" }
+  "scripts": { "test": "node --test tests/engine.test.js tests/multiplayer.test.js" }
 }

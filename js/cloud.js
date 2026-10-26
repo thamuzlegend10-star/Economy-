@@ -8,6 +8,7 @@ export function createCloud() {
 
   return {
     available: () => !!sb,
+    client: () => sb,
     reason: () => (!configured ? "Add the publishable key to config.js." : !window.supabase ? "Supabase library did not load (offline?)." : ""),
     user: () => user,
     async restore() {

@@ -30,3 +30,12 @@ Balance check: `node tools/balance.mjs` plays 30 days with simple bots on every 
 
 ## Layout
 `js/engine.js` rules and commands, `js/ledger.js` double-entry books, `js/data.js` tunable data, `js/world.js` + `js/art.js` canvas world, `js/ui.js` panels and reports, `js/main.js` app wiring, `js/cloud.js` Supabase save, `js/tutorial.js` guided tour, `js/sound.js` synthesized sound effects.
+
+## Online multiplayer
+
+Menu -> **Online multiplayer**. One player creates a room (six-digit code), friends join with the code, the host picks days / difficulty / capital and presses Start. Everyone gets the same settings and seed and runs their own shop at their own pace; a live scoreboard shows each player's day and net worth, and the host publishes the final ranking.
+
+- Transport: Supabase Realtime (broadcast + presence) using only the public key. If Supabase is unavailable the game falls back to a **local test mode** (BroadcastChannel, tabs of one browser).
+- Rules: the host (earliest joiner; promoted automatically if they leave) validates each player's final save (format, ledger reconciles, same settings, finished) and computes the score. Late joiners are rejected; dropped players can rejoin within 90 s. Join attempts are rate limited.
+- **Limits (be honest):** this is host-checked, not server-authoritative. Channels are public to anyone who guesses a code, and a carefully crafted, self-consistent save could still cheat. Treat it as friendly competition, not ranked play. A real anti-cheat needs a server that simulates the game.
+- Dev: add `?fast=N` to the URL to speed up simulation (used by tests). `npm test` runs engine + multiplayer tests.

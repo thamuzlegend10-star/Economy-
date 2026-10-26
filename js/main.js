@@ -6,12 +6,16 @@ import { createUI, money, money0 } from "./ui.js";
 import { createCloud } from "./cloud.js";
 import { createTutorial } from "./tutorial.js";
 import { sound } from "./sound.js";
+import { createMultiplayer } from "./multiplayer.js";
+import { createSupabaseNet, createLocalNet } from "./net.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const MP_KEY = "economy-mp-save", FAST = Math.max(1, Math.min(60, Number(new URLSearchParams(location.search).get("fast")) || 1));
 const SAVE_KEY = "economy-save-v3", SETTINGS_KEY = "economy-settings-v1", TUT_KEY = "economy-tutorial-done";
 const SPEEDS = [1, 2, 4];
 
+let mpMatch = false;
 let state = null, speed = 1, paused = false, reportShown = false, finalShown = false;
 let dirtyCloud = false, setupMode = "standard", lastHud = 0, lastSideKey = "";
 const settings = Object.assign({ reduceMotion: false, confirm: true, sound: true, volume: 0.5 }, readJSON(SETTINGS_KEY));
@@ -45,7 +49,7 @@ world.setReduced(settings.reduceMotion);
 if (!settings.confirm) window.confirm = () => true;
 
 // ---------- saving ----------
-function saveLocal() { if (state) writeLS(SAVE_KEY, E.serialize(state)); }
+function saveLocal() { if (state) writeLS(mpMatch ? MP_KEY : SAVE_KEY, E.serialize(state)); }
 function loadLocal() {
   const raw = (() => { try { return localStorage.getItem(SAVE_KEY); } catch { return null; } })();
   if (!raw) return null;
@@ -55,6 +59,7 @@ function loadLocal() {
 const cloud = createCloud();
 
 async function saveCloud(manual) {
+  if (mpMatch) return false;                      // matches are never mixed into the single-player cloud save
   if (!cloud.available()) { if (manual) setStatus(cloud.reason() || "Cloud save is off.", "err"); return false; }
   if (!cloud.user()) { if (manual) setStatus("Not signed in. Sign in first.", "err"); return false; }
   if (!state) return false;
@@ -109,10 +114,12 @@ function maybeDialogs() {
   if (!state) return;
   if (state.phase === "report" && !reportShown) {
     reportShown = true;
+    if (mpMatch) mp.reportProgress(state);
     ui.dayReport(state, () => {
       reportShown = false;
       if (state.ended) { showFinal(); return; }
       E.nextDay(state); dirtyCloud = true; saveLocal(); updateHud(true);
+      if (mpMatch) mp.reportProgress(state);
       world.flash("Day " + state.day, "#ffb84d");
     });
   } else if (state.ended && state.phase !== "report" && !finalShown) {
@@ -121,10 +128,13 @@ function maybeDialogs() {
 }
 function showFinal() {
   if (finalShown) return; finalShown = true;
+  if (mpMatch) mp.submitFinal(E.serialize(state));   // host checks it and computes the official score
   ui.finalReport(state, {
     cont: () => { E.continueAfterEnd(state); finalShown = false; reportShown = false; saveLocal(); updateHud(true); },
-    again: () => { finalShown = false; openMenu(false); },
+    again: () => { if (mpMatch) { toast("Waiting for the other players to finish..."); return; } finalShown = false; openMenu(false); },
   });
+  $("finalAgain").textContent = mpMatch ? "Wait for results" : "New game";
+  if (mpMatch) $("finalContinue").hidden = true;
 }
 
 // ---------- HUD ----------
@@ -206,11 +216,14 @@ function renderTutorial() {
 
 // ---------- menus ----------
 const menu = $("menuDlg");
-const sections = ["menuMain", "menuSetup", "menuHelp", "menuSettings"];
+const sections = ["menuMain", "menuSetup", "menuHelp", "menuSettings", "menuMulti", "menuLobby"];
 function showSection(id) { sections.forEach(s => { $(s).hidden = s !== id; }); }
 function openMenu(inGame) {
   $("mContinue").hidden = !(inGame ? state : loadLocal());
   $("mClose").hidden = !inGame;
+  const vw = mp.view();
+  $("mRejoin").hidden = !!vw.code || !mp.savedSession();
+  $("mLeaveMp").hidden = !vw.code;
   $("mNote").textContent = cloud.available() ? "" : "Cloud save is off. " + cloud.reason();
   showSection("menuMain");
   if (!menu.open) menu.showModal();
@@ -225,8 +238,9 @@ function openSetup(mode) {
   showSection("menuSetup");
 }
 menu.addEventListener("cancel", e => { if (!state) e.preventDefault(); });
-$("mStandard").onclick = () => openSetup("standard");
-$("mInfinite").onclick = () => openSetup("infinite");
+const mpBlock = () => { if (mpMatch) { toast("Leave the online match first.", "err"); return true; } return false; };
+$("mStandard").onclick = () => { if (!mpBlock()) openSetup("standard"); };
+$("mInfinite").onclick = () => { if (!mpBlock()) openSetup("infinite"); };
 $("sBack").onclick = () => showSection("menuMain");
 $("sStart").onclick = () => {
   const s = E.newGame({ mode: setupMode, difficulty: $("sDiff").value, capital: Number($("sCap").value), dayLimit: Number($("sDays").value) });
@@ -235,7 +249,7 @@ $("sStart").onclick = () => {
   dirtyCloud = true; saveCloud(false);
   paused = false; tut.start();
 };
-$("mContinue").onclick = () => { if (!state) { const s = loadLocal(); if (s) startState(s); } menu.close(); paused = false; tut.resume(); };
+$("mContinue").onclick = () => { if (mpBlock()) return; if (!state) { const s = loadLocal(); if (s) startState(s); } menu.close(); paused = false; tut.resume(); };
 $("mClose").onclick = () => menu.close();
 $("mHelp").onclick = () => { showHelp("goal"); showSection("menuHelp"); };
 $("bHelp").onclick = () => { openMenu(!!state); showHelp("goal"); showSection("menuHelp"); };
@@ -255,7 +269,7 @@ $("setExport").onclick = () => {
   a.download = `economy-day${state.day}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $("setReset").onclick = () => { if (nativeConfirm("Delete the local save? Cloud saves are not affected.")) { localStorage.removeItem(SAVE_KEY); toast("Local save deleted.", "ok"); $("mContinue").hidden = !state; } };
-$("mImport").onclick = () => $("fileIn").click();
+$("mImport").onclick = () => { if (!mpBlock()) $("fileIn").click(); };
 $("fileIn").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   if (f.size > 5e6) return toast("File too large.", "err");
@@ -335,6 +349,111 @@ document.addEventListener("keydown", e => {
   else if (e.code === "Escape" && ui.isOpen()) ui.close();
 });
 
+
+// ---------- online multiplayer ----------
+const sbClient = cloud.client && cloud.client();
+const net = sbClient ? createSupabaseNet(sbClient) : createLocalNet();
+const mp = createMultiplayer({
+  net, storage: sessionStorage,
+  onChange: v => renderMp(v),
+  onStart: cfg => startMatch(cfg),
+  onResume: cfg => resumeMatch(cfg),
+  onResults: rows => showResults(rows),
+});
+const mpEsc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function startMatch(cfg) {
+  const s = E.newGame({ mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, seed: cfg.seed });
+  mpMatch = true; tut.stop(); ui.close(); menu.close();
+  startState(s); world.setScene("district"); world.reset(); paused = false;
+  setStatus(`Match started: ${cfg.days} days. Everyone has the same start. Good luck!`, "ok");
+}
+function resumeMatch(cfg) {
+  let v = null;
+  try { const raw = localStorage.getItem(MP_KEY); v = raw ? E.validateSave(raw) : null; } catch { v = null; }
+  if (v && v.ok && v.state.dayLimit === cfg.days && v.state.difficulty === cfg.difficulty && v.state.capital === cfg.capital) {
+    mpMatch = true; menu.close(); startState(v.state); paused = false; toast("Rejoined your match.", "ok");
+  } else { toast("Your local progress for this match was lost, so you cannot resume it.", "err"); mp.leave(); }
+}
+function endMatchLocal() { mpMatch = false; state = null; try { localStorage.removeItem(MP_KEY); } catch { /* blocked */ } $("mpBoard").hidden = true; $("mpH").hidden = true; updateHud(true); }
+
+function showResults(rows) {
+  const me = mp.view().me.id;
+  $("mpResults").innerHTML = `<table class="tbl"><thead><tr><th>#</th><th>Player</th><th class="r">Score</th><th class="r">Net worth</th><th>Note</th></tr></thead><tbody>${rows.map(r =>
+    `<tr class="${r.id === me ? "me" : ""}"><td>${r.rank}</td><td><b>${mpEsc(r.name)}</b>${r.id === me ? " (you)" : ""}</td><td class="r">${r.finished ? r.score + " " + r.rating : "-"}</td><td class="r">${money0(r.netWorth || 0)}</td><td class="muted small">${mpEsc(r.note || "")}</td></tr>`).join("")}</tbody></table>`;
+  $("finalDlg").open && $("finalDlg").close();
+  if (!$("mpDlg").open) $("mpDlg").showModal();
+}
+$("mpDone").onclick = () => { $("mpDlg").close(); mp.leave(); endMatchLocal(); openMenu(false); };
+
+function renderMp(v) {
+  // connection pill
+  const pill = $("netPill");
+  pill.hidden = !v.code;
+  if (v.code) {
+    pill.className = "netpill " + (v.status === "in-room" ? "ok" : v.status === "connecting" || v.status === "connected" ? "wait" : "bad");
+    $("netText").textContent = v.status === "in-room" ? `Room ${v.code} · ${v.players.filter(p => p.connected).length} online` : v.error || "Connecting...";
+  }
+  // scoreboard during a match
+  const showBoard = v.code && (v.phase === "playing" || v.phase === "finished");
+  $("mpBoard").hidden = $("mpH").hidden = !showBoard;
+  if (showBoard) {
+    const rows = [...v.players].sort((a, b) => (b.finished - a.finished) || ((b.netWorth ?? -1e9) - (a.netWorth ?? -1e9)));
+    $("mpBoard").innerHTML = rows.map((p, i) => `<div class="mprow ${p.isMe ? "me" : ""}"><b>${i + 1}</b><span class="mpname">${mpEsc(p.name)}${p.isHost ? " ★" : ""}</span>
+      <span class="muted small">Day ${p.day}/${v.config.days}</span><span class="mpnw">${p.netWorth == null ? "-" : money0(p.netWorth)}</span>
+      <span class="tag ${p.finished ? (p.verdict.ok ? "ok" : "bad") : p.connected ? "info" : "warn"}">${p.finished ? (p.verdict.ok ? p.verdict.rating : "Rejected") : p.connected ? "Playing" : "Offline"}</span></div>`).join("");
+  }
+  // lobby
+  if (!$("menuLobby").hidden) {
+    if (!v.code) { showSection("menuMain"); if (v.error) $("mNote").textContent = v.error; return; }
+    $("lbCode").textContent = v.code;
+    $("lbTransport").textContent = v.transport === "supabase" ? "Online" : "Local test";
+    $("lbPlayers").innerHTML = v.players.map(p => `<div class="lbrow ${p.connected ? "" : "off"}"><span class="av">${mpEsc(p.name.slice(0, 1).toUpperCase())}</span>
+      <span class="lbname">${mpEsc(p.name)}${p.isMe ? " (you)" : ""}</span>
+      ${p.isHost ? '<span class="tag warn">Host</span>' : `<span class="tag ${p.ready ? "ok" : ""}">${p.ready ? "Ready" : "Not ready"}</span>`}
+      ${v.isHost && !p.isMe ? `<button class="ghost mini" data-kick="${mpEsc(p.id)}" aria-label="Remove ${mpEsc(p.name)}">Remove</button>` : ""}</div>`).join("");
+    $("lbPlayers").querySelectorAll("[data-kick]").forEach(b => b.onclick = () => mp.kick(b.dataset.kick));
+    const editable = v.isHost && v.phase === "lobby";
+    for (const [id, key] of [["lbDays", "days"], ["lbDiff", "difficulty"], ["lbCap", "capital"]]) { const el = $(id); el.disabled = !editable; if (document.activeElement !== el) el.value = v.config[key]; }
+    $("lbStart").hidden = !v.isHost; $("lbReady").hidden = v.isHost;
+    const me = v.players.find(p => p.isMe);
+    $("lbReady").textContent = me && me.ready ? "Not ready" : "I am ready"; $("lbReady").classList.toggle("on", !!(me && me.ready));
+    $("lbMsg").textContent = v.error || (v.isHost ? (v.players.length < 2 ? "Share the code. You can start alone to test, but a match is better with friends." : "Start when everyone is ready.") : "Waiting for the host to start...");
+    $("lbMsg").className = "mp-msg" + (v.error ? " err" : "");
+  }
+}
+const mpName = () => { const n = $("mpName").value.trim(); try { localStorage.setItem("economy-mp-name", n); } catch { /* blocked */ } return n || "Player"; };
+$("mMulti").onclick = () => {
+  if (mpBlock()) return;
+  $("mpName").value = (() => { try { return localStorage.getItem("economy-mp-name") || ""; } catch { return ""; } })();
+  $("mpNote").textContent = net.kind === "supabase" ? "Compete shop against shop across devices. Everyone gets the same start settings and seed. Highest score wins." : "Supabase did not load, so this is LOCAL TEST mode: it only works between tabs of this browser.";
+  $("mpMsg").textContent = ""; showSection("menuMulti");
+};
+async function enterRoom(promise) {
+  $("mpMsg").className = "mp-msg"; $("mpMsg").textContent = "Connecting...";
+  const r = await promise;
+  if (r.error) { $("mpMsg").textContent = r.error; $("mpMsg").className = "mp-msg err"; return; }
+  $("mpMsg").textContent = ""; showSection("menuLobby"); renderMp(mp.view());
+}
+$("mpCreate").onclick = () => enterRoom(mp.create(mpName()));
+$("mpJoin").onclick = () => enterRoom(mp.join($("mpCode").value, mpName()));
+$("mpCode").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6); });
+$("mpCode").addEventListener("keydown", e => { if (e.key === "Enter") $("mpJoin").click(); });
+$("mRejoin").onclick = async () => {
+  $("mNote").textContent = "Rejoining...";
+  const r = await mp.rejoin();
+  if (r.error) { $("mNote").textContent = r.error; return; }
+  if (!mpMatch) { showSection("menuLobby"); renderMp(mp.view()); }
+};
+$("mLeaveMp").onclick = () => { if (!nativeConfirm("Leave the room? If a match is running you forfeit it.")) return; mp.leave(); endMatchLocal(); openMenu(!!state); };
+$("lbCopy").onclick = async () => { try { await navigator.clipboard.writeText(mp.view().code); toast("Room code copied.", "ok"); } catch { toast("Copy failed. Read the code aloud instead.", "err"); } };
+$("lbReady").onclick = () => { const me = mp.view().players.find(p => p.isMe); mp.setReady(!(me && me.ready)); };
+$("lbStart").onclick = () => { const r = mp.start(); if (r.error) { $("lbMsg").textContent = r.error; $("lbMsg").className = "mp-msg err"; } };
+$("lbLeave").onclick = () => { mp.leave(); showSection("menuMain"); openMenu(!!state && !mpMatch); };
+for (const id of ["lbDays", "lbDiff", "lbCap"]) $(id).addEventListener("change", () => mp.setConfig({ days: Number($("lbDays").value), difficulty: $("lbDiff").value, capital: Number($("lbCap").value) }));
+setInterval(() => { if (mpMatch && state && !state.ended) mp.reportProgress(state); }, 5000);
+window.addEventListener("beforeunload", () => { if (mpMatch) saveLocal(); });
+
 // ---------- sound cues (derived from state changes, never from animation) ----------
 let prev = { sales: 0, done: 0, ms: 0, staff: 0, orders: 0, day: 0, phase: "" };
 function watchSounds() {
@@ -358,7 +477,7 @@ let lastT = performance.now();
 function frame(now) {
   const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
   if (state && !paused && !menu.open && state.phase === "open" && !state.ended) {
-    E.tick(state, dt * speed);
+    E.tick(state, dt * speed * FAST);
     if (state.phase !== "open" || state.ended) { dirtyCloud = true; saveLocal(); maybeDialogs(); updateHud(true); }
   }
   world.frame(now);

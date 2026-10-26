@@ -25,6 +25,7 @@
       <div class="pill k-net"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-9M15 6h6v6"/></svg>Net worth</span><b id="hNet">$0</b></div>
       <div class="pill k-happy"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 14c1 1.500 2.500 2 4 2s3-.5 4-2M9 9.500h.01M15 9.500h.01"/></svg>Happiness</span><b id="hHappy">0%</b><div class="meter"><i id="hHappyBar"></i></div></div>
     </div>
+    <div class="netpill" id="netPill" hidden><i class="dot"></i><span id="netText"></span></div>
     <div class="ctrl">
       <button class="ghost" id="bPause" aria-label="Pause">Pause</button>
       <button class="ghost spd" data-speed="1">1x</button><button class="ghost spd" data-speed="2">2x</button><button class="ghost spd" data-speed="4">4x</button>
@@ -53,6 +54,8 @@
     <aside class="side">
       <h2>Manage</h2>
       <div class="manage" id="manage"></div>
+      <h2 id="mpH" hidden>Scoreboard</h2>
+      <div id="mpBoard" class="card mpboard" hidden></div>
       <h2>Alerts</h2>
       <div id="alerts" class="alerts"></div>
       <div id="tutorial" class="card"></div>
@@ -104,7 +107,9 @@
         <button class="ghost" id="mTutorial">Replay tutorial</button>
         <button class="ghost" id="mSettings">Settings</button>
       </div>
-      <button class="ghost" disabled title="Planned for the next update">Online multiplayer (coming next)</button>
+      <button class="primary" id="mMulti">Online multiplayer</button>
+      <button class="ghost" id="mRejoin" hidden>Rejoin your room</button>
+      <button class="ghost" id="mLeaveMp" hidden>Leave current match</button>
       <div class="menu-row">
         <button class="ghost" id="mImport">Load save file</button>
         <button class="ghost" id="mClose" hidden>Back to game</button>
@@ -129,6 +134,29 @@
     <div id="helpBody" class="helpbody" tabindex="-1"></div>
     <div class="dlg-actions"><button class="primary" data-back>Back</button></div>
   </div>
+  <div id="menuMulti" hidden>
+    <h2>Online multiplayer</h2>
+    <p class="muted" id="mpNote">Compete shop against shop. Everyone starts with the same settings and seed. Highest score wins.</p>
+    <label class="field">Your name<input id="mpName" maxlength="16" placeholder="Player" autocomplete="nickname"></label>
+    <div class="mp-actions">
+      <button class="primary" id="mpCreate">Create room</button>
+      <div class="mp-join"><input id="mpCode" inputmode="numeric" maxlength="6" placeholder="6-digit code" aria-label="Room code" autocomplete="off"><button id="mpJoin">Join</button></div>
+    </div>
+    <p id="mpMsg" class="mp-msg" role="status"></p>
+    <div class="dlg-actions"><button class="ghost" data-back>Back</button></div>
+  </div>
+  <div id="menuLobby" hidden>
+    <div class="lobby-head"><div><small class="muted">Room code</small><div class="roomcode" id="lbCode">------</div></div>
+      <div class="row"><button class="ghost mini" id="lbCopy">Copy code</button><span class="chip" id="lbTransport"></span></div></div>
+    <div id="lbPlayers" class="lb-players" aria-live="polite"></div>
+    <div class="lb-config" id="lbConfig">
+      <label class="field">Days<input type="number" id="lbDays" min="5" max="60" step="1" value="15"></label>
+      <label class="field">Difficulty<select id="lbDiff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
+      <label class="field">Starting capital<input type="number" id="lbCap" min="300" max="20000" step="50" value="1000"></label>
+    </div>
+    <p id="lbMsg" class="mp-msg" role="status"></p>
+    <div class="dlg-actions"><button class="ghost" id="lbLeave">Leave room</button><button id="lbReady" class="ghost">I am ready</button><button class="primary" id="lbStart" hidden>Start match</button></div>
+  </div>
   <div id="menuSettings" hidden>
     <h2>Settings</h2>
     <label class="check"><input type="checkbox" id="setSound" checked> Sound effects</label>
@@ -140,6 +168,7 @@
     <div class="dlg-actions"><button class="primary" data-back>Back</button></div>
   </div>
 </dialog>
+<dialog id="mpDlg"><form method="dialog" onsubmit="return false"><h2>Match results</h2><div id="mpResults"></div><div class="dlg-actions"><button id="mpDone" class="primary">Back to menu</button></div></form></dialog>
 <input type="file" id="fileIn" accept="application/json,.json" hidden>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
