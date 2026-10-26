@@ -52,6 +52,7 @@ export function createUI(ctx) {
   // ---------- open / close ----------
   function open(panel) {
     if (!PANELS.some(p => p[0] === panel)) return;
+    if (view.panel !== panel) lastHtml = "";
     view.panel = panel;
     root.hidden = false; document.body.classList.add("modal-open");
     tabs.innerHTML = PANELS.map(([id, name]) => `<button class="tab ${id === panel ? "on" : ""}" data-act="tab" data-id="${id}">${name}</button>`).join("");
@@ -61,6 +62,7 @@ export function createUI(ctx) {
   function close() { root.hidden = true; view.panel = null; document.body.classList.remove("modal-open"); }
   const isOpen = () => !root.hidden;
 
+  let lastHtml = "", lastPanel = null;
   function refresh() {
     if (!isOpen() || !view.panel) return;
     const s = S(); if (!s) return;
@@ -68,7 +70,10 @@ export function createUI(ctx) {
     tabs.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.id === view.panel));
     const tp = TIPS[view.panel];
     const tipHtml = tp ? `<details class="tip" data-tip="${view.panel}" ${tipState[view.panel] === false ? "" : "open"}><summary>${tp[0]}: how it works</summary><p>${tp[1]}</p></details>` : "";
-    body.innerHTML = tipHtml + ({ store, procure, inventory, staff, bank, finance, upgrades, goals })[view.panel](s);
+    const html = tipHtml + ({ store, procure, inventory, staff, bank, finance, upgrades, goals })[view.panel](s);
+    if (html === lastHtml && lastPanel === view.panel) return;        // nothing changed: leave the DOM and the scroll position alone
+    lastHtml = html; lastPanel = view.panel;
+    body.innerHTML = html;
     body.scrollTop = scroll;
   }
   // live refresh while open, but never while the player is typing

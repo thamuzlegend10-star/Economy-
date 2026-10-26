@@ -166,5 +166,10 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script type="module" src="js/main.js"></script>
+<script>
+  // If the game script never starts, say why instead of hanging on "Loading..."
+  window.addEventListener("error", function (e) { var s = document.getElementById("status"); if (s && !window.__economyBooted) { s.textContent = "Game failed to start: " + (e.message || "script error") + ". Hard refresh (Ctrl+Shift+R)."; s.className = "err"; } });
+  setTimeout(function () { if (!window.__economyBooted) { var s = document.getElementById("status"); if (s) { s.textContent = location.protocol === "file:" ? "Open this game through a web server (http://), not by double-clicking the file." : "Game script did not start. Hard refresh (Ctrl+Shift+R). If it persists, check the browser console."; s.className = "err"; } } }, 5000);
+</script>
 </body>
 </html>

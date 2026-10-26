@@ -64,7 +64,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   });
   canvas.addEventListener("pointerleave", () => { hover = null; mouse = { x: -1, y: -1 }; });
   canvas.addEventListener("wheel", e => {
-    if (scene !== "district") return;
+    if (scene !== "district" || !(e.ctrlKey || e.metaKey)) return;   // plain wheel scrolls the page; Ctrl/Cmd + wheel zooms the map
     e.preventDefault();
     const p = toLocal(e), before = toWorld(p);
     cam.z *= e.deltaY < 0 ? 1.12 : 1 / 1.12; clampCam();
@@ -164,7 +164,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     ctx.restore();
     // HUD bits (screen space)
     chip(ctx, 62, 28, hourText(s) + (n > 0.5 ? "  night" : t < 0.25 ? "  morning" : t < 0.6 ? "  day" : "  evening"), { size: 13 });
-    chip(ctx, W - 100, 28, "Drag to pan · wheel to zoom", { size: 11, bg: "rgba(10,14,36,.6)" });
+    chip(ctx, W - 100, 28, "Drag to pan · Ctrl + wheel to zoom", { size: 11, bg: "rgba(10,14,36,.6)" });
   }
 
   function orderTruckY(o) {

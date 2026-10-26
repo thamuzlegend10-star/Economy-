@@ -170,6 +170,9 @@ function renderTutorial() {
   const obj = ui.objectives(state), done = obj.every(o => o.done);
   if (done) { writeLS(TUT_KEY, "true"); el.hidden = true; return; }
   el.hidden = false;
+  const sig = obj.map(o => o.done ? 1 : 0).join("");
+  if (el.dataset.sig === sig) return;                  // rebuild only when a checklist item changes
+  el.dataset.sig = sig;
   el.innerHTML = `<b>Getting started</b><ul class="todo">${obj.map(o => `<li class="${o.done ? "done" : ""}">${o.done ? "✓" : "○"} ${esc(o.text)}</li>`).join("")}</ul><button class="ghost mini" id="tutSkip">Hide tips</button>`;
   $("tutSkip").onclick = () => { writeLS(TUT_KEY, "true"); el.hidden = true; };
 }
@@ -452,6 +455,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) { sav
 
 // ---------- boot ----------
 (async function boot() {
+  window.__economyBooted = true;
   renderManage();
   $("bSound").textContent = settings.sound ? "Sound on" : "Sound off"; $("bSound").classList.toggle("on", settings.sound);
   world.setScene("district");
