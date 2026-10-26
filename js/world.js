@@ -21,7 +21,8 @@ function along(path, f) {
 }
 
 export function createWorld(canvas, { getState, onOpen, onScene }) {
-  canvas.width = W; canvas.height = H;
+  const SS = 2;                          // backing-store scale: crisp when the canvas is shown wider than 960px
+  canvas.width = W * SS; canvas.height = H * SS;
   const ctx = canvas.getContext("2d");
   let scene = "district", clock = 0, last = performance.now();
   let cam = { x: 0, y: 0, z: 0.77 };
@@ -32,10 +33,10 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   let reduced = false;
 
   const minZ = () => Math.max(W / WW, H / WH) * 0.98;
-  const fit = () => { cam.z = Math.min(W / WW, H / WH); cam.x = (W - WW * cam.z) / 2; cam.y = (H - WH * cam.z) / 2; };
+  const fit = () => { cam.z = Math.max(W / WW, H / WH); cam.x = (W - WW * cam.z) / 2; cam.y = (H - WH * cam.z) / 2; };
   fit();
   const clampCam = () => {
-    cam.z = clamp(cam.z, Math.min(W / WW, H / WH) * 0.98, 2.2);
+    cam.z = clamp(cam.z, Math.max(W / WW, H / WH), 2.2);
     const vw = WW * cam.z, vh = WH * cam.z;
     cam.x = vw <= W ? (W - vw) / 2 : clamp(cam.x, W - vw, 0);
     cam.y = vh <= H ? (H - vh) / 2 : clamp(cam.y, H - vh, 0);
@@ -84,6 +85,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     if (!s) return;
     trackOrders(s);
     hotspots = [];
+    ctx.setTransform(SS, 0, 0, SS, 0, 0);
     ctx.clearRect(0, 0, W, H);
     ({ district: drawDistrict, shop: drawShop, warehouse: drawWarehouse, bank: drawBank, office: drawOffice })[scene](s);
     drawTooltip();
@@ -131,31 +133,32 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
 
     drawDepot(s, n); drawWarehouseBuilding(s, n); drawOfficeBuilding(s, n); drawShopBuilding(s, n); drawBankBuilding(s, n);
 
-    // ambient traffic
+    // everything that moves, drawn far-to-near by its ground line so nothing overlaps illogically
+    const layer = [];
     const cars = [["#e5383b", 0, 40], ["#4a90e2", 1, 55], ["#f2c230", 0, 35]];
     cars.forEach(([c, lane, sp], i) => {
-      const x = ((clock * sp * (lane ? -1 : 1) + i * 420) % (WW + 200) + (WW + 200)) % (WW + 200) - 100;
-      car(ctx, x, lane ? 322 : 358, c, lane ? -1 : 1);
+      const x = ((clock * sp * (lane ? -1 : 1) + i * 420) % (WW + 200) + (WW + 200)) % (WW + 200) - 100, y = lane ? 322 : 358;
+      layer.push({ y, draw: () => car(ctx, x, y, c, lane ? -1 : 1) });
     });
-
-    // trucks
-    for (const o of s.orders) drawOrderTruck(o);
-    for (const [id, t0] of leaving) { const f = (clock - t0) / 4; const p = along([...ROUTE].reverse(), f); truck(ctx, p.x, p.y + 8, { dir: p.seg === 1 ? 1 : -1, moving: true, t: clock, label: "DELIVERY", scale: 0.55, lights: n > 0.4 }); }
-
-    // workers on the road: stockers shuttle goods from the warehouse to the shop while restock tasks run
+    for (const o of s.orders) layer.push({ y: orderTruckY(o), draw: () => drawOrderTruck(o) });
+    for (const [id, t0] of leaving) {
+      const f = (clock - t0) / 4, p = along([...ROUTE].reverse(), f);
+      layer.push({ y: p.y + 8, draw: () => truck(ctx, p.x, p.y + 8, { dir: -1, moving: true, t: clock, label: "DELIVERY", scale: 0.55, lights: n > 0.4 }) });
+    }
     if (s.tasks.length) {
       const workers = Math.max(1, Math.min(3, s.staff.filter(x => x.role === "stocker").length));
       const path = [[WH_DOOR[0], 268], [WH_DOOR[0], 386], [SHOP_DOOR[0], 386], [SHOP_DOOR[0], SHOP_DOOR[1] - 6]];
       for (let i = 0; i < workers; i++) {
         const f = ((clock * 0.12 + i / workers) % 1), out = f < 0.5, p = along(path, out ? f * 2 : (1 - f) * 2);
-        person(ctx, p.x, p.y + 20, lookFor(77 + i), { role: "stocker", walk: clock * 9, carry: out, scale: 0.55, flip: !out && p.seg === 1 ? false : false });
+        const movingLeft = p.seg === 1 && out;
+        layer.push({ y: p.y + 20, draw: () => person(ctx, p.x, p.y + 20, lookFor(77 + i), { role: "stocker", walk: clock * 9, carry: out, scale: 0.55, flip: movingLeft }) });
       }
     }
-    // customers walking to the shop
     for (const c of s.customers) {
-      if (c.state === "enter") { const k = ease(c.t / 2.5); person(ctx, lerp(-20, SHOP_DOOR[0], k), 388 + 22 - k * 0, lookFor(c.look), { walk: clock * 9 + c.id, scale: 0.5 }); }
-      else if (c.state === "leave") { const k = ease(c.t / 2.5); person(ctx, lerp(SHOP_DOOR[0], 220, k), 410, lookFor(c.look), { walk: clock * 9 + c.id, scale: 0.5, flip: true }); }
+      if (c.state === "enter") { const k = ease(c.t / 2.5); layer.push({ y: 410, draw: () => person(ctx, lerp(-20, SHOP_DOOR[0], k), 410, lookFor(c.look), { walk: clock * 9 + c.id, scale: 0.5 }) }); }
+      else if (c.state === "leave") { const k = ease(c.t / 2.5); layer.push({ y: 410, draw: () => person(ctx, lerp(SHOP_DOOR[0], 220, k), 410, lookFor(c.look), { walk: clock * 9 + c.id, scale: 0.5, flip: true }) }); }
     }
+    drawSorted(layer);
     // overlay for night
     if (n > 0) { ctx.fillStyle = `rgba(6,10,40,${0.45 * n})`; ctx.fillRect(0, 0, WW, WH); }
     ctx.restore();
@@ -164,6 +167,12 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     chip(ctx, W - 100, 28, "Drag to pan · wheel to zoom", { size: 11, bg: "rgba(10,14,36,.6)" });
   }
 
+  function orderTruckY(o) {
+    const st = o.status, lead = o.lead;
+    if (st === "processing") return 270;
+    if (st === "en route" || st === "arriving") return along(ROUTE, clamp((o.t - 0.25 * lead) / (0.55 * lead), 0, 1)).y + 8;
+    return ROUTE[3][1] + 8;
+  }
   function drawOrderTruck(o) {
     const lead = o.lead, st = o.status;
     const drive = (f, rev) => along(rev ? [...ROUTE].reverse() : ROUTE, f);
@@ -244,6 +253,9 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   // SHOP INTERIOR
   // =====================================================================
   const SLOT_W = 140, FLOOR_Y = 360;
+  // Painter's algorithm: things further down the screen are nearer, so draw them later (and slightly larger).
+  const depthK = y => clamp(0.9 + (y - FLOOR_Y) / 900, 0.9, 1.08);
+  const drawSorted = list => { list.sort((a, b) => a.y - b.y); for (const it of list) it.draw(); };
   function slotPos(i) { return { x: 70 + (i % 6) * SLOT_W, plank: Math.floor(i / 6) }; }
   function drawShop(s) {
     const n = night(s);
@@ -299,7 +311,8 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     }
     hs(550, 250, 110 * (1 + s.upgrades.counter), 112, "Checkout (cash goes to the till)", { panel: "bank" });
 
-    // stockers
+    // everyone on the shop floor, sorted far-to-near. Customers use the door threshold as their start/end.
+    const actors = [], bubbles = [];
     const tasks = s.tasks[0], stockers = s.staff.filter(x => x.role === "stocker");
     const nStock = tasks ? Math.max(1, stockers.length) : stockers.length;
     for (let i = 0; i < nStock; i++) {
@@ -307,28 +320,32 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
       if (tasks) {
         const idx = D.PRODUCTS.findIndex(p => p.id === tasks.pid), tx = slotPos(idx).x + 55;
         const f = (clock * 0.22 + i * 0.37) % 1, out = f < 0.5, k = out ? f * 2 : (1 - f) * 2;
-        const pos = lerp(890, tx, ease(k));
-        const atShelf = k > 0.97;
-        person(ctx, pos, FLOOR_Y + 90 - i * 18, look, { role: "stocker", walk: clock * 9, carry: out, flip: !out, moving: !atShelf, scale: 1 });
-      } else person(ctx, 800 + i * 40, FLOOR_Y + 70, look, { role: "stocker", moving: false });
+        const pos = lerp(890, tx, ease(k)), atShelf = k > 0.97, y = FLOOR_Y + 90 - i * 18;
+        actors.push({ y, draw: () => person(ctx, pos, y, look, { role: "stocker", walk: clock * 9, carry: out, flip: !out, moving: !atShelf, scale: depthK(y) }) });
+      } else { const y = FLOOR_Y + 70; actors.push({ y, draw: () => person(ctx, 800 + i * 40, y, look, { role: "stocker", moving: false, flip: true, scale: depthK(y) }) }); }
     }
-    if (s.staff.some(x => x.role === "manager")) person(ctx, 480, FLOOR_Y + 20, lookFor(900), { role: "manager", moving: false, scale: 0.95 });
+    if (s.staff.some(x => x.role === "manager")) { const y = FLOOR_Y + 20; actors.push({ y, draw: () => person(ctx, 480, y, lookFor(900), { role: "manager", moving: false, scale: depthK(y) }) }); }
 
-    // customers
     const queue = s.customers.filter(c => c.state === "queue");
     for (const c of s.customers) {
       const look = lookFor(c.look), wantIdx = c.want.length ? D.PRODUCTS.findIndex(p => p.id === c.want[Math.floor(clock / 2.5 + c.id) % c.want.length]) : 0;
-      const shelfX = slotPos(Math.max(0, wantIdx)).x + 55, yy = FLOOR_Y + 70 + (c.id % 4) * 22;
-      let x, y = yy, flip = false, moving = true, label = null, pid = null;
-      if (c.state === "enter") { const k = ease(c.t / 2.5); x = lerp(50, shelfX, k); y = lerp(FLOOR_Y + 40, yy, k); moving = k < 0.98; }
-      else if (c.state === "browse") { x = shelfX; moving = false; label = null; pid = null; if ((c.t % 2.2) < 1.2) { label = D.PRODUCTS[wantIdx]?.name || ""; pid = D.PRODUCTS[wantIdx]?.id; } }
+      const shelfX = slotPos(Math.max(0, wantIdx)).x + 55, yy = FLOOR_Y + 70 + (c.id % 4) * 22, DOOR_Y = FLOOR_Y + 8;
+      let x, y = yy, flip = false, moving = true, label = null, pid = null, alpha = 1;
+      if (c.state === "enter") { const k = ease(c.t / 2.5); x = lerp(50, shelfX, k); y = lerp(DOOR_Y, yy, k); moving = k < 0.98; alpha = clamp(k * 8, 0, 1); }
+      else if (c.state === "browse") { x = shelfX; moving = false; if ((c.t % 2.2) < 1.2) { label = D.PRODUCTS[wantIdx]?.name || ""; pid = D.PRODUCTS[wantIdx]?.id; } }
       else if (c.state === "queue") { const qi = queue.indexOf(c); x = 540 - qi * 40; y = FLOOR_Y + 60; moving = false; if (qi === 0 && c.wait > 10) label = "Hurry up?"; }
-      else if (c.state === "pay") { x = laneX(c.lane) + 40; y = 378; moving = false; label = null; }
-      else { const k = ease(c.t / 2.5); x = lerp(laneX(Math.max(0, c.lane)) + 20, 50, k); y = lerp(FLOOR_Y + 40, FLOOR_Y + 60, k); flip = true; }
-      person(ctx, x, y, look, { walk: clock * 9 + c.id, moving, flip, carry: false });
-      if (c.basket.length && c.state !== "gone" && !["browse"].includes(c.state)) box(ctx, x - 10, y - 58, 20, 16);
-      if (label) bubble(ctx, x, y - 100, label, pid);
+      else if (c.state === "pay") { x = laneX(c.lane) + 40; y = 380; moving = false; }
+      else { const k = ease(c.t / 2.5); x = lerp(laneX(Math.max(0, c.lane)) + 20, 50, k); y = lerp(380, DOOR_Y, k); flip = true; alpha = 1 - clamp((k - 0.85) * 6.6, 0, 1); }
+      actors.push({ y, draw: () => {
+        ctx.save(); ctx.globalAlpha = alpha;
+        person(ctx, x, y, look, { walk: clock * 9 + c.id, moving, flip, carry: false, scale: depthK(y) });
+        if (c.basket.length && c.state !== "gone" && c.state !== "browse") box(ctx, x + (flip ? 6 : -26), y - 58 * depthK(y), 20, 16);
+        ctx.restore();
+      } });
+      if (label) bubbles.push(() => bubble(ctx, x, y - 100 * depthK(y), label, pid));
     }
+    drawSorted(actors);
+    bubbles.forEach(f => f());
     // night tint through window? minor: sign
     if (s.upgrades.signage) text(ctx, "OPEN", 480, 24, { size: 14, color: "#ffd36b", weight: 800 });
     chip(ctx, 62, 62 + planks * 62 + 18, hourText(s), { size: 12 });
