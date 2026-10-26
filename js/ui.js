@@ -10,6 +10,20 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random(
 const stars = n => "★".repeat(n) + "☆".repeat(5 - n);
 const bar = (v, max, cls = "") => `<div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(100, 100 * v / (max || 1)))}%"></i></div>`;
 
+
+// Short "how this works" boxes shown at the top of each panel (collapsible, remembered).
+const TIPS = {
+  store: ["Your shop floor", "Only goods on <b>shelves</b> can be sold. Press <b>Restock</b> to move goods from the warehouse, or set an <b>Auto target</b> so stockers refill shelves when they drop below half. Customers expect a fair price: a little above is fine, far above and they skip the item."],
+  procure: ["Buying stock", "Pick a supplier, type quantities, then <b>Place order</b>. A truck brings the goods to your warehouse. You pay goods plus a delivery fee now. Cheap suppliers are slow, QuickShip is fast but pricey, and big orders earn a bulk discount. Mind your warehouse space."],
+  inventory: ["Your goods", "See what you own in the warehouse and on shelves, what is on the way, and what it is worth. <b>Out</b> and <b>Low shelf</b> mean lost sales, <b>Overstock</b> means cash tied up in goods."],
+  staff: ["Your team", "Hire to remove bottlenecks: <b>cashiers</b> speed up checkout, <b>stockers</b> fill shelves, <b>warehouse workers</b> unload trucks, <b>managers</b> raise happiness. Wages are charged every closing, so hire only when profit can carry them."],
+  bank: ["Banking", "Sales land in the till as cash. Bills are paid from the bank first, then cash, then an <b>overdraft</b> (1% a day). <b>Loans</b> give cash now and are repaid daily with interest. Borrow to grow, not to survive."],
+  finance: ["Your books", "Every number comes from a double-entry ledger. <b>Today</b> is live, <b>History</b> shows past days. Net worth = cash + bank + inventory + equipment - debt."],
+  upgrades: ["Investments", "Permanent upgrades. A <b>Checkout counter</b> adds a lane and is the usual first buy when customers leave from long queues. Shelves and racks add space. Signage is cosmetic."],
+  goals: ["Milestones", "Goals show your progress. In Standard mode your final score comes from wealth growth, cash health, low debt, happiness, stock management and expansion."],
+};
+const tipState = (() => { try { return JSON.parse(localStorage.getItem("economy-tips")) || {}; } catch { return {}; } })();
+
 export const PANELS = [
   ["store", "Store"], ["procure", "Procurement"], ["inventory", "Inventory"], ["staff", "Staff"],
   ["bank", "Bank"], ["finance", "Finance"], ["upgrades", "Upgrades"], ["goals", "Goals"],
@@ -52,7 +66,9 @@ export function createUI(ctx) {
     const s = S(); if (!s) return;
     const scroll = body.scrollTop;
     tabs.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.id === view.panel));
-    body.innerHTML = ({ store, procure, inventory, staff, bank, finance, upgrades, goals })[view.panel](s);
+    const tp = TIPS[view.panel];
+    const tipHtml = tp ? `<details class="tip" data-tip="${view.panel}" ${tipState[view.panel] === false ? "" : "open"}><summary>${tp[0]}: how it works</summary><p>${tp[1]}</p></details>` : "";
+    body.innerHTML = tipHtml + ({ store, procure, inventory, staff, bank, finance, upgrades, goals })[view.panel](s);
     body.scrollTop = scroll;
   }
   // live refresh while open, but never while the player is typing
@@ -331,6 +347,10 @@ export function createUI(ctx) {
     if (t.dataset.act === "amount") view.amount = t.value;
     if (t.dataset.act === "invq") { view.invQ = t.value; const pos = t.selectionStart; refresh(); const n = document.getElementById("invq"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
   });
+  body.addEventListener("toggle", e => {
+    const d = e.target; if (!d.matches || !d.matches("details.tip")) return;
+    tipState[d.dataset.tip] = d.open; try { localStorage.setItem("economy-tips", JSON.stringify(tipState)); } catch { /* blocked */ }
+  }, true);
   root.addEventListener("click", e => { if (e.target === root || e.target.closest("[data-close]")) close(); });
   tabs.addEventListener("click", e => { const t = e.target.closest("[data-act=tab]"); if (t) open(t.dataset.id); });
 

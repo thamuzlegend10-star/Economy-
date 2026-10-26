@@ -4,6 +4,7 @@ import * as E from "./engine.js";
 import { createWorld } from "./world.js";
 import { createUI, money, money0 } from "./ui.js";
 import { createCloud } from "./cloud.js";
+import { createTutorial } from "./tutorial.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -36,6 +37,7 @@ const world = createWorld($("stage"), {
   onScene: name => document.querySelectorAll("#scenes [data-scene]").forEach(b => b.classList.toggle("on", b.dataset.scene === name)),
 });
 ui = createUI({ getState: () => state, onChange: () => { E.updateDerived(state); dirtyCloud = true; saveLocal(); updateHud(true); }, toast, world });
+const tut = createTutorial({ getState: () => state, ui, world, setPaused: v => { paused = v; updateHud(true); } });
 world.setReduced(settings.reduceMotion);
 if (!settings.confirm) window.confirm = () => true;
 
@@ -158,13 +160,24 @@ function updateHud(force) {
   }
   renderTutorial();
 }
+const SVG = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const PANEL_ICON = {
+  store: SVG('<path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/>'),
+  procure: SVG('<path d="M2 6h11v10H2zM13 9h4l3 3v4h-7"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>'),
+  inventory: SVG('<path d="M3 8l9-5 9 5-9 5zM3 8v8l9 5 9-5V8M12 13v8"/>'),
+  staff: SVG('<circle cx="9" cy="8" r="3.500"/><path d="M2 20c0-4 3-6 7-6s7 2 7 6M17 5a3 3 0 010 6M22 20c0-3-2-5-4-5.500"/>'),
+  bank: SVG('<path d="M3 10l9-6 9 6M5 10v8M10 10v8M14 10v8M19 10v8M3 20h18"/>'),
+  finance: SVG('<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>'),
+  upgrades: SVG('<path d="M12 21V7M6 12l6-6 6 6M5 21h14"/>'),
+  goals: SVG('<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0zM17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/>'),
+};
 function renderManage() {
-  $("manage").innerHTML = ui.PANELS.map(([id, name]) => `<button data-panel="${id}">${name}</button>`).join("");
+  $("manage").innerHTML = ui.PANELS.map(([id, name]) => `<button data-panel="${id}" class="mb mb-${id}"><span class="mb-ic">${PANEL_ICON[id] || ""}</span>${name}</button>`).join("");
   $("manage").querySelectorAll("[data-panel]").forEach(b => b.onclick = () => ui.open(b.dataset.panel));
 }
 function renderTutorial() {
   const el = $("tutorial");
-  if (!state || readJSON(TUT_KEY) === true) { el.hidden = true; return; }
+  if (!state || tut.isActive() || readJSON(TUT_KEY) === true) { el.hidden = true; return; }
   const obj = ui.objectives(state), done = obj.every(o => o.done);
   if (done) { writeLS(TUT_KEY, "true"); el.hidden = true; return; }
   el.hidden = false;
@@ -201,10 +214,13 @@ $("sStart").onclick = () => {
   writeLS(TUT_KEY, "false"); localStorage.removeItem(TUT_KEY);
   menu.close(); startState(s); world.setScene("district"); world.reset();
   dirtyCloud = true; saveCloud(false);
+  paused = false; tut.start();
 };
-$("mContinue").onclick = () => { if (!state) { const s = loadLocal(); if (s) startState(s); } menu.close(); };
+$("mContinue").onclick = () => { if (!state) { const s = loadLocal(); if (s) startState(s); } menu.close(); paused = false; tut.resume(); };
 $("mClose").onclick = () => menu.close();
-$("mHelp").onclick = () => showSection("menuHelp");
+$("mHelp").onclick = () => { showHelp("goal"); showSection("menuHelp"); };
+$("bHelp").onclick = () => { openMenu(!!state); showHelp("goal"); showSection("menuHelp"); };
+$("mTutorial").onclick = () => { if (!state) return toast("Start or continue a game first.", "err"); menu.close(); ui.close(); tut.start(); };
 $("mSettings").onclick = () => { $("setMotion").checked = settings.reduceMotion; $("setConfirm").checked = settings.confirm; showSection("menuSettings"); };
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => showSection("menuMain"));
 $("setMotion").onchange = e => { settings.reduceMotion = e.target.checked; world.setReduced(settings.reduceMotion); writeLS(SETTINGS_KEY, JSON.stringify(settings)); };
@@ -225,6 +241,61 @@ $("fileIn").onchange = async e => {
   menu.close(); startState(v.state); toast("Save loaded.", "ok");
 };
 $("bMenu").onclick = () => openMenu(true);
+
+
+// ---------- how-to-play guide ----------
+const HELP = {
+  goal: `<h3>The goal</h3>
+    <p>You own a small corner shop. Buy goods from suppliers, sell them to customers for more than you paid, pay your bills, and grow into a bigger business. Your score is based on how much your <b>net worth</b> grows.</p>
+    <ul><li><b>Standard mode:</b> you get a fixed number of days. At the end you see a score from S (best) to D, with a full report.</li>
+    <li><b>Infinite mode:</b> no end date. Unlock products, expand, and chase milestones. If money runs out you get a recovery option, not a game over.</li></ul>
+    <p class="help-note">Net worth = cash + bank + inventory + equipment - debt.</p>`,
+  loop: `<h3>One business day</h3>
+    <ol class="steps">
+      <li><b>Order</b> goods in <i>Procurement</i>. A truck brings them to the warehouse.</li>
+      <li><b>Restock</b> shelves in <i>Store</i>. Only shelf goods can be sold.</li>
+      <li><b>Customers</b> walk in, pick items, queue and pay at the counter.</li>
+      <li><b>At 20:00</b> the shop closes. Bills are paid and a <b>report</b> explains the day.</li>
+      <li><b>Next day</b> starts. Adjust prices, staff and orders, then repeat.</li>
+    </ol>
+    <p>One day takes about two minutes at 1x speed. Use <b>Pause</b>, <b>1x / 2x / 4x</b> (keys <kbd>Space</kbd>, <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>) to control time.</p>`,
+  money: `<h3>Money</h3>
+    <ul><li><b>Cash</b>: the till. Every sale lands here. Extra cash is moved to the bank at closing.</li>
+    <li><b>Bank</b>: pays suppliers and bills. Bills are paid from the bank first, then cash.</li>
+    <li><b>Overdraft</b>: if both are empty, bills still get paid but at 1% daily interest. Avoid it.</li>
+    <li><b>Loans</b>: cash now, repaid in daily installments with interest. Good for growth, risky for survival.</li>
+    <li><b>Daily costs</b>: rent, utilities, wages, marketing, loan payments. A tax of 10% of profit is charged every 7th day.</li>
+    <li><b>Profit</b> = sales - cost of goods - expenses. The report shows each line and explains changes.</li></ul>`,
+  people: `<h3>Staff and growth</h3>
+    <ul><li><b>Cashier</b>: faster checkout. Fixes long queues.</li>
+    <li><b>Shelf stocker</b>: moves goods from warehouse to shelves faster.</li>
+    <li><b>Warehouse worker</b>: unloads trucks faster.</li>
+    <li><b>Manager</b>: raises customer happiness.</li>
+    <li><b>Upgrades</b>: more lanes, more shelf and warehouse space, faster unloading.</li>
+    <li><b>Marketing</b>: costs money every day but brings more customers.</li></ul>
+    <p class="help-note">Hire when profit can carry the wage. Wages are charged every closing.</p>`,
+  tips: `<h3>Tips for a strong start</h3>
+    <ul><li>Never let best sellers run out. Empty shelves lose sales and happiness.</li>
+    <li>Set an <b>Auto target</b> (10 to 15) on each product so stockers refill shelves for you.</li>
+    <li>Order a little more than you sell in a day, not a mountain. Unsold stock ties up cash.</li>
+    <li>If customers leave because of queues, add a <b>Checkout counter</b> or a <b>Cashier</b>.</li>
+    <li>Raise prices slowly. If &quot;skipped, price too high&quot; grows in the report, go back down.</li>
+    <li>Keep at least 3 days of bills in the bank.</li>
+    <li>Watch events: rain, festivals, supplier delays and price rises change your day.</li></ul>`,
+  words: `<h3>Glossary</h3>
+    <dl><dt>Margin</dt><dd>Selling price minus what the goods cost you.</dd>
+    <dt>COGS</dt><dd>Cost of goods sold: what the sold items cost you.</dd>
+    <dt>Inventory</dt><dd>Goods you own: warehouse + shelves. Counted as an asset.</dd>
+    <dt>Lead time</dt><dd>How long a supplier truck needs to arrive.</dd>
+    <dt>Net worth</dt><dd>Everything you own minus everything you owe.</dd>
+    <dt>Happiness</dt><dd>Customer mood. Raises or lowers daily visitors.</dd>
+    <dt>Ledger</dt><dd>The double-entry books behind every number. Reports are built from it.</dd></dl>`,
+};
+function showHelp(tab) {
+  document.querySelectorAll("#helpTabs [data-help]").forEach(b => b.classList.toggle("on", b.dataset.help === tab));
+  $("helpBody").innerHTML = HELP[tab] || "";
+}
+$("helpTabs").addEventListener("click", e => { const b = e.target.closest("[data-help]"); if (b) showHelp(b.dataset.help); });
 
 // ---------- controls ----------
 document.querySelectorAll("#scenes [data-scene]").forEach(b => b.onclick = () => world.setScene(b.dataset.scene));
@@ -250,6 +321,7 @@ function frame(now) {
     if (state.phase !== "open" || state.ended) { dirtyCloud = true; saveLocal(); maybeDialogs(); updateHud(true); }
   }
   world.frame(now);
+  tut.update();
   updateHud(false);
   requestAnimationFrame(frame);
 }
@@ -272,7 +344,4 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) { sav
     if (cloud.user()) setStatus(`Signed in as ${cloud.user().email}. Your cloud save loads when you press Continue or sign in again.`, "ok");
     else setStatus("Playing offline. Sign in to save to the cloud.");
   } else setStatus(cloud.reason() || "Local save only.", "err");
-  // First "Continue" or "New game" resumes the clock.
-  const resume = () => { paused = false; };
-  $("mContinue").addEventListener("click", resume); $("sStart").addEventListener("click", resume);
 })();

@@ -161,7 +161,7 @@ const DOW = [1.0, 0.9, 0.9, 1.0, 1.1, 1.35, 1.2];
 
 export function expectedCustomers(s) {
   const d = diffOf(s);
-  return 36 * d.demand * (0.6 + 0.9 * s.rep / 100) * (1 + 0.18 * s.marketing) * DOW[s.day % 7] * eventDemand(s) * (1 + Math.min(0.5, s.day * 0.004));
+  return 48 * d.demand * (0.6 + 0.9 * s.rep / 100) * (1 + 0.18 * s.marketing) * DOW[s.day % 7] * eventDemand(s) * (1 + Math.min(0.5, s.day * 0.004));
 }
 
 export function refreshCandidates(s) {
@@ -183,12 +183,12 @@ export function tick(s, dtIn) {
 
 const cashierSpeeds = s => {
   const lanes = 1 + s.upgrades.counter;
-  const sp = s.staff.filter(x => x.role === "cashier").map(x => 0.8 + 0.2 * x.skill).sort((a, b) => b - a).slice(0, lanes);
-  while (sp.length < lanes && sp.length < 1) sp.push(0.7);   // the owner covers one lane
+  const sp = s.staff.filter(x => x.role === "cashier").map(x => 0.9 + 0.25 * x.skill).sort((a, b) => b - a).slice(0, lanes);
+  while (sp.length < lanes && sp.length < 1) sp.push(1.0);   // the owner covers one lane
   return sp;
 };
 export const laneCount = s => cashierSpeeds(s).length;
-const stockerRate = s => 0.5 + s.staff.filter(x => x.role === "stocker").reduce((a, x) => a + 0.6 * (0.7 + 0.15 * x.skill), 0);
+const stockerRate = s => 1.2 + s.staff.filter(x => x.role === "stocker").reduce((a, x) => a + 0.6 * (0.7 + 0.15 * x.skill), 0);
 const unloadRate = s => 8 * (1 + s.staff.filter(x => x.role === "warehouse").reduce((a, x) => a + 0.25 * (0.7 + 0.15 * x.skill), 0)) * (s.upgrades.dock ? 1.5 : 1);
 const hasManager = s => s.staff.some(x => x.role === "manager");
 
@@ -283,7 +283,7 @@ function stepCustomers(s, dt) {
   // move queued customers to free lanes (FIFO)
   for (const c of queue) {
     if (c.state !== "queue") continue;
-    if (busy < lanes.length) { c.state = "pay"; c.t = 0; c.payTime = Math.max(1.2, (c.basket.length * 1.6 + 1) / lanes[busy]); c.lane = busy; busy++; s.today.waitSum += c.wait; s.today.waitN++; }
+    if (busy < lanes.length) { c.state = "pay"; c.t = 0; c.payTime = Math.max(1.2, (c.basket.length * 1.1 + 0.8) / lanes[busy]); c.lane = busy; busy++; s.today.waitSum += c.wait; s.today.waitN++; }
   }
   s.customers = s.customers.filter(c => c.state !== "gone");
 }
@@ -461,7 +461,7 @@ function checkMilestones(s) {
 
 export function score(s) {
   const d = updateDerived(s);
-  const growth = clamp(((d.netWorth - s.startNetWorth) / s.startNetWorth) / 2, 0, 1);
+  const growth = clamp(((d.netWorth - s.startNetWorth) / s.startNetWorth) / 5, 0, 1);
   const monthlyCost = (rent(s) + utilities(s) + wagesPerDay(s)) * 7;
   const cash = clamp(d.liquid / Math.max(1, monthlyCost), 0, 1);
   const debt = d.assets > 0 ? clamp(1 - d.debt / d.assets, 0, 1) : 0;
