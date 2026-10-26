@@ -113,7 +113,7 @@ export function createUI(ctx) {
     const mk = D.CATEGORIES && E.MARKETING_COST.map((c, i) => `<option value="${i}" ${s.marketing === i ? "selected" : ""}>${["None", "Flyers", "Local ads", "Billboard"][i]} ${c ? "(" + money0(c) + "/day, +" + i * 18 + "% customers)" : "(free)"}</option>`).join("");
     return `<h3>Store management</h3>
       <p class="muted">Customers compare your price with a fair market price. Above ~15% over fair, fewer buy. Shelf space: <b>${E.shelfUsed(s)}</b> / ${E.shelfCap(s)} (+${E.pendingRestock(s)} queued). Restocking moves goods from the warehouse using your stockers. Auto target refills when the shelf drops below half.</p>
-      <div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th>Price</th><th>Avg cost</th><th>Margin</th><th>Shelf</th><th>Warehouse</th><th>Sold today</th><th>Restock</th><th>Auto target</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="scroll"><table class="tbl tbl-store"><thead><tr><th>Product</th><th>Price</th><th>Avg cost</th><th>Margin</th><th>Shelf</th><th>Warehouse</th><th>Sold today</th><th>Restock</th><th>Auto target</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="row gap"><label class="field">Marketing<select data-act="marketing">${mk}</select></label>
       <div class="note">Expected customers today: <b>${Math.round(E.expectedCustomers(s))}</b>. Reputation <b>${Math.round(s.rep)}</b>/100 and satisfaction <b>${Math.round(s.sat)}</b>/100 raise or lower this.</div></div>`;
   }

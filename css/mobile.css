@@ -68,6 +68,13 @@
   .scroll { max-height:none; overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .tbl { font-size:.82rem; min-width:560px; }
   .tbl td:first-child, .tbl th:first-child { position:sticky; left:0; background:var(--surface-sheet); z-index:1; box-shadow:1px 0 0 var(--line); }
+  /* Store: keep the columns a player acts on (price, shelf, warehouse, restock, target); drop cost, margin, sold today */
+  .tbl-store { min-width:0; }
+  .tbl-store th:nth-child(3), .tbl-store td:nth-child(3), .tbl-store th:nth-child(4), .tbl-store td:nth-child(4), .tbl-store th:nth-child(7), .tbl-store td:nth-child(7) { display:none; }
+  .tbl-store td, .tbl-store th { padding:6px 3px; }
+  .tbl-store td.nowrap { white-space:nowrap; } .tbl-store td.nowrap button { min-width:34px; padding:4px 6px; margin:0 1px 0 0; font-size:.78rem; }
+  .tbl-store .price, .tbl-store .tgt { width:62px; padding:6px 6px; }
+  .tbl-store th { font-size:.56rem; letter-spacing:.03em; }
   button.mini { min-height:40px; min-width:40px; }
   .qty, td input[type=number], .price, .tgt { min-height:42px; width:76px; }
   .split, .cards, .modal .grid2 { grid-template-columns:1fr; }
