@@ -14,6 +14,7 @@ const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 const MP_KEY = "economy-mp-save", FAST = Math.max(1, Math.min(60, Number(new URLSearchParams(location.search).get("fast")) || 1));
 const SAVE_KEY = "economy-save-v3", SETTINGS_KEY = "economy-settings-v1", TUT_KEY = "economy-tutorial-done";
 const SPEEDS = [1, 2, 4];
+const PACE = 0.5;   // game seconds per real second at 1x: one day lasts about 4 minutes
 
 let mpMatch = false;
 let state = null, speed = 1, paused = false, reportShown = false, finalShown = false;
@@ -295,7 +296,7 @@ const HELP = {
       <li><b>At 20:00</b> the shop closes. Bills are paid and a <b>report</b> explains the day.</li>
       <li><b>Next day</b> starts. Adjust prices, staff and orders, then repeat.</li>
     </ol>
-    <p>One day takes about two minutes at 1x speed. Use <b>Pause</b>, <b>1x / 2x / 4x</b> (keys <kbd>Space</kbd>, <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>) to control time.</p>`,
+    <p>One day takes about four minutes at 1x speed. Use <b>Pause</b>, <b>1x / 2x / 4x</b> (keys <kbd>Space</kbd>, <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>) to control time.</p>`,
   money: `<h3>Money</h3>
     <ul><li><b>Cash</b>: the till. Every sale lands here. Extra cash is moved to the bank at closing.</li>
     <li><b>Bank</b>: pays suppliers and bills. Bills are paid from the bank first, then cash.</li>
@@ -477,7 +478,7 @@ let lastT = performance.now();
 function frame(now) {
   const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
   if (state && !paused && !menu.open && state.phase === "open" && !state.ended) {
-    E.tick(state, dt * speed * FAST);
+    E.tick(state, dt * speed * PACE * FAST);
     if (state.phase !== "open" || state.ended) { dirtyCloud = true; saveLocal(); maybeDialogs(); updateHud(true); }
   }
   world.frame(now);
