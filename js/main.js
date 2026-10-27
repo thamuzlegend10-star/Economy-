@@ -319,7 +319,7 @@ const mp = createMultiplayer({
   onResume: cfg => resumeMatch(cfg),
   onResults: rows => showResults(rows),
 });
-const mpEsc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const mpEsc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));   // every network-supplied value goes through this before it reaches innerHTML
 
 function startMatch(cfg) {
   const s = E.newGame({ mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, seed: cfg.seed });
@@ -339,7 +339,7 @@ function endMatchLocal() { mpMatch = false; state = null; try { localStorage.rem
 function showResults(rows) {
   const me = mp.view().me.id;
   $("mpResults").innerHTML = `<table class="tbl"><thead><tr><th>#</th><th>Player</th><th class="r">Score</th><th class="r">Net worth</th><th>Note</th></tr></thead><tbody>${rows.map(r =>
-    `<tr class="${r.id === me ? "me" : ""}"><td>${r.rank}</td><td><b>${mpEsc(r.name)}</b>${r.id === me ? " (you)" : ""}</td><td class="r">${r.finished ? r.score + " " + r.rating : "-"}</td><td class="r">${money0(r.netWorth || 0)}</td><td class="muted small">${mpEsc(r.note || "")}</td></tr>`).join("")}</tbody></table>`;
+    `<tr class="${r.id === me ? "me" : ""}"><td>${mpEsc(r.rank)}</td><td><b>${mpEsc(r.name)}</b>${r.id === me ? " (you)" : ""}</td><td class="r">${r.finished ? mpEsc(r.score) + " " + mpEsc(r.rating) : "-"}</td><td class="r">${mpEsc(money0(Number(r.netWorth) || 0))}</td><td class="muted small">${mpEsc(r.note || "")}</td></tr>`).join("")}</tbody></table>`;
   $("finalDlg").open && $("finalDlg").close();
   if (!$("mpDlg").open) $("mpDlg").showModal();
 }
@@ -359,13 +359,13 @@ function renderMp(v) {
   if (showBoard) {
     const rows = [...v.players].sort((a, b) => (b.finished - a.finished) || ((b.netWorth ?? -1e9) - (a.netWorth ?? -1e9)));
     $("mpBoard").innerHTML = rows.map((p, i) => `<div class="mprow ${p.isMe ? "me" : ""}"><b>${i + 1}</b><span class="mpname">${mpEsc(p.name)}${p.isHost ? " ★" : ""}</span>
-      <span class="muted small">Day ${p.day}/${v.config.days}</span><span class="mpnw">${p.netWorth == null ? "-" : money0(p.netWorth)}</span>
-      <span class="tag ${p.finished ? (p.verdict.ok ? "ok" : "bad") : p.connected ? "info" : "warn"}">${p.finished ? (p.verdict.ok ? p.verdict.rating : "Rejected") : p.connected ? "Playing" : "Offline"}</span></div>`).join("");
+      <span class="muted small">Day ${mpEsc(p.day)}/${mpEsc(v.config.days)}</span><span class="mpnw">${p.netWorth == null ? "-" : mpEsc(money0(Number(p.netWorth) || 0))}</span>
+      <span class="tag ${p.finished ? (p.verdict.ok ? "ok" : "bad") : p.connected ? "info" : "warn"}">${p.finished ? (p.verdict.ok ? (p.verdict.bankrupt ? "Bankrupt" : mpEsc(p.verdict.rating)) : "Rejected") : p.connected ? "Playing" : "Offline"}</span></div>`).join("");
   }
   // lobby
   if (!$("menuLobby").hidden) {
     if (!v.code) { showSection("menuMain"); if (v.error) $("mNote").textContent = v.error; return; }
-    $("lbCode").textContent = v.code;
+    $("lbCode").textContent = v.code;     // textContent: never parsed as HTML
     $("lbTransport").textContent = v.transport === "supabase" ? "Online" : "Local test";
     $("lbPlayers").innerHTML = v.players.map(p => `<div class="lbrow ${p.connected ? "" : "off"}"><span class="av">${mpEsc(p.name.slice(0, 1).toUpperCase())}</span>
       <span class="lbname">${mpEsc(p.name)}${p.isMe ? " (you)" : ""}</span>
@@ -451,7 +451,7 @@ function frame(now) {
 // ---------- autosave & lifecycle ----------
 setInterval(() => { if (state) { saveLocal(); } }, 20000);
 window.addEventListener("beforeunload", saveLocal);
-document.addEventListener("visibilitychange", () => { if (document.hidden) { saveLocal(); paused = paused || false; } });
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveLocal(); });   // browsers already stop animation frames in hidden tabs, so the game does not run in the background
 
 // ---------- phone helpers ----------
 try { if (sessionStorage.getItem("economy-rotate-hint")) $("rotateHint").hidden = true; } catch { /* blocked */ }

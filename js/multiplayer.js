@@ -26,9 +26,33 @@ export function genCode() {
   (globalThis.crypto || { getRandomValues: x => { x[0] = Math.floor(Math.random() * 2 ** 32); } }).getRandomValues(a);
   return String(100000 + (a[0] % 900000));
 }
-const cleanName = n => String(n || "").replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, 16) || "Player";
+export const escHtml = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// Everything that arrives from the network is untrusted: it is rebuilt field by field before it is stored or shown.
+const RATINGS = new Set(["S", "A", "B", "C", "D", "-"]);
+const cleanRating = v => (typeof v === "string" && RATINGS.has(v) ? v : "-");
+const cleanText = (v, n = 80) => (typeof v === "string" ? v.replace(/[<>]/g, "").slice(0, n) : "");
+const cleanNum = v => (typeof v === "number" && Number.isFinite(v) ? Math.max(-1e9, Math.min(1e9, Math.round(v * 100) / 100)) : 0);
+const cleanInt = (v, a, b) => { const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : a; return Math.max(a, Math.min(b, n)); };
+const ID_RE = /^[\w-]{1,64}$/;
+const isId = v => typeof v === "string" && ID_RE.test(v) && v !== "__proto__";
+const own = (o, k) => !!o && typeof k === "string" && Object.hasOwn(o, k);
+const cleanName = n => String(typeof n === "string" ? n : "").replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, 16) || "Player";
 
-export function createMultiplayer({ net, storage = null, settleMs = 1200, helloMs = 2500, now = () => Date.now(), onChange = () => {}, onStart = () => {}, onResume = () => {}, onResults = () => {} }) {
+const cleanRoster = r => {
+  const out = Object.create(null);
+  if (!r || typeof r !== "object") return out;
+  for (const [id, v] of Object.entries(r)) {
+    if (Object.keys(out).length >= 20) break;
+    if (isId(id) && v && typeof v === "object") out[id] = { name: cleanName(v.name) };
+  }
+  return out;
+};
+const cleanResults = a => (Array.isArray(a) ? a.slice(0, 20) : []).filter(r => r && typeof r === "object").map((r, i) => ({
+  id: isId(r.id) ? r.id : "", name: cleanName(r.name), finished: r.finished === true, score: cleanInt(r.score, 0, 100), rating: cleanRating(r.rating),
+  netWorth: cleanNum(r.netWorth), day: cleanInt(r.day, 0, 120), note: cleanText(r.note, 80), rank: cleanInt(r.rank, 1, 20) || i + 1,
+}));
+
+export function createMultiplayer({ net, storage = null, settleMs = 1200, helloMs = 2500, hostMs = 2000, retryMs = 4000, now = () => Date.now(), onChange = () => {}, onStart = () => {}, onResume = () => {}, onResults = () => {} }) {
   const store = {
     get: k => { try { return storage ? storage.getItem(k) : null; } catch { return null; } },
     set: (k, v) => { try { storage && storage.setItem(k, v); } catch { /* blocked */ } },
@@ -40,11 +64,15 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
   let ch = null, code = null, status = "idle", error = "", joinedAt = 0, ready = false;
   let presence = {}, hostTimer = null, joinTimes = [];
   const seen = new Set();
-  const room = { phase: "lobby", config: sanitizeConfig({}), roster: {}, progress: {}, results: null, leftAt: {} };
+  const room = { phase: "lobby", config: sanitizeConfig({}), roster: Object.create(null), progress: Object.create(null), results: null, leftAt: Object.create(null) };
+  let pendingFinal = null, retryTimer = null, wasHost = false;
 
   // ----- helpers -----
   const meta = () => ({ name: me.name, ready, joinedAt });
-  const present = () => Object.entries(presence).map(([id, arr]) => ({ id, ...(arr[arr.length - 1] || {}) }));
+  const present = () => Object.entries(presence).filter(([id, arr]) => isId(id) && Array.isArray(arr)).map(([id, arr]) => {
+    const m = arr[arr.length - 1] || {};
+    return { id, name: cleanName(m.name), ready: m.ready === true, joinedAt: typeof m.joinedAt === "number" && Number.isFinite(m.joinedAt) ? Math.max(0, Math.min(m.joinedAt, 4e15)) : Number.MAX_SAFE_INTEGER };
+  });
   const hostId = () => { const p = present().sort((a, b) => (a.joinedAt - b.joinedAt) || (a.id < b.id ? -1 : 1)); return p.length ? p[0].id : null; };
   const isHost = () => hostId() === me.id;
   const emit = () => onChange(view());
@@ -71,7 +99,7 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
   function open(c) {
     code = c; presence = {}; status = "connecting"; error = "";
     ch = net.join(c, me.id, meta(), {
-      onPresence: p => { presence = p; trackGone(); if (isHost() && room.phase === "lobby") broadcastState(); emit(); },
+      onPresence: p => { presence = (p && typeof p === "object") ? p : {}; trackGone(); const h = isHost(); if (h && room.phase === "lobby") broadcastState(); if (h && !wasHost && room.phase === "playing") send("resend"); wasHost = h; emit(); },
       onMessage: onMessage,
       onStatus: s => { if (s === "connected") { if (status !== "in-room") status = "connected"; } else if (s === "error") { status = "error"; error = "Connection problem. Check your network and retry."; } else if (s === "closed" && status === "in-room") { status = "closed"; error = "Disconnected from the room."; } emit(); },
     });
@@ -81,7 +109,8 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
     if (hostTimer) { clearInterval(hostTimer); hostTimer = null; }
     if (ch) { try { ch.leave(); } catch { /* already closed */ } }
     ch = null; code = null; presence = {}; ready = false; status = "idle";
-    room.phase = "lobby"; room.roster = {}; room.progress = {}; room.results = null; room.leftAt = {};
+    room.phase = "lobby"; room.roster = Object.create(null); room.progress = Object.create(null); room.results = null; room.leftAt = Object.create(null);
+    pendingFinal = null; if (retryTimer) { clearInterval(retryTimer); retryTimer = null; } wasHost = false;
   }
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -140,7 +169,7 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
 
   function startHostLoop() {
     if (hostTimer) clearInterval(hostTimer);
-    hostTimer = setInterval(() => { if (isHost() && room.phase === "playing") checkEnd(); }, 2000);
+    hostTimer = setInterval(() => { if (isHost() && room.phase === "playing") checkEnd(); }, hostMs);
     if (hostTimer && hostTimer.unref) hostTimer.unref();
   }
 
@@ -155,69 +184,89 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
   function onMessage(m) {
     if (!m || typeof m !== "object" || typeof m.t !== "string" || typeof m.from !== "string" || m.from === me.id) return;
     if (m.mid) { if (seen.has(m.mid)) return; seen.add(m.mid); if (seen.size > 500) seen.delete(seen.values().next().value); }
+    if (!isId(m.from)) return;
     const fromHost = m.from === hostId();
     switch (m.t) {
       case "hello":
         if (!isHost()) break;
-        if (room.phase === "playing" && !room.roster[m.from]) { send("reject", { to: m.from, reason: "That match has already started." }); break; }
+        if (room.phase === "playing" && !own(room.roster, m.from)) { send("reject", { to: m.from, reason: "That match has already started." }); break; }
         if (room.phase === "finished") { send("reject", { to: m.from, reason: "That match is over." }); break; }
         broadcastState(true); break;
       case "reject":
-        if (m.to === me.id && fromHost) { error = String(m.reason || "Not allowed to join."); emit(); }
+        if (m.to === me.id && fromHost) { error = cleanText(m.reason, 120) || "Not allowed to join."; emit(); }
         break;
       case "state":
         if (!fromHost || isHost()) break;
         room.phase = m.phase === "playing" || m.phase === "finished" ? m.phase : "lobby";
         room.config = sanitizeConfig(m.config);
-        if (m.roster && typeof m.roster === "object") room.roster = m.roster;
+        if (m.roster && typeof m.roster === "object") room.roster = cleanRoster(m.roster);
         { const wasIn = status === "in-room"; status = "in-room";
-          if (!wasIn && room.phase === "playing" && room.roster[me.id]) onResume(room.config); }   // mid-match reconnect
+          if (!wasIn && room.phase === "playing" && own(room.roster, me.id)) onResume(room.config); }   // mid-match reconnect
         emit(); break;
       case "start":
         if (!fromHost) break;
-        room.phase = "playing"; room.config = sanitizeConfig(m.config); room.roster = m.roster || {}; room.progress = {}; room.results = null;
+        room.phase = "playing"; room.config = sanitizeConfig(m.config); room.roster = cleanRoster(m.roster); room.progress = Object.create(null); room.results = null;
         onStart(room.config); emit(); break;
       case "progress":
-        if (!room.roster[m.from]) break;
-        room.progress[m.from] = { ...(room.progress[m.from] || {}), day: clampInt(m.day, 0, 120), netWorth: num(m.netWorth), revenue: num(m.revenue) };
+        if (!own(room.roster, m.from)) break;
+        room.progress[m.from] = { ...(room.progress[m.from] || {}), day: cleanInt(m.day, 0, 120), netWorth: num(m.netWorth), revenue: num(m.revenue) };
         emit(); break;
       case "final":
-        if (isHost()) verify(m.from, m.save);
+        if (isHost() && own(room.roster, m.from)) verify(m.from, m.save);
         break;
-      case "verdict":
-        if (!fromHost) break;
-        room.progress[m.id] = { ...(room.progress[m.id] || {}), verdict: m.ok ? { ok: true, score: m.score, rating: m.rating, netWorth: m.netWorth } : { ok: false, reason: String(m.reason || "Rejected") }, day: room.config.days, netWorth: m.netWorth ?? room.progress[m.id]?.netWorth };
+      case "resend":                                    // a new host asks everyone who has no verdict yet to send the final save again
+        if (fromHost && pendingFinal && !myVerdict()) sendFinal();
+        break;
+      case "verdict": {
+        if (!fromHost || !own(room.roster, m.id)) break;
+        const v = m.ok === true ? { ok: true, score: cleanInt(m.score, 0, 100), rating: cleanRating(m.rating), netWorth: cleanNum(m.netWorth), bankrupt: m.bankrupt === true } : { ok: false, reason: cleanText(m.reason, 80) || "Rejected" };
+        room.progress[m.id] = { ...(room.progress[m.id] || {}), verdict: v, day: room.config.days, netWorth: v.ok ? v.netWorth : (room.progress[m.id] || {}).netWorth ?? null };
+        if (m.id === me.id) stopRetry();
         emit(); break;
+      }
       case "end":
         if (!fromHost) break;
-        room.phase = "finished"; room.results = Array.isArray(m.results) ? m.results : []; store.del("economy-session");
+        room.phase = "finished"; room.results = cleanResults(m.results); store.del("economy-session"); stopRetry();
         onResults(room.results); emit(); break;
       case "kick":
         if (fromHost && m.id === me.id) { leave(); error = "The host removed you from the room."; emit(); }
         break;
     }
   }
-  const num = v => (Number.isFinite(Number(v)) ? Math.round(Number(v) * 100) / 100 : null);
-  const clampInt = (v, a, b) => Math.max(a, Math.min(b, Math.round(Number(v)) || 0));
+  const num = v => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
+
+  // ----- final save delivery -----
+  const myVerdict = () => !!(room.progress[me.id] && room.progress[me.id].verdict);
+  function stopRetry() { if (retryTimer) { clearInterval(retryTimer); retryTimer = null; } pendingFinal = myVerdict() || room.phase === "finished" ? null : pendingFinal; }
+  function sendFinal() {
+    if (!ch || room.phase !== "playing" || !pendingFinal) return;
+    if (isHost()) verify(me.id, pendingFinal); else send("final", { save: pendingFinal });
+  }
 
   // ----- host: verify final saves, end the match -----
   function verifySave(raw, id) {
-    if (typeof raw !== "string" || raw.length > 3e6) return { ok: false, reason: "Save missing or too large." };
-    const v = E.validateSave(raw);
-    if (!v.ok) return { ok: false, reason: v.error };
-    const s = v.state, c = room.config;
-    if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital) return { ok: false, reason: "Save does not match the room settings." };
-    if (!s.ended || s.day !== c.days) return { ok: false, reason: "Save is not a finished match." };
-    const rec = E.reconcile(s);
-    if (!rec.ok) return { ok: false, reason: "Books do not reconcile: " + rec.problems[0] };
-    const sc = E.score(s), d = E.updateDerived(s);
-    return { ok: true, score: sc.total, rating: sc.rating, netWorth: d.netWorth, revenue: s.history.reduce((a, h) => a + h.revenue, 0) + (s.archive ? s.archive.revenue : 0) };
+    try {
+      if (typeof raw !== "string" || raw.length > 3e6) return { ok: false, reason: "Save missing or too large." };
+      const v = E.validateSave(raw);
+      if (!v.ok) return { ok: false, reason: cleanText(v.error, 80) };
+      const s = v.state, c = room.config;
+      if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital) return { ok: false, reason: "Save does not match the room settings." };
+      const bankrupt = !!s.ended && s.ended.reason === "bankrupt" && s.day <= c.days;
+      if (!bankrupt && (!s.ended || s.day !== c.days)) return { ok: false, reason: "Save is not a finished match." };
+      const rec = E.reconcile(s);
+      if (!rec.ok) return { ok: false, reason: "Books do not reconcile: " + cleanText(rec.problems[0], 50) };
+      const d = E.updateDerived(s), revenue = s.history.reduce((a, h) => a + h.revenue, 0) + s.archive.revenue;
+      if (bankrupt) return { ok: true, score: 0, rating: "-", netWorth: d.netWorth, revenue, bankrupt: true };   // finished, but with nothing left to score
+      const sc = E.score(s);
+      return { ok: true, score: sc.total, rating: sc.rating, netWorth: d.netWorth, revenue };
+    } catch { return { ok: false, reason: "Save could not be checked." }; }
   }
   function verify(id, raw) {
-    if (!room.roster[id] || (room.progress[id] && room.progress[id].verdict && room.progress[id].verdict.ok)) return;
+    if (!own(room.roster, id) || (room.progress[id] && room.progress[id].verdict && room.progress[id].verdict.ok)) return;
     const r = verifySave(raw, id);
-    room.progress[id] = { ...(room.progress[id] || {}), day: room.config.days, netWorth: r.netWorth ?? null, verdict: r.ok ? { ok: true, score: r.score, rating: r.rating, netWorth: r.netWorth } : { ok: false, reason: r.reason } };
+    room.progress[id] = { ...(room.progress[id] || {}), day: room.config.days, netWorth: r.netWorth ?? null, verdict: r.ok ? { ok: true, score: r.score, rating: r.rating, netWorth: r.netWorth, bankrupt: !!r.bankrupt } : { ok: false, reason: r.reason } };
     send("verdict", { id, ...r });
+    if (id === me.id) stopRetry();
     emit(); checkEnd();
   }
   function checkEnd() {
@@ -235,9 +284,10 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
     if (!isHost() || room.phase !== "playing") return { error: "Not playing." };
     const rows = Object.keys(room.roster).map(id => {
       const pr = room.progress[id] || {}, v = pr.verdict;
-      return { id, name: room.roster[id].name || "Player", finished: !!(v && v.ok), score: v && v.ok ? v.score : 0, rating: v && v.ok ? v.rating : "-", netWorth: v && v.ok ? v.netWorth : (pr.netWorth ?? 0), day: pr.day || 0, note: v ? (v.ok ? "" : "Rejected: " + v.reason) : "Did not finish" };
+      return { id, name: room.roster[id].name || "Player", finished: !!(v && v.ok), score: v && v.ok ? v.score : 0, rating: v && v.ok ? v.rating : "-", netWorth: v && v.ok ? v.netWorth : (pr.netWorth ?? 0), day: pr.day || 0, note: v ? (v.ok ? (v.bankrupt ? "Bankrupt" : "") : "Rejected: " + v.reason) : "Did not finish" };
     }).sort((a, b) => (b.finished - a.finished) || (b.score - a.score) || (b.netWorth - a.netWorth));
     rows.forEach((r, i) => { r.rank = i + 1; });
+    rows.splice(20);                                                           // never more than 20 rows on the wire
     room.phase = "finished"; room.results = rows; store.del("economy-session");
     send("end", { results: rows }); onResults(rows); emit();
     return { ok: true };
@@ -274,9 +324,12 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
       room.progress[me.id] = { ...(room.progress[me.id] || {}), ...me_ };
       send("progress", me_); emit();
     },
+    // Remember the final save and keep sending it until the host's verdict for me arrives (or I leave).
     submitFinal(serialized) {
-      if (!ch || room.phase !== "playing") return;
-      if (isHost()) verify(me.id, serialized); else send("final", { save: serialized });
+      if (typeof serialized !== "string") return;
+      pendingFinal = serialized;
+      sendFinal();
+      if (!retryTimer) { retryTimer = setInterval(() => { if (!pendingFinal || myVerdict()) return stopRetry(); sendFinal(); }, retryMs); if (retryTimer.unref) retryTimer.unref(); }
     },
     savedSession() { try { return JSON.parse(store.get("economy-session")); } catch { return null; } },
     async rejoin() {
