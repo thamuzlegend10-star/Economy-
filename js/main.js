@@ -182,7 +182,7 @@ const menu = $("menuDlg");
 const sections = ["menuMain", "menuSetup", "menuHelp", "menuSettings", "menuMulti", "menuLobby"];
 function showSection(id) { sections.forEach(s => { $(s).hidden = s !== id; }); }
 function openMenu(inGame) {
-  $("mContinue").hidden = !(inGame ? state : loadLocal());
+  $("mContinue").hidden = !(inGame ? state : loadLocal());   // no save on this device: no Continue button
   $("mClose").hidden = !inGame;
   const vw = mp.view();
   $("mRejoin").hidden = !!vw.code || !mp.savedSession();
@@ -211,7 +211,16 @@ $("sStart").onclick = () => {
   menu.close(); startState(s); world.setScene("district"); world.reset();
   paused = false; tut.start();
 };
-$("mContinue").onclick = () => { if (mpBlock()) return; if (!state) { const s = loadLocal(); if (s) startState(s); } menu.close(); paused = false; tut.resume(); };
+// Continue always goes through startState(): it re-checks the phase, so a game saved on the day report or on the final
+// screen shows that dialog again instead of sitting frozen in a phase the main loop never advances.
+$("mContinue").onclick = () => {
+  if (mpBlock()) return;
+  const s = state || loadLocal();
+  if (!s) { $("mContinue").hidden = true; toast("No saved game found on this device.", "err"); return; }
+  menu.close(); paused = false;
+  startState(s);
+  tut.resume();
+};
 $("mClose").onclick = () => menu.close();
 $("mHelp").onclick = () => { showHelp("goal"); showSection("menuHelp"); };
 $("bHelp").onclick = () => { openMenu(!!state); showHelp("goal"); showSection("menuHelp"); };
@@ -303,6 +312,7 @@ document.querySelectorAll(".spd").forEach(b => b.onclick = () => { speed = Numbe
 $("bPause").onclick = () => { paused = !paused; updateHud(true); };
 document.addEventListener("keydown", e => {
   if (e.target.matches("input,select,textarea") || menu.open || $("dayDlg").open || $("finalDlg").open) return;
+  if (e.code === "KeyF" && fsSupported && !/input|select|textarea/i.test((document.activeElement || {}).tagName || "")) { toggleFull(); return; }
   if (e.code === "Space") { e.preventDefault(); paused = !paused; updateHud(true); }
   else if (["Digit1", "Digit2", "Digit3"].includes(e.code)) { speed = SPEEDS[Number(e.code.slice(-1)) - 1]; paused = false; updateHud(true); }
   else if (e.code === "Escape" && ui.isOpen()) ui.close();
@@ -452,6 +462,28 @@ function frame(now) {
 setInterval(() => { if (state) { saveLocal(); } }, 20000);
 window.addEventListener("beforeunload", saveLocal);
 document.addEventListener("visibilitychange", () => { if (document.hidden) saveLocal(); });   // browsers already stop animation frames in hidden tabs, so the game does not run in the background
+
+// ---------- fullscreen (PC and Android) ----------
+const fsEl = document.documentElement;
+const fsSupported = !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen);
+const fsActive = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function fsLabel() {
+  const on = fsActive();
+  $("bFull").querySelector(".fl").textContent = on ? " Exit full screen" : " Full screen"; $("bFull").setAttribute("aria-pressed", String(on)); $("bFull").classList.toggle("on", on);
+  if ($("setFull")) $("setFull").textContent = on ? "Exit full screen" : "Full screen";
+}
+async function toggleFull() {
+  try {
+    if (fsActive()) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else await (fsEl.requestFullscreen || fsEl.webkitRequestFullscreen).call(fsEl);
+  } catch { toast("Full screen is not allowed here.", "err"); }
+  fsLabel();
+}
+if (fsSupported) {
+  $("bFull").onclick = toggleFull; if ($("setFull")) $("setFull").onclick = toggleFull;
+  document.addEventListener("fullscreenchange", fsLabel); document.addEventListener("webkitfullscreenchange", fsLabel);
+  fsLabel();
+} else { $("bFull").hidden = true; if ($("setFull")) $("setFull").hidden = true; }   // e.g. iPhone Safari has no Fullscreen API
 
 // ---------- phone helpers ----------
 try { if (sessionStorage.getItem("economy-rotate-hint")) $("rotateHint").hidden = true; } catch { /* blocked */ }

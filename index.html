@@ -33,6 +33,7 @@
     <div class="ctrl">
       <button class="ghost" id="bPause" aria-label="Pause">Pause</button>
       <button class="ghost spd" data-speed="1">1x</button><button class="ghost spd" data-speed="2">2x</button><button class="ghost spd" data-speed="4">4x</button>
+      <button class="ghost" id="bFull" aria-label="Toggle full screen"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="fl"> Full screen</span></button>
       <button class="ghost" id="bSound" aria-label="Toggle sound">Sound on</button>
       <button class="ghost" id="bHelp" aria-label="How to play">? Help</button>
       <button class="ghost" id="bMenu">Menu</button>
@@ -157,6 +158,7 @@
     <h2>Settings</h2>
     <label class="check"><input type="checkbox" id="setSound" checked> Sound effects</label>
     <label class="field">Volume<input type="range" id="setVol" min="0" max="100" step="5" value="50"></label>
+    <button class="ghost" id="setFull" type="button">Full screen</button>
     <label class="check"><input type="checkbox" id="setMotion"> Reduce motion (freeze ambient animation)</label>
     <label class="check"><input type="checkbox" id="setConfirm" checked> Ask before expensive actions</label>
     <p class="muted small">Autosave runs every 20 seconds. You can also export your save as a file.</p>
