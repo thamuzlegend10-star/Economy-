@@ -1,6 +1,6 @@
 // Pure game engine: no DOM, no network. All rules live here so they can be tested in Node.
 import * as D from "./data.js";
-import { newLedger, post, balance, totals, round2, OPEX } from "./ledger.js";
+import { newLedger, post, balance, totals, round2, OPEX, ACCOUNTS } from "./ledger.js";
 
 const { DAY_LEN } = D;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -143,7 +143,7 @@ function beginDay(s, first = false) {
   for (const t of s.events.todayText) logMsg(s, "event", t);
   const nowUnlocked = D.PRODUCTS.filter(p => p.unlockDay === s.day && s.day > 1);
   for (const p of nowUnlocked) logMsg(s, "info", `New product unlocked: ${p.name}.`);
-  snapshotDayStart(s);
+  if (first) snapshotDayStart(s);
   s.today.openLiquid = s.derived ? s.derived.liquid : round2(bal(s, "cash") + bal(s, "bank"));
 }
 
@@ -152,7 +152,7 @@ function rollEvents(s) {
   const add = (e) => { s.events.active.push(e); s.today.events.push(e.id); };
   if (rnd(s) < 0.08 * f) add({ id: "festival", daysLeft: 1 });
   else if (rnd(s) < 0.10 * f) add({ id: "rain", daysLeft: 1 });
-  if (rnd(s) < 0.06 * f) { const sup = pickOf(s, D.SUPPLIERS); add({ id: "delay", daysLeft: 2, sup: sup.id, text: `${sup.name} has road trouble: deliveries take 60% longer for 2 days.` }); }
+  if (rnd(s) < 0.06 * f) { const sup = pickOf(s, D.SUPPLIERS); add({ id: "delay", daysLeft: 2, sup: sup.id, text: `${sup.name} has road trouble: new orders take 60% longer to arrive for 2 days.` }); }
   if (rnd(s) < 0.08 * f) { const p = pickOf(s, D.PRODUCTS.filter(x => x.unlockDay <= s.day)); add({ id: "market", daysLeft: 3, pid: p.id, text: `Wholesale price of ${p.name} is +25% for 3 days.` }); }
   if (rnd(s) < 0.05 * f) add({ id: "repair", daysLeft: 1, amount: rint(s, 30, 80), text: "A fridge broke. The repair bill is charged at closing." });
 }
@@ -193,6 +193,9 @@ const unloadRate = s => 8 * (1 + s.staff.filter(x => x.role === "warehouse").red
 const hasManager = s => s.staff.some(x => x.role === "manager");
 
 function step(s, dt) {
+  // marketing is billed for the time it was active: a fraction of today's price for every second at the current level
+  const used = Math.min(dt, Math.max(0, DAY_LEN - s.clock));
+  s.today.mktCost = (s.today.mktCost || 0) + MARKETING_COST[s.marketing] * used / DAY_LEN;
   s.clock += dt;
   stepOrders(s, dt);
   stepTasks(s, dt);
@@ -268,8 +271,7 @@ function stepCustomers(s, dt) {
     while (s.spawnAcc >= 1) { s.spawnAcc -= 1; spawnCustomer(s); }
   }
   const lanes = cashierSpeeds(s);
-  let busy = s.customers.filter(c => c.state === "pay").length;
-  const queue = s.customers.filter(c => c.state === "queue");
+  const taken = new Set(s.customers.filter(c => c.state === "pay").map(c => c.lane));   // lanes in use right now
   for (const c of s.customers) {
     c.t += dt;
     if (c.state === "enter" && c.t >= 2.5) { c.state = "browse"; c.t = 0; c.browse = 3 + c.want.length * 2.2; }
@@ -277,13 +279,18 @@ function stepCustomers(s, dt) {
     else if (c.state === "queue") {
       c.wait += dt;
       if (c.wait > c.patience) abandon(s, c);
-    } else if (c.state === "pay" && c.t >= c.payTime) checkout(s, c);
+    } else if (c.state === "pay" && c.t >= c.payTime) { taken.delete(c.lane); checkout(s, c); }
     else if (c.state === "leave" && c.t >= 2.5) c.state = "gone";
   }
-  // move queued customers to free lanes (FIFO)
+  // move queued customers to the lowest free lane, strictly first-in-first-out by the time they joined the queue
+  const queue = s.customers.filter(c => c.state === "queue").sort((a, b) => ((a.queuedAt ?? 0) - (b.queuedAt ?? 0)) || (a.id - b.id));
   for (const c of queue) {
-    if (c.state !== "queue") continue;
-    if (busy < lanes.length) { c.state = "pay"; c.t = 0; c.payTime = Math.max(1.2, (c.basket.length * 1.1 + 0.8) / lanes[busy]); c.lane = busy; busy++; s.today.waitSum += c.wait; s.today.waitN++; }
+    let lane = -1;
+    for (let i = 0; i < lanes.length; i++) if (!taken.has(i)) { lane = i; break; }
+    if (lane < 0) break;                                   // every lane is busy: the rest keep waiting in order
+    taken.add(lane);
+    c.state = "pay"; c.t = 0; c.lane = lane; c.payTime = Math.max(1.2, (c.basket.length * 1.1 + 0.8) / lanes[lane]);
+    s.today.waitSum += c.wait; s.today.waitN++;
   }
   s.customers = s.customers.filter(c => c.state !== "gone");
 }
@@ -298,7 +305,7 @@ function spawnCustomer(s) {
     while (idx < w.length - 1 && (r -= w[idx]) > 0) idx++;
     if (!want.includes(avail[idx].id)) want.push(avail[idx].id);
   }
-  s.customers.push({ id: ++s.custSeq, state: "enter", t: 0, want, basket: [], wait: 0, patience: 22 + rnd(s) * 18, look: Math.floor(rnd(s) * 1e6), lane: -1 });
+  s.customers.push({ id: ++s.custSeq, state: "enter", t: 0, want, basket: [], basketPrices: [], wait: 0, patience: 22 + rnd(s) * 18, look: Math.floor(rnd(s) * 1e6), lane: -1 });
   s.today.customers++; s.stats.customers++;
 }
 
@@ -309,6 +316,7 @@ function mood(s, c, outcome) {
 }
 
 function finishBrowsing(s, c) {
+  if (!c.basketPrices) c.basketPrices = [];
   for (const pid of c.want) {
     const p = PRODUCT[pid], price = s.prices[pid];
     const buyProb = Math.min(1, Math.pow(p.ref * 1.15 / price, 2));
@@ -321,32 +329,33 @@ function finishBrowsing(s, c) {
       if (alt.length && rnd(s) < 0.5) take = pickOf(s, alt).id; else continue;
     }
     const qty = rnd(s) < 0.8 ? 1 : 2;
-    for (let i = 0; i < qty && s.stock[take].shelf > 0; i++) { s.stock[take].shelf--; c.basket.push(take); }   // reserved on the customer
+    for (let i = 0; i < qty && s.stock[take].shelf > 0; i++) { s.stock[take].shelf--; c.basket.push(take); c.basketPrices.push(s.prices[take]); }   // reserved on the customer, at today's price
   }
   if (!c.basket.length) { mood(s, c, c.hadStockout ? 30 : 45); c.state = "leave"; c.t = 0; return; }
-  c.state = "queue"; c.t = 0;
+  c.state = "queue"; c.t = 0; c.queuedAt = s.clock;
 }
 
 function abandon(s, c) {
   for (const pid of c.basket) s.stock[pid].shelf++;     // items go back on the shelf
-  c.basket = []; c.state = "leave"; c.t = 0;
+  c.basket = []; c.basketPrices = []; c.state = "leave"; c.t = 0;
   s.today.lost.patience++;
   mood(s, c, 12);
 }
 
 function checkout(s, c) {
   // group by product to keep ledger entries compact
-  const lines = {};
-  for (const pid of c.basket) lines[pid] = (lines[pid] || 0) + 1;
+  const lines = {}, money = {};
+  c.basket.forEach((pid, i) => { lines[pid] = (lines[pid] || 0) + 1; money[pid] = round2((money[pid] || 0) + (c.basketPrices && c.basketPrices[i] != null ? c.basketPrices[i] : s.prices[pid])); });
   let revenue = 0, cost = 0;
   for (const [pid, n] of Object.entries(lines)) {
-    const total = unitsTotal(s, pid) + n;       // basket units already left the shelf count
-    const unitVal = total > 0 ? s.val[pid] / total : 0;
-    const remaining = unitsTotal(s, pid);       // units still in store (excluding this basket)
-    const c1 = remaining === 0 ? s.val[pid] : round2(unitVal * n);
+    // units reserved in OTHER customers' baskets are still part of the inventory value, so they count in the average
+    const others = s.customers.reduce((a, o) => o === c ? a : a + o.basket.filter(x => x === pid).length, 0);
+    const remaining = unitsTotal(s, pid) + others;      // units still held anywhere except this basket
+    const unitVal = remaining + n > 0 ? s.val[pid] / (remaining + n) : 0;
+    const c1 = remaining === 0 ? s.val[pid] : round2(unitVal * n);   // the last unit anywhere takes whatever value is left
     s.val[pid] = round2(s.val[pid] - c1);
     cost = round2(cost + c1);
-    revenue = round2(revenue + s.prices[pid] * n);
+    revenue = round2(revenue + money[pid]);
     s.today.units[pid] = (s.today.units[pid] || 0) + n;
     s.stats.units[pid] = (s.stats.units[pid] || 0) + n;
   }
@@ -358,13 +367,13 @@ function checkout(s, c) {
   s.today.served++;
   const waitPenalty = Math.min(40, c.wait * 1.5);
   mood(s, c, clamp(92 - waitPenalty - (c.hadStockout ? 12 : 0), 20, 100));
-  c.basket = []; c.state = "leave"; c.t = 0;
+  c.basket = []; c.basketPrices = []; c.state = "leave"; c.t = 0;
 }
 
 // ---------- closing the day ----------
 function closeDay(s) {
   // customers still inside leave; reserved items go back on the shelf
-  for (const c of s.customers) { for (const pid of c.basket) s.stock[pid].shelf++; c.basket = []; if (c.state === "queue" || c.state === "pay") { s.today.lost.patience++; } }
+  for (const c of s.customers) { for (const pid of c.basket) s.stock[pid].shelf++; c.basket = []; c.basketPrices = []; if (c.state === "queue" || c.state === "pay") { s.today.lost.patience++; } }
   s.customers = [];
   s.phase = "closing";
   const day = s.day;
@@ -380,7 +389,7 @@ function closeDay(s) {
   charge("rent", "Daily rent", rent(s));
   charge("utilities", "Utilities", utilities(s));
   charge("wages", "Staff wages", wagesPerDay(s));
-  charge("marketing", "Marketing", MARKETING_COST[s.marketing]);
+  charge("marketing", "Marketing", round2(s.today.mktCost || 0));
   const rep_ev = s.events.active.find(e => e.id === "repair");
   if (rep_ev) charge("repairs", "Equipment repair", rep_ev.amount);
   // 3. loans: interest + scheduled principal
@@ -396,6 +405,7 @@ function closeDay(s) {
       rep.charges.push({ acct: "loan", label: `Loan installment: ${l.name}`, amount: pay, principal: true });
     }
   }
+  for (const l of s.loans) l.daysLeft = Math.max(0, (l.daysLeft || 0) - 1);
   s.loans = s.loans.filter(l => l.remaining > 0.004);
   const od = bal(s, "overdraft");
   if (od > 0) charge("interest", "Overdraft interest", round2(od * D.OVERDRAFT_RATE));
@@ -417,6 +427,7 @@ function closeDay(s) {
   // 7. report
   Object.assign(rep, buildDayRecord(s));
   s.lastReport = rep;
+  snapshotDayStart(s);                    // postings made during the report phase (loan fees, upgrades...) belong to the NEXT day's record
   s.history.push({ day, revenue: rep.revenue, net: rep.net, customers: rep.customers, liquid: rep.closeLiquid, netWorth: updateDerived(s).netWorth });
   if (s.history.length > 60) { const old = s.history.shift(); s.archive.days++; s.archive.revenue = round2(s.archive.revenue + old.revenue); s.archive.profit = round2(s.archive.profit + old.net); }
   s.stats.bestDay = Math.max(s.stats.bestDay, rep.net);
@@ -462,8 +473,8 @@ function checkMilestones(s) {
 export function score(s) {
   const d = updateDerived(s);
   const growth = clamp(((d.netWorth - s.startNetWorth) / s.startNetWorth) / 5, 0, 1);
-  const monthlyCost = (rent(s) + utilities(s) + wagesPerDay(s)) * 7;
-  const cash = clamp(d.liquid / Math.max(1, monthlyCost), 0, 1);
+  const weeklyCost = (rent(s) + utilities(s) + wagesPerDay(s)) * 7;   // fixed costs for 7 days: cash health = how many weeks of runway you hold (1 week = full marks)
+  const cash = clamp(d.liquid / Math.max(1, weeklyCost), 0, 1);
   const debt = d.assets > 0 ? clamp(1 - d.debt / d.assets, 0, 1) : 0;
   const sat = clamp(s.sat / 100, 0, 1);
   const totalCust = Math.max(1, s.stats.customers);
@@ -504,12 +515,9 @@ export function continueAfterEnd(s) {
 }
 
 // ---------- commands (all validated; money-moving ones accept a cmdId for idempotency) ----------
-const seen = (s, id) => {
-  if (!id) return false;
-  if (s.cmdSeen.includes(id)) return true;
-  s.cmdSeen.push(id); if (s.cmdSeen.length > 200) s.cmdSeen.shift();
-  return false;
-};
+// A command id is remembered only AFTER the command succeeds, so a request that failed validation can be retried.
+const seen = (s, id) => !!id && s.cmdSeen.includes(id);
+const remember = (s, id) => { if (!id) return; s.cmdSeen.push(id); if (s.cmdSeen.length > 200) s.cmdSeen.shift(); };
 const isInt = (n, a, b) => Number.isInteger(n) && n >= a && n <= b;
 const isMoney = (n, max = 1e7) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= max;
 const guard = s => (s.ended ? fail("The game has ended.") : null);
@@ -544,6 +552,7 @@ export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   if (rnd(s) > clamp(sup.reliability + diffOf(s).reliability, 0.5, 0.995)) { lead *= 1.5; delayed = true; }
   s.orders.push({ id, supplier: sid, lines: priced, units, goods, fee, total, pay, lead: round2(lead), t: 0, status: "processing", delayed, day: s.day });
   decide(s, `Ordered ${units} units from ${sup.name} ($${total.toFixed(2)})`);
+  remember(s, cmdId);
   return okr({ id, total, lead: round2(lead), delayed });
 }
 
@@ -612,6 +621,7 @@ export function deposit(s, amount, cmdId) {
   if (!isMoney(amount)) return fail("Enter an amount above zero.");
   if (amount > bal(s, "cash")) return fail("Not enough cash on hand.");
   post(s.ledger, s.day, "Deposit to bank", [{ acct: "bank", dr: amount }, { acct: "cash", cr: amount }]);
+  remember(s, cmdId);
   return okr();
 }
 export function withdraw(s, amount, cmdId) {
@@ -621,6 +631,7 @@ export function withdraw(s, amount, cmdId) {
   if (!isMoney(amount)) return fail("Enter an amount above zero.");
   if (amount > bal(s, "bank")) return fail("Not enough in the bank.");
   post(s.ledger, s.day, "Withdraw from bank", [{ acct: "cash", dr: amount }, { acct: "bank", cr: amount }]);
+  remember(s, cmdId);
   return okr();
 }
 export function loanTerms(def) {
@@ -650,6 +661,7 @@ export function takeLoan(s, loanId, cmdId) {
   s.loans.push({ id: ++s.loanSeq, kind: def.id, name: def.name, remaining: def.principal, dailyRate: def.dailyRate, installment: t.installment, daysLeft: def.days });
   s.stats.tookLoan = true;
   decide(s, `Took ${def.name} ($${def.principal})`);
+  remember(s, cmdId);
   return okr({ terms: t });
 }
 export function repayLoan(s, loanDbId, amount, cmdId) {
@@ -664,6 +676,7 @@ export function repayLoan(s, loanDbId, amount, cmdId) {
   post(s.ledger, s.day, `Early repayment: ${l.name}`, [{ acct: "loan", dr: amount }, { acct: "bank", cr: amount }]);
   l.remaining = round2(l.remaining - amount);
   if (l.remaining < 0.005) s.loans = s.loans.filter(x => x !== l);
+  remember(s, cmdId);
   return okr({ paid: amount });
 }
 // Distress option: turn overdraft into a long, expensive rescue loan. Costs reputation. Once per 10 days.
@@ -677,6 +690,7 @@ export function restructureDebt(s, cmdId) {
   s.loans.push({ id: ++s.loanSeq, kind: "rescue", name: "Rescue loan", remaining: od, dailyRate: D.RESCUE_RATE, installment: round2(od / 40), daysLeft: 40 });
   s.lastBailoutDay = s.day; s.distressDays = 0; s.rep = Math.max(0, s.rep - 8);
   decide(s, `Restructured $${od.toFixed(2)} overdraft`);
+  remember(s, cmdId);
   return okr({ amount: od });
 }
 
@@ -694,6 +708,7 @@ export function buyUpgrade(s, id, cmdId) {
   s.upgrades[id] = lvl + 1;
   decide(s, `Bought ${u.name} level ${lvl + 1}`);
   checkMilestones(s);
+  remember(s, cmdId);
   return okr({ cost });
 }
 
@@ -744,10 +759,43 @@ export function alerts(s) {
 }
 
 // ---------- save / load ----------
+// Customers are not saved. Items already in their baskets left the shelf but their cost is still in the inventory
+// ledger, so the save puts them back on the shelf (in a copy: the live state is never touched).
 export function serialize(s) {
-  const copy = { ...s, customers: [], derived: null };
-  return JSON.stringify(copy);
+  const stock = JSON.parse(JSON.stringify(s.stock));
+  for (const c of s.customers || []) for (const pid of c.basket || []) if (stock[pid]) stock[pid].shelf++;
+  return JSON.stringify({ ...s, stock, customers: [], derived: null });
 }
+
+const isNum = v => typeof v === "number" && Number.isFinite(v);
+const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
+const isArr = (v, max = 5000) => Array.isArray(v) && v.length <= max;
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+// Returns a short description of the first malformed part of a save, or null. Everything the engine, the score and
+// the multiplayer verifier read later is checked here, so a crafted save is rejected instead of throwing deep in the code.
+function saveShapeError(o) {
+  if (!isObj(o.stats) || !isNum(o.stats.customers) || !isNum(o.stats.totalSales) || !isNum(o.stats.bestDay) || !isObj(o.stats.units) || (o.stats.stockLost != null && !isNum(o.stats.stockLost))) return "statistics";
+  if (!isArr(o.history, 200) || !o.history.every(h => isObj(h) && [h.revenue, h.net, h.customers, h.liquid, h.netWorth].every(isNum))) return "history";
+  if (!isObj(o.archive) || !isNum(o.archive.days) || !isNum(o.archive.revenue) || !isNum(o.archive.profit)) return "archive";
+  if (!isArr(o.staff, 50) || !o.staff.every(x => isObj(x) && isNum(x.id) && typeof x.role === "string" && has(D.ROLES, x.role) && Number.isInteger(x.skill) && x.skill >= 1 && x.skill <= 5 && isNum(x.wage) && x.wage >= 0 && x.wage <= 1e4)) return "staff";
+  if (!isObj(o.upgrades) || !D.UPGRADES.every(u => Number.isInteger(o.upgrades[u.id]) && o.upgrades[u.id] >= 0 && o.upgrades[u.id] <= u.max)) return "upgrades";
+  if (!isArr(o.loans, 10) || !o.loans.every(l => isObj(l) && isNum(l.id) && typeof l.kind === "string" && typeof l.name === "string" && isNum(l.remaining) && l.remaining >= 0 && isNum(l.dailyRate) && l.dailyRate >= 0 && l.dailyRate <= 1 && isNum(l.installment) && l.installment >= 0 && (l.daysLeft == null || isNum(l.daysLeft)))) return "loans";
+  if (!isObj(o.prices) || !D.PRODUCTS.every(p => isNum(o.prices[p.id]) && o.prices[p.id] > 0 && o.prices[p.id] <= 1e4)) return "prices";
+  if (!isObj(o.val) || !D.PRODUCTS.every(p => isNum(o.val[p.id]))) return "inventory values";
+  if (!isObj(o.shelfTarget) || !D.PRODUCTS.every(p => Number.isInteger(o.shelfTarget[p.id]) && o.shelfTarget[p.id] >= 0)) return "shelf targets";
+  if (!isObj(o.ledger) || !isObj(o.ledger.bal) || !Object.keys(ACCOUNTS).every(k => isNum(o.ledger.bal[k])) || !isArr(o.ledger.entries, 5000) || !isNum(o.ledger.seq)) return "ledger";
+  if (!isArr(o.orders, 100) || !o.orders.every(x => isObj(x) && isNum(x.id) && isNum(x.goods) && x.goods >= 0 && Number.isInteger(x.units) && typeof x.status === "string" && isNum(x.t) && isNum(x.lead) && typeof x.supplier === "string" && has(SUPPLIER, x.supplier) && (x.pay === "bank" || x.pay === "cash") &&
+    isArr(x.lines, 20) && x.lines.every(l => isObj(l) && typeof l.pid === "string" && has(PRODUCT, l.pid) && Number.isInteger(l.qty) && l.qty >= 0 && isNum(l.total)))) return "orders";
+  if (!isArr(o.tasks, 100) || !o.tasks.every(t => isObj(t) && typeof t.pid === "string" && has(PRODUCT, t.pid) && Number.isInteger(t.qty) && Number.isInteger(t.done))) return "restock tasks";
+  if (!isObj(o.events) || !isArr(o.events.active, 50) || !o.events.active.every(e => isObj(e) && D.EVENTS.some(x => x.id === e.id) && isNum(e.daysLeft)) || !isArr(o.events.todayText, 50)) return "events";
+  for (const k of ["candidates", "log", "decisions", "milestones", "cmdSeen", "doneOrders"]) if (!isArr(o[k], 1000)) return k;
+  if (!isNum(o.sat) || !isNum(o.rep) || !isNum(o.capital) || !(o.difficulty in D.DIFFICULTY)) return "settings";
+  if (o.ended != null && (!isObj(o.ended) || typeof o.ended.reason !== "string")) return "end state";
+  if (o.today != null && (!isObj(o.today) || !isObj(o.today.lost) || !isObj(o.today.units) || !isObj(o.today.lostBy) || !isArr(o.today.events, 100))) return "today";
+  return null;
+}
+
 export function validateSave(raw) {
   let o;
   try { o = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return { ok: false, error: "Save file is corrupted (not valid JSON)." }; }
@@ -757,11 +805,16 @@ export function validateSave(raw) {
   for (const k of need) if (!(k in o)) return { ok: false, error: `Save is missing "${k}".` };
   if (!["standard", "infinite"].includes(o.mode)) return { ok: false, error: "Unknown game mode in save." };
   if (!Number.isInteger(o.day) || o.day < 1 || !Number.isFinite(o.clock)) return { ok: false, error: "Save has invalid time data." };
+  if (!isObj(o.stock)) return { ok: false, error: "Save has invalid stock." };
   for (const pr of D.PRODUCTS) { const st = o.stock[pr.id]; if (!st || !Number.isInteger(st.wh) || !Number.isInteger(st.shelf) || st.wh < 0 || st.shelf < 0) return { ok: false, error: "Save has invalid stock for " + pr.id + "." }; }
-  if (!o.ledger.bal || !totals(o.ledger).balanced) return { ok: false, error: "Save failed the accounting check (ledger does not balance)." };
-  o.customers = []; o.spawnAcc = 0;
-  o.today = o.today || { customers: 0, served: 0, units: {}, lost: { stockout: 0, price: 0, patience: 0 }, lostBy: {}, waitSum: 0, waitN: 0, events: [], notes: [] };
-  if (!o.dayStart) o.dayStart = { ...o.ledger.bal };
-  updateDerived(o);
+  try {
+    const bad = saveShapeError(o);
+    if (bad) return { ok: false, error: `Save has invalid ${bad}.` };
+    if (!totals(o.ledger).balanced) return { ok: false, error: "Save failed the accounting check (ledger does not balance)." };
+    o.customers = []; o.spawnAcc = 0;
+    o.today = o.today || { customers: 0, served: 0, units: {}, lost: { stockout: 0, price: 0, patience: 0 }, lostBy: {}, waitSum: 0, waitN: 0, events: [], notes: [] };
+    if (!o.dayStart) o.dayStart = { ...o.ledger.bal };
+    updateDerived(o);
+  } catch { return { ok: false, error: "Save has an invalid structure." }; }
   return { ok: true, state: o };
 }

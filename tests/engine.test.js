@@ -117,7 +117,13 @@ test("save/load preserves state; corrupt and old saves fail gracefully", () => {
   const s = fresh(); E.takeLoan(s, "small"); E.buyUpgrade(s, "counter"); E.hire(s, s.candidates[0].id); run(s, 30);
   const r = E.validateSave(E.serialize(s)); assert.ok(r.ok, r.error);
   assert.equal(r.state.mode, s.mode); assert.equal(r.state.loans.length, 1); assert.equal(r.state.upgrades.counter, 1);
-  assert.equal(r.state.staff.length, 1); assert.deepEqual(r.state.stock, s.stock); assert.deepEqual(r.state.ledger.bal, s.ledger.bal);
+  assert.equal(r.state.staff.length, 1); 
+  // items held in customers' baskets are saved back on the shelf (customers themselves are not saved)
+  for (const pid of Object.keys(s.stock)) {
+    const held = s.customers.reduce((a, c) => a + c.basket.filter(x => x === pid).length, 0);
+    assert.deepEqual(r.state.stock[pid], { wh: s.stock[pid].wh, shelf: s.stock[pid].shelf + held });
+  }
+  assert.deepEqual(r.state.ledger.bal, s.ledger.bal);
   assert.equal(E.validateSave("{not json").ok, false);
   assert.equal(E.validateSave(JSON.stringify({ v: 2 })).ok, false);
   const bad = JSON.parse(E.serialize(s)); bad.ledger.bal.cash += 50;

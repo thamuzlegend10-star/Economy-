@@ -40,7 +40,7 @@ export const ROLES = {
   cashier:   { name:"Cashier",          base:14, desc:"Faster checkout, shorter queues." },
   stocker:   { name:"Shelf stocker",    base:12, desc:"Moves goods from warehouse to shelves faster." },
   warehouse: { name:"Warehouse worker", base:13, desc:"Unloads trucks faster." },
-  manager:   { name:"Store manager",    base:24, desc:"Raises customer satisfaction and lowers shrink-free waste." },
+  manager:   { name:"Store manager",    base:24, desc:"Customers rate every visit about 5 points higher, which slowly lifts satisfaction and reputation." },
 };
 export const MAX_STAFF = 8;
 const FIRST = ["Aira","Budi","Citra","Dewi","Eko","Fajar","Gita","Hadi","Indah","Joko","Kirana","Lukas","Maya","Naufal","Olla","Putra","Qori","Rani","Sinta","Tomo"];
@@ -73,7 +73,7 @@ export const DIFFICULTY = {
 export const EVENTS = [
   { id:"festival", name:"Local festival",   text:"A street festival brings +40% customers today.", demand:1.4 },
   { id:"rain",     name:"Heavy rain",       text:"Rain keeps people at home: -25% customers today.", demand:0.75 },
-  { id:"delay",    name:"Supplier delay",   text:"One supplier has road trouble: deliveries take 60% longer for 2 days." },
+  { id:"delay",    name:"Supplier delay",   text:"One supplier has road trouble: new orders from them take 60% longer to arrive for 2 days." },
   { id:"market",   name:"Market price rise",text:"Wholesale cost of one product is +25% for 3 days." },
   { id:"repair",   name:"Equipment repair", text:"A fridge broke. Repair bill is charged at closing." },
 ];

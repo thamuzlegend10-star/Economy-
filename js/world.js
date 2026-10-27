@@ -345,7 +345,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     }
     if (s.staff.some(x => x.role === "manager")) { const y = FLOOR_Y + 20; actors.push({ y, draw: () => person(ctx, 480, y, lookFor(900), { role: "manager", moving: false, scale: depthK(y) }) }); }
 
-    const queue = s.customers.filter(c => c.state === "queue");
+    const queue = s.customers.filter(c => c.state === "queue").sort((p, q) => ((p.queuedAt ?? 0) - (q.queuedAt ?? 0)) || (p.id - q.id));   // same first-in-first-out order as the engine
     for (const c of s.customers) {
       const look = lookFor(c.look), wantIdx = c.want.length ? D.PRODUCTS.findIndex(p => p.id === c.want[Math.floor(clock / 2.5 + c.id) % c.want.length]) : 0;
       const shelfX = slotPos(Math.max(0, wantIdx)).x + 55, yy = FLOOR_Y + 70 + (c.id % 4) * 22, DOOR_Y = FLOOR_Y + 8;
