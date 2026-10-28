@@ -128,6 +128,8 @@ table td { border-color:#343842; }
   .k-net { order:6; grid-column:span 3; }
   .netpill { grid-area:net; justify-self:start; min-width:0; }
   .ctrl { grid-area:controls; }
+  /* Override refine.css's max-width header rule; header is display:contents here. */
+  header .ctrl { grid-area:controls; width:100%; max-width:100%; }
   .stage { grid-area:stage; min-width:0; position:sticky; top:16px; }
   .side { grid-area:side; }
   .stage-card { padding:8px; }
