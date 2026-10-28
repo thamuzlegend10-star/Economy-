@@ -133,10 +133,18 @@ table td { border-color:#343842; }
   .stage-card { padding:8px; }
   #stage { width:100%; height:auto; }
 }
-@media (min-width:821px) and (max-width:1279px) {
+@media (min-width:1001px) and (max-width:1279px) {
   .wrap { display:block; }
   header { display:grid; }
   main { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(320px,.9fr); gap:16px; }
+  .ctrl { display:flex; flex-wrap:wrap; width:auto; }
+  .manage { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .mb { min-height:54px; flex-direction:row; gap:8px; font-size:.88rem; }
+}
+@media (min-width:821px) and (max-width:1000px) {
+  .wrap { display:block; }
+  header { display:grid; }
+  main { display:grid; grid-template-columns:1fr; gap:16px; }
   .ctrl { display:flex; flex-wrap:wrap; width:auto; }
   .manage { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .mb { min-height:54px; flex-direction:row; gap:8px; font-size:.88rem; }
