@@ -22,15 +22,22 @@ function along(path, f) {
 
 export function createWorld(canvas, { getState, onOpen, onScene }) {
   const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-  const SS = 2;                          // backing-store scale: crisp when the canvas is shown wider than 960px
+  let SS = 2;                            // backing-store scale: follows the real on-screen size so the browser never has to resample (no blur)
   canvas.width = W * SS; canvas.height = H * SS;
   const mainCtx = canvas.getContext("2d");
   let ctx = mainCtx;
   // Pixel pass: the district is drawn into a small buffer (one art pixel = PX world units) and scaled up without smoothing.
   // Text, labels and hover outlines are queued and drawn crisp on top, so they stay readable.
-  const PX = 3;
+  let PX = 3;
   const pixBuf = document.createElement("canvas"); pixBuf.width = Math.ceil(WW / PX); pixBuf.height = Math.ceil(WH / PX);
   const pctx = pixBuf.getContext("2d"); pctx.imageSmoothingEnabled = false;
+  const sizeBuffers = () => {
+    const cssW = canvas.clientWidth || W, dpr = window.devicePixelRatio || 1;
+    const want = clamp(cssW * dpr / W, 1, 3);
+    if (Math.abs(want - SS) > 0.04) { SS = want; canvas.width = Math.round(W * SS); canvas.height = Math.round(H * SS); }
+    const px = clamp(Math.round(2.5 / Math.max(0.2, cam.z * cssW / W * dpr)), 1, 4);
+    if (px !== PX) { PX = px; pixBuf.width = Math.ceil(WW / PX); pixBuf.height = Math.ceil(WH / PX); pctx.imageSmoothingEnabled = false; }
+  };
   let overlayQ = null;
   const text = (c, ...a) => (overlayQ && c === pctx ? overlayQ.push(() => artText(mainCtx, ...a)) : artText(c, ...a));
   const chip = (c, ...a) => (overlayQ && c === pctx ? overlayQ.push(() => artChip(mainCtx, ...a)) : artChip(c, ...a));
@@ -113,7 +120,8 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     hotspots = [];
     // On touch screens: when the map is zoomed in, one finger pans it; otherwise a swipe scrolls the page.
     canvas.style.touchAction = scene === "district" && cam.z > Math.max(W / WW, H / WH) * 1.03 ? "none" : "pan-y";
-    mainCtx.setTransform(SS, 0, 0, SS, 0, 0);
+    sizeBuffers();
+    mainCtx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
     mainCtx.clearRect(0, 0, W, H);
     ({ district: drawDistrict, shop: drawShop, warehouse: drawWarehouse, bank: drawBank, office: drawOffice })[scene](s);
     drawTooltip();

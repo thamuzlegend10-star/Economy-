@@ -91,7 +91,11 @@ details.tip { border-left:2px solid var(--px-hi); border-left-color:var(--brass)
 .k-happy span svg { display:none; }
 .mb { overflow:hidden; overflow-wrap:anywhere; hyphens:auto; }
 .mb { font-size:clamp(.64rem,.78rem,.8rem); }
-.tab, .scenes button, .sup, .upg, .card, .tag, td, th, .note, .alert, label.field { overflow-wrap:anywhere; }
+.sup, .upg, .card, .note, .alert, label.field { overflow-wrap:break-word; }
+.tbl th, .tbl td { overflow-wrap:normal; word-break:normal; white-space:nowrap; }
+.tbl td.wrap, .tbl td:first-child { white-space:normal; }
+.tbl { width:100%; min-width:max-content; }
+.scroll { overflow-x:auto; }
 .tab, .scenes button { white-space:nowrap; }
 .sup { overflow:hidden; }
 button { max-width:100%; }
@@ -100,3 +104,14 @@ button { overflow-wrap:normal; word-break:normal; }
 .tabs { flex-wrap:nowrap; } .tab { flex:0 0 auto; }
 .tab, .scenes button { width:auto; min-width:max-content; }
 @media (max-width:1099px) { .pill span svg { display:none; } .pill span { font-size:.54rem; letter-spacing:.02em; } }
+
+/* phones: brand on its own line so controls never cover it */
+@media (max-width:720px) {
+  header { grid-template-columns:minmax(0,1fr) !important; gap:6px !important; padding:6px 10px !important; }
+  header .brand { grid-column:1 !important; grid-row:1 !important; }
+  header .brand h1, header .brand small { display:block !important; }
+  header .brand h1 { font-size:1.2rem; line-height:1; }
+  header .ctrl { grid-column:1 !important; grid-row:2 !important; width:100%; display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px; }
+  header .ctrl button { min-width:0; padding:6px 2px; }
+  header .pills { grid-row:auto !important; }
+}
