@@ -8,6 +8,7 @@ import { createTutorial } from "./tutorial.js";
 import { sound } from "./sound.js";
 import { createMultiplayer } from "./multiplayer.js";
 import { createSupabaseNet, createLocalNet } from "./net.js";
+import { startFit } from "./fit.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -522,3 +523,4 @@ $("rotateOk").onclick = () => { $("rotateHint").hidden = true; try { sessionStor
   openMenu(false);
   setStatus("Progress is saved on this device.");
 })();
+startFit();

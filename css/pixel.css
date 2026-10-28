@@ -115,3 +115,10 @@ button { overflow-wrap:normal; word-break:normal; }
   header .ctrl button { min-width:0; padding:6px 2px; }
   header .pills { grid-row:auto !important; }
 }
+
+/* fit rule: single-line labels never wrap or cut; js/fit.js shrinks the font until they fit */
+.pill span, .stat small, .tab, .scenes button, .mb, .tag, button.alert, .mini, .ctrl button { white-space:nowrap; overflow:hidden; text-overflow:clip; }
+.mb { overflow-wrap:normal; hyphens:none; white-space:nowrap; font-size:.8rem; }
+.sup b { white-space:nowrap; } .sup small { white-space:normal; overflow-wrap:break-word; display:block; }
+.tbl { min-width:0; }
+button.alert { white-space:normal; }
