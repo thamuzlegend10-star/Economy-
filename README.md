@@ -15,6 +15,15 @@ Decisions connect from demand to the books:
 
 Save version is 4. Version 3 saves are migrated on load (marketing level dropped, new fields get neutral defaults); older versions are rejected with a message. Multiplayer: all players run the same engine, so campaigns and budgets are validated by the same `validateSave` the host already uses. Players on different versions cannot be compared, because the host rejects saves from another version.
 
+## Locations (v5)
+A data-driven catalog (`js/locations.js`) of 9 sites plus a neutral start: Indonesia (Medan central market area and residential suburb, Pematangsiantar town centre, Central Jakarta, Denpasar), Singapore, Kuala Lumpur, Tokyo and New York City. Pick one in **New game > Choose on globe** (rotate, zoom, search, Country > Region > City > District, side-by-side comparison) or as the host in an online room.
+
+The location is used by the real simulation: customer volume and rival pressure, rent, wages and utilities, supplier delivery fee, delivery time and which suppliers deliver, per-category demand, purchasing power and price sensitivity. The pre-game estimate and suitability score use the same coefficients, and show a range plus their assumptions.
+
+Data honesty: country, region, city names and coordinates are real; **districts are simulated** and **every coefficient is a game-balancing estimate, not a statistic**. Game money stays in dollars (the currency field is informational). The globe is a schematic with coarse hand-made coastlines and works offline; there is no map service.
+
+Not built yet: street-level maps, multiple stores or cities in one game, competitor businesses as separate entities, supplier payment terms, a facilitator mode, server-authoritative multiplayer.
+
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.
 - **Infinite**: no end date, milestones and upgrades, recoverable bankruptcy.

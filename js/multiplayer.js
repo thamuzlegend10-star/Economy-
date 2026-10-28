@@ -8,6 +8,7 @@
 // not fully server-authoritative. A determined cheater could still craft a self-consistent save. Real
 // server-authoritative play needs a backend that runs the rules (see README, "Multiplayer limits").
 import * as E from "./engine.js";
+import { hasLocation } from "./locations.js";
 
 export const CODE_RE = /^\d{6}$/;
 const JOIN_LIMIT = 5, JOIN_WINDOW_MS = 60000, GRACE_MS = 90000;
@@ -17,7 +18,8 @@ export function sanitizeConfig(c = {}) {
   const difficulty = ["easy", "normal", "hard"].includes(c.difficulty) ? c.difficulty : "normal";
   const capital = Math.max(300, Math.min(20000, Math.round(Number(c.capital) || 1000)));
   const seed = Number.isInteger(c.seed) ? c.seed : 0;
-  return { days, difficulty, capital, seed };
+  const location = typeof c.location === "string" && hasLocation(c.location) ? c.location : "default";
+  return { days, difficulty, capital, seed, location };
 }
 
 const rid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -250,7 +252,7 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
       const v = E.validateSave(raw);
       if (!v.ok) return { ok: false, reason: cleanText(v.error, 80) };
       const s = v.state, c = room.config;
-      if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital) return { ok: false, reason: "Save does not match the room settings." };
+      if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital || s.loc !== c.location) return { ok: false, reason: "Save does not match the room settings." };
       const bankrupt = !!s.ended && s.ended.reason === "bankrupt" && s.day <= c.days;
       if (!bankrupt && (!s.ended || s.day !== c.days)) return { ok: false, reason: "Save is not a finished match." };
       const rec = E.reconcile(s);

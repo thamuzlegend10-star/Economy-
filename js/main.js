@@ -9,6 +9,8 @@ import { sound } from "./sound.js";
 import { createMultiplayer } from "./multiplayer.js";
 import { createSupabaseNet, createLocalNet } from "./net.js";
 import { startFit } from "./fit.js";
+import * as LOC from "./locations.js";
+import { createLocationPicker } from "./locationpicker.js";
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -209,8 +211,12 @@ const mpBlock = () => { if (mpMatch) { toast("Leave the online match first.", "e
 $("mStandard").onclick = () => { if (!mpBlock()) openSetup("standard"); };
 $("mInfinite").onclick = () => { if (!mpBlock()) openSetup("infinite"); };
 $("sBack").onclick = () => showSection("menuMain");
+let chosenLoc = "default";
+const picker = createLocationPicker({ root: $("globeDlg"), getDifficulty: () => $("sDiff").value, onPick: id => { chosenLoc = id; $("sLocLabel").textContent = LOC.getLocation(id).name; } });
+$("sLocBtn").onclick = () => picker.open(chosenLoc);
+$("lbLoc").innerHTML = ["default", ...LOC.playableLocations().map(l => l.id)].map(id => `<option value="${id}">${LOC.getLocation(id).id === "default" ? "Neutral start" : LOC.getLocation(id).name}</option>`).join("");
 $("sStart").onclick = () => {
-  const s = E.newGame({ mode: setupMode, difficulty: $("sDiff").value, capital: Number($("sCap").value), dayLimit: Number($("sDays").value) });
+  const s = E.newGame({ mode: setupMode, difficulty: $("sDiff").value, capital: Number($("sCap").value), dayLimit: Number($("sDays").value), location: chosenLoc });
   writeLS(TUT_KEY, "false"); localStorage.removeItem(TUT_KEY);
   menu.close(); startState(s); world.setScene("district"); world.reset();
   paused = false; tut.start();
@@ -276,6 +282,10 @@ const HELP = {
     <ul><li><b>Standard mode:</b> you get a fixed number of days. At the end you see a score from S (best) to D, with a full report.</li>
     <li><b>Infinite mode:</b> no end date. Unlock products, expand, and chase milestones. If money runs out you get a recovery option, not a game over.</li></ul>
     <p class="help-note">Net worth = cash + bank + inventory + equipment - debt.</p>`,
+  place: `<h3>Location</h3>
+    <p>In <b>New game</b> press <b>Choose on globe</b>. Drag to rotate, scroll or pinch to zoom, search a name, or go Country, Region, City, District. Each site shows an <b>estimate</b> (customers, sales range, fixed costs, break-even) and a suitability score with its reasons. Add up to three sites to compare them side by side.</p>
+    <ul><li><b>Demand</b>: a big busy district brings more customers, but rivals take a share.</li><li><b>Costs</b>: rent, wages, utilities and delivery fees change with the place.</li><li><b>Taste and wallet</b>: each place buys different product types, and reacts differently to your prices.</li><li><b>Suppliers</b>: remote towns wait longer and some suppliers do not deliver there.</li></ul>
+    <p class="help-note">Districts are simulated and all numbers are game-balancing estimates, not real statistics. The globe is a schematic and works offline.</p>`,
   loop: `<h3>One business day</h3>
     <ol class="steps">
       <li><b>Order</b> goods in <i>Procurement</i>. A truck brings them to the warehouse.</li>
@@ -315,6 +325,7 @@ const HELP = {
     <dl><dt>Margin</dt><dd>Selling price minus what the goods cost you.</dd>
     <dt>COGS</dt><dd>Cost of goods sold: what the sold items cost you.</dd>
     <dt>Inventory</dt><dd>Goods you own: warehouse + shelves. Counted as an asset.</dd>
+    <dt>Break-even</dt><dd>Customers per day needed to cover rent and utilities.</dd>
     <dt>Forecast</dt><dd>An estimate of customers, shown as a range. It cannot see random events.</dd>
     <dt>Variance</dt><dd>Actual result minus budget. Positive is good.</dd>
     <dt>Days of cover</dt><dd>How many days your stock lasts at the expected sales.</dd>
@@ -356,7 +367,7 @@ const mp = createMultiplayer({
 const mpEsc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));   // every network-supplied value goes through this before it reaches innerHTML
 
 function startMatch(cfg) {
-  const s = E.newGame({ mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, seed: cfg.seed });
+  const s = E.newGame({ mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, seed: cfg.seed, location: cfg.location });
   mpMatch = true; tut.stop(); ui.close(); menu.close();
   startState(s); world.setScene("district"); world.reset(); paused = false;
   setStatus(`Match started: ${cfg.days} days. Everyone has the same start. Good luck!`, "ok");
@@ -364,7 +375,7 @@ function startMatch(cfg) {
 function resumeMatch(cfg) {
   let v = null;
   try { const raw = localStorage.getItem(MP_KEY); v = raw ? E.validateSave(raw) : null; } catch { v = null; }
-  if (v && v.ok && v.state.dayLimit === cfg.days && v.state.difficulty === cfg.difficulty && v.state.capital === cfg.capital) {
+  if (v && v.ok && v.state.dayLimit === cfg.days && v.state.difficulty === cfg.difficulty && v.state.capital === cfg.capital && v.state.loc === cfg.location) {
     mpMatch = true; menu.close(); startState(v.state); paused = false; toast("Rejoined your match.", "ok");
   } else { toast("Your local progress for this match was lost, so you cannot resume it.", "err"); mp.leave(); }
 }
@@ -407,7 +418,7 @@ function renderMp(v) {
       ${v.isHost && !p.isMe ? `<button class="ghost mini" data-kick="${mpEsc(p.id)}" aria-label="Remove ${mpEsc(p.name)}">Remove</button>` : ""}</div>`).join("");
     $("lbPlayers").querySelectorAll("[data-kick]").forEach(b => b.onclick = () => mp.kick(b.dataset.kick));
     const editable = v.isHost && v.phase === "lobby";
-    for (const [id, key] of [["lbDays", "days"], ["lbDiff", "difficulty"], ["lbCap", "capital"]]) { const el = $(id); el.disabled = !editable; if (document.activeElement !== el) el.value = v.config[key]; }
+    for (const [id, key] of [["lbDays", "days"], ["lbDiff", "difficulty"], ["lbCap", "capital"], ["lbLoc", "location"]]) { const el = $(id); el.disabled = !editable; if (document.activeElement !== el) el.value = v.config[key]; }
     $("lbStart").hidden = !v.isHost; $("lbReady").hidden = v.isHost;
     const me = v.players.find(p => p.isMe);
     $("lbReady").textContent = me && me.ready ? "Not ready" : "I am ready"; $("lbReady").classList.toggle("on", !!(me && me.ready));
@@ -444,7 +455,7 @@ $("lbCopy").onclick = async () => { try { await navigator.clipboard.writeText(mp
 $("lbReady").onclick = () => { const me = mp.view().players.find(p => p.isMe); mp.setReady(!(me && me.ready)); };
 $("lbStart").onclick = () => { const r = mp.start(); if (r.error) { $("lbMsg").textContent = r.error; $("lbMsg").className = "mp-msg err"; } };
 $("lbLeave").onclick = () => { mp.leave(); showSection("menuMain"); openMenu(!!state && !mpMatch); };
-for (const id of ["lbDays", "lbDiff", "lbCap"]) $(id).addEventListener("change", () => mp.setConfig({ days: Number($("lbDays").value), difficulty: $("lbDiff").value, capital: Number($("lbCap").value) }));
+for (const id of ["lbDays", "lbDiff", "lbCap", "lbLoc"]) $(id).addEventListener("change", () => mp.setConfig({ days: Number($("lbDays").value), difficulty: $("lbDiff").value, capital: Number($("lbCap").value), location: $("lbLoc").value }));
 setInterval(() => { if (mpMatch && state && !state.ended) mp.reportProgress(state); }, 5000);
 window.addEventListener("beforeunload", () => { if (mpMatch) saveLocal(); });
 

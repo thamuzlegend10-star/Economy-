@@ -118,6 +118,7 @@
   <div id="menuSetup" hidden>
     <h2 id="setupTitle">New game</h2>
     <p class="muted" id="setupDesc"></p>
+    <div class="field"><span>Location</span><div class="row gap wrap"><b id="sLocLabel">Neutral start</b><button class="ghost" id="sLocBtn" type="button">Choose on globe</button></div><small class="muted">Where you open the shop changes customers, costs, suppliers and what sells.</small></div>
     <label class="field">Difficulty<select id="sDiff"><option value="easy">Easy: more capital and demand</option><option value="normal" selected>Normal</option><option value="hard">Hard: costly and slow</option></select></label>
     <label class="field">Starting capital ($300 to $20,000)<input id="sCap" type="number" min="300" max="20000" step="50" value="1000"></label>
     <label class="field" id="sDaysWrap">Number of days<input id="sDays" type="number" min="5" max="120" step="1" value="30"></label>
@@ -126,13 +127,28 @@
   <div id="menuHelp" hidden>
     <h2>How to play</h2>
     <nav class="helptabs" id="helpTabs" aria-label="Guide sections">
-      <button data-help="goal" class="on">The goal</button><button data-help="loop">Daily loop</button><button data-help="money">Money</button>
+      <button data-help="goal" class="on">The goal</button><button data-help="place">Location</button><button data-help="loop">Daily loop</button><button data-help="money">Money</button>
       <button data-help="people">Staff and growth</button><button data-help="tips">Tips</button><button data-help="words">Glossary</button>
     </nav>
     <div id="helpBody" class="helpbody" tabindex="-1"></div>
     <div class="dlg-actions"><button class="primary" data-back>Back</button></div>
   </div>
-  <div id="menuMulti" hidden>
+  <!-- location picker -->
+<div id="globeDlg" class="overlay" hidden>
+  <div class="sheet globe-sheet" role="dialog" aria-modal="true" aria-label="Choose a location">
+    <div class="sheet-head"><h3 style="margin:0">Choose a location</h3><button class="ghost" data-gclose>Close</button></div>
+    <div class="globe-wrap">
+      <div class="globe-stage">
+        <canvas id="globeCv" aria-label="Interactive globe. Drag to rotate, scroll or pinch to zoom, arrow keys also rotate."></canvas>
+        <div class="globe-ctl"><button class="ghost mini" id="gZoomIn" aria-label="Zoom in">+</button><button class="ghost mini" id="gZoomOut" aria-label="Zoom out">-</button><button class="ghost mini" id="gReset">Reset</button></div>
+        <p class="muted small">Schematic globe with simplified coastlines. Works offline. Drag to rotate, scroll or pinch to zoom, tap a marker.</p>
+      </div>
+      <div class="globe-side sheet-body" id="globeBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="menuMulti" hidden>
     <h2>Online multiplayer</h2>
     <p class="muted" id="mpNote">Compete shop against shop. Everyone starts with the same settings and seed. Highest score wins.</p>
     <label class="field">Enter your name<input id="mpName" maxlength="16" placeholder="Your name" required autocomplete="nickname"></label>
@@ -150,6 +166,7 @@
     <div class="lb-config" id="lbConfig">
       <label class="field">Days<input type="number" id="lbDays" min="5" max="60" step="1" value="15"></label>
       <label class="field">Difficulty<select id="lbDiff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
+      <label class="field">Location<select id="lbLoc"></select></label>
       <label class="field">Starting capital<input type="number" id="lbCap" min="300" max="20000" step="50" value="1000"></label>
     </div>
     <p id="lbMsg" class="mp-msg" role="status"></p>

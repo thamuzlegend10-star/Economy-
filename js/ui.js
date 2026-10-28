@@ -124,7 +124,7 @@ export function createUI(ctx) {
     const units = lines.reduce((a, l) => a + l.qty, 0);
     const priced = lines.map(l => ({ ...l, unit: E.unitCost(s, sup, l.pid, units) }));
     const goods = round2(priced.reduce((a, l) => a + l.unit * l.qty, 0));
-    return { sup, lines, units, goods, fee: lines.length ? sup.fee : 0, total: round2(goods + (lines.length ? sup.fee : 0)) };
+    return { sup, lines, units, goods, fee: lines.length ? E.supFee(s, sup) : 0, total: round2(goods + (lines.length ? E.supFee(s, sup) : 0)) };
   }
   function cover(s, pid, un) {
     if (!un) return "-";
@@ -142,8 +142,8 @@ export function createUI(ctx) {
     const c = cartSummary(s), sup = c.sup;
     const cards = D.SUPPLIERS.map(x => `<button class="sup ${x.id === sup.id ? "on" : ""}" data-act="supplier" data-id="${x.id}">
         <b>${esc(x.name)}</b><span>${esc(x.desc)}</span>
-        <small>Delivery ~${x.lead}s · fee ${money0(x.fee)} · ${Math.round(x.reliability * 100)}% on time · cost ×${x.mult}${x.bulkOff ? ` · ${Math.round(x.bulkOff * 100)}% off at ${x.bulkAt}+` : ""}</small>
-        ${priceTag(s, x)}</button>`).join("");
+        <small>Delivery ~${Math.round(E.supLead(s, x))}s · fee ${money0(E.supFee(s, x))} · ${Math.round(x.reliability * 100)}% on time · cost ×${x.mult}${x.bulkOff ? ` · ${Math.round(x.bulkOff * 100)}% off at ${x.bulkAt}+` : ""}</small>
+        ${priceTag(s, x)}${E.supplierAvailable(s, x) ? "" : `<small><span class="tag bad">Does not deliver to ${esc(E.locOf(s).city)}</span></small>`}</button>`).join("");
     const items = D.PRODUCTS.filter(p => sup.cats.includes(p.cat)).map(p => {
       const un = E.isUnlocked(s, p.id), unit = E.unitCost(s, sup, p.id, c.units), q = view.cart[p.id] || 0;
       const ev = s.events.active.find(e => e.id === "market" && e.pid === p.id);
@@ -151,10 +151,11 @@ export function createUI(ctx) {
         <td>${un ? `<input class="qty" type="number" min="0" max="999" step="1" value="${q}" data-act="cart" data-id="${p.id}" aria-label="Quantity of ${esc(p.name)}">` : `<span class="muted">day ${p.unlockDay}</span>`}</td></tr>`;
     }).join("");
     const free = E.whCap(s) - E.whUsed(s) - E.incomingUnits(s);
-    const eta = c.lines.length ? `~${sup.lead}s${s.events.active.some(e => e.id === "delay" && e.sup === sup.id) ? " (+60% supplier delay)" : ""}` : "-";
+    const eta = c.lines.length ? `~${Math.round(E.supLead(s, sup))}s${s.events.active.some(e => e.id === "delay" && e.sup === sup.id) ? " (+60% supplier delay)" : ""}` : "-";
     let block = "";
     if (c.lines.length) {
-      if (c.units < sup.minUnits) block = `${sup.name} needs at least ${sup.minUnits} units.`;
+      if (!E.supplierAvailable(s, sup)) block = `${sup.name} does not deliver to ${E.locOf(s).city}.`;
+      else if (c.units < sup.minUnits) block = `${sup.name} needs at least ${sup.minUnits} units.`;
       else if (c.units > free) block = `Warehouse has only ${free} free slots.`;
       else if (balance(s.ledger, view.pay) < c.total) block = `Not enough ${view.pay === "bank" ? "bank balance" : "cash"} (${money(balance(s.ledger, view.pay))}).`;
     } else block = "Add products to your order.";

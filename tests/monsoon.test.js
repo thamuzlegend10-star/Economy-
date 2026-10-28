@@ -103,7 +103,7 @@ test("save round trip keeps the new state; bad new fields are rejected", () => {
   const bad2 = JSON.parse(E.serialize(s)); bad2.supIdx.metro = 99;
   assert.equal(E.validateSave(bad2).ok, false);
 });
-test("migration: a v3 save loads as v4 with neutral defaults", () => {
+test("migration: a v3 save loads as current version with neutral defaults", () => {
   const s = fresh(); finishDay(s);
   const old = JSON.parse(E.serialize(s));
   for (const k of ["campaigns", "campSeq", "supIdx", "supRec", "budget", "noise", "forecastToday"]) delete old[k];
@@ -111,7 +111,7 @@ test("migration: a v3 save loads as v4 with neutral defaults", () => {
   old.v = 3; old.marketing = 2;
   const v = E.validateSave(old);
   assert.ok(v.ok, v.error);
-  assert.equal(v.state.v, 4); assert.equal(v.state.marketing, undefined);
+  assert.equal(v.state.v, D.SAVE_VERSION); assert.equal(v.state.loc, "default"); assert.equal(v.state.marketing, undefined);
   assert.deepEqual(v.state.campaigns, []);
   clean(v.state);
   E.nextDay(v.state); finishDay(v.state);          // and it keeps playing

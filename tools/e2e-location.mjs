@@ -1,0 +1,21 @@
+// Browser check: open globe, search Medan, pick a district, start, reload, Continue. Needs: python3 -m http.server 8765
+import { createRequire } from "node:module";
+const { chromium } = createRequire(import.meta.url)("playwright");
+const b = await chromium.launch(), p = await b.newPage({ viewport: { width: 1280, height: 850 } }), errs = [];
+p.on("pageerror", e => errs.push(e.message));
+const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) process.exitCode = 1; };
+await p.goto("http://localhost:8765/index.html"); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForTimeout(500);
+await p.click("#mStandard"); await p.click("#sLocBtn");
+await p.fill("#gq", "medan"); await p.click(".gitem[data-id=id-medan-central]");
+ok(await p.locator(".gdetail").count() === 1, "market summary shown");
+await p.click("[data-g=use]");
+ok((await p.textContent("#sLocLabel")).includes("Medan"), "location label set");
+await p.click("#sStart"); await p.waitForTimeout(800);
+const exp = Number(await p.textContent("#tExp"));
+ok(exp > 50, "expected customers use Medan demand: " + exp);
+await p.click("#bPause"); await p.waitForTimeout(300);
+await p.reload(); await p.waitForTimeout(600); await p.click("#mContinue"); await p.waitForTimeout(800);
+ok((await p.textContent("#hBank")).includes("850"), "bank restored after Continue");
+ok(Number(await p.textContent("#tExp")) === exp, "same expected customers after reload (location saved)");
+ok(errs.length === 0, "no page errors " + errs.join("|"));
+await b.close();

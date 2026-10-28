@@ -1,5 +1,6 @@
 // Pure game engine: no DOM, no network. All rules live here so they can be tested in Node.
 import * as D from "./data.js";
+import * as LOC from "./locations.js";
 import { newLedger, post, balance, totals, round2, OPEX, ACCOUNTS } from "./ledger.js";
 
 const { DAY_LEN } = D;
@@ -31,7 +32,7 @@ export function newGame(opts = {}) {
   const capital = clamp(Math.round(Number(opts.capital) || diff.capital), 300, 20000);
   const dayLimit = mode === "standard" ? clamp(Math.round(Number(opts.dayLimit) || 30), 5, 120) : null;
   const s = {
-    v: D.SAVE_VERSION, mode, difficulty: opts.difficulty in D.DIFFICULTY ? opts.difficulty : "normal", dayLimit, capital,
+    v: D.SAVE_VERSION, loc: LOC.hasLocation(opts.location) ? opts.location : "default", mode, difficulty: opts.difficulty in D.DIFFICULTY ? opts.difficulty : "normal", dayLimit, capital,
     rng: (Number.isFinite(opts.seed) ? opts.seed : Math.floor(Math.random() * 2 ** 31)) | 0,
     day: 1, clock: 0, phase: "open", ended: null,
     ledger: newLedger(),
@@ -102,8 +103,13 @@ export function unitCost(s, sup, pid, qtyTotal = 0) {
   if (qtyTotal >= sup.bulkAt) c *= 1 - sup.bulkOff;
   return round2(Math.max(0.05, c));
 }
-export const rent = s => round2(diffOf(s).rent * inflation(s));
-export const utilities = s => round2((diffOf(s).utilities + 3 * Object.values(s.upgrades).reduce((a, b) => a + b, 0)) * inflation(s));
+export const locOf = s => LOC.getLocation(s.loc);
+export const rent = s => round2(diffOf(s).rent * inflation(s) * locOf(s).rent);
+export const utilities = s => round2((diffOf(s).utilities + 3 * Object.values(s.upgrades).reduce((a, b) => a + b, 0)) * inflation(s) * locOf(s).utilities);
+// supplier terms in this location: remote sites pay more and wait longer; some suppliers do not serve every place
+export const supplierAvailable = (s, sup) => !locOf(s).noSupplier.includes(sup.id);
+export const supFee = (s, sup) => round2(sup.fee * locOf(s).logistics);
+export const supLead = (s, sup) => round2(sup.lead * locOf(s).logistics);
 export const wagesPerDay = s => round2(s.staff.reduce((a, x) => a + x.wage, 0));
 
 function logMsg(s, kind, text) {
@@ -173,7 +179,8 @@ export function campaignLift(s, day = s.day) {
 }
 function demandBase(s, day, rep) {
   const d = diffOf(s);
-  return 48 * d.demand * (0.6 + 0.9 * rep / 100) * (1 + campaignLift(s, day)) * DOW[day % 7] * (1 + Math.min(0.5, day * 0.004));
+  const l = locOf(s);
+  return 48 * d.demand * l.demand * (1 - 0.3 * l.competition) * (0.6 + 0.9 * rep / 100) * (1 + campaignLift(s, day)) * DOW[day % 7] * (1 + Math.min(0.5, day * 0.004));
 }
 export function expectedCustomers(s) { return demandBase(s, s.day, s.rep) * eventDemand(s) * (s.noise || 1); }
 
@@ -192,10 +199,38 @@ export const itemsPerCustomer = s => (s.stats.customers >= 20 && s.stats.unitsSo
 // Rough units of each product the shop can expect to sell on an average day at the forecast traffic.
 export function unitDemand(s, day = s.day) {
   const avail = D.PRODUCTS.filter(p => PRODUCT[p.id].unlockDay <= day);
-  const w = avail.map(p => p.pop * clamp(Math.pow(p.ref / s.prices[p.id], 1.2), 0.6, 1.6)), tot = w.reduce((a, b) => a + b, 0) || 1;
+  const w = avail.map(p => prodWeight(s, p)), tot = w.reduce((a, b) => a + b, 0) || 1;
   const units = demandBase(s, day, s.rep) * itemsPerCustomer(s), out = {};
   avail.forEach((p, i) => { out[p.id] = Math.round(units * w[i] / tot * 10) / 10; });
   return out;
+}
+
+// ---------- site selection: estimates for a location BEFORE starting (same coefficients the simulation uses) ----------
+// These are estimates with a range, not promises. Assumptions: day-1 reputation, no staff, about 1.5 items per customer.
+export function siteEstimate(locId, difficulty = "normal") {
+  const l = LOC.getLocation(locId), d = D.DIFFICULTY[difficulty] || D.DIFFICULTY.normal;
+  const customers = 48 * d.demand * l.demand * (1 - 0.3 * l.competition) * (0.6 + 0.9 * 0.5);
+  const prods = D.PRODUCTS.filter(p => p.unlockDay <= 1), w = prods.map(p => p.pop * l.cat[p.cat]), tw = w.reduce((a, b) => a + b, 0);
+  const price = prods.reduce((a, p, i) => a + p.ref * 1.12 * w[i] / tw, 0), cost = prods.reduce((a, p, i) => a + p.cost * d.cost * 1.0 * w[i] / tw, 0);
+  const buyRate = Math.min(1, Math.pow(1 / 1.12 * 1.15 * l.power, 2 * l.priceSens)) * 0.85;
+  const perCustomer = 1.5 * buyRate * price, marginPer = 1.5 * buyRate * (price - cost);
+  const fixed = round2(d.rent * l.rent + (d.utilities * l.utilities));
+  const breakEven = marginPer > 0 ? Math.ceil(fixed / marginPer) : null;
+  return { customers: [Math.round(customers * 0.75), Math.round(customers * 1.25)], revenue: [round2(customers * perCustomer * 0.75), round2(customers * perCustomer * 1.25)],
+    fixedPerDay: fixed, breakEvenCustomers: breakEven, breakEvenRatio: breakEven ? round2(breakEven / Math.max(1, customers)) : null,
+    assumptions: "Day-1 reputation, no staff, about 1.5 items per customer, shop prices 12% above fair. Real results vary with events, prices and service." };
+}
+// Corner-shop suitability 0-100 with its parts, so the score can be explained line by line.
+export function siteSuitability(locId) {
+  const l = LOC.getLocation(locId), c = clamp;
+  const parts = [
+    { name: "Customer demand", w: 35, v: c(l.demand * (1 - 0.3 * l.competition) / 1.6, 0, 1), why: `demand x${l.demand}, after rivals take ${Math.round(l.competition * 30)}%` },
+    { name: "Running costs", w: 25, v: c(1 - (l.rent * 0.7 + l.wage * 0.3 - 0.4) / 2.4, 0, 1), why: `rent x${l.rent}, wages x${l.wage}` },
+    { name: "Competition", w: 15, v: c(1 - l.competition, 0, 1), why: `rival pressure ${Math.round(l.competition * 100)}%` },
+    { name: "Logistics", w: 10, v: c(1 - (l.logistics - 0.8) / 0.6, 0, 1), why: `delivery fee and time x${l.logistics}${l.noSupplier.length ? ", fewer suppliers" : ""}` },
+    { name: "Purchasing power", w: 15, v: c(l.power / 1.6, 0, 1), why: `power x${l.power}, price sensitivity x${l.priceSens}` },
+  ];
+  return { total: Math.round(parts.reduce((a, p) => a + p.w * p.v, 0)), parts };
 }
 
 export function refreshCandidates(s) {
@@ -204,7 +239,7 @@ export function refreshCandidates(s) {
   for (let i = 0; i < 6; i++) {
     const role = roles[i % roles.length], skill = rint(s, 1, 5);
     s.candidates.push({ id: ++s.staffSeq, name: pickOf(s, D.NAMES) + " " + String.fromCharCode(65 + rint(s, 0, 25)) + ".", role, skill,
-      wage: round2(D.ROLES[role].base * (0.8 + 0.15 * skill)) });
+      wage: round2(D.ROLES[role].base * (0.8 + 0.15 * skill) * locOf(s).wage) });
   }
 }
 
@@ -326,12 +361,17 @@ function stepCustomers(s, dt) {
   s.customers = s.customers.filter(c => c.state !== "gone");
 }
 
+// How strongly shoppers here want a product: popularity x price response (purchasing power, price sensitivity) x local category taste.
+function prodWeight(s, p) {
+  const l = locOf(s);
+  return p.pop * clamp(Math.pow(p.ref * l.power / s.prices[p.id], 1.2 * l.priceSens), 0.6, 1.6) * l.cat[p.cat];
+}
 function spawnCustomer(s) {
   const avail = D.PRODUCTS.filter(p => isUnlocked(s, p.id));
   const k = rnd(s) < 0.45 ? 1 : rnd(s) < 0.7 ? 2 : 3;
   const want = [];
   for (let i = 0; i < k; i++) {
-    const w = avail.map(p => p.pop * clamp(Math.pow(p.ref / s.prices[p.id], 1.2), 0.6, 1.6));
+    const w = avail.map(p => prodWeight(s, p));
     let r = rnd(s) * w.reduce((a, b) => a + b, 0), idx = 0;
     while (idx < w.length - 1 && (r -= w[idx]) > 0) idx++;
     if (!want.includes(avail[idx].id)) want.push(avail[idx].id);
@@ -350,7 +390,7 @@ function finishBrowsing(s, c) {
   if (!c.basketPrices) c.basketPrices = [];
   for (const pid of c.want) {
     const p = PRODUCT[pid], price = s.prices[pid];
-    const buyProb = Math.min(1, Math.pow(p.ref * 1.15 / price, 2));
+    const l = locOf(s), buyProb = Math.min(1, Math.pow(p.ref * 1.15 * l.power / price, 2 * l.priceSens));
     if (rnd(s) > buyProb) { s.today.lost.price++; s.today.lostBy[pid] = (s.today.lostBy[pid] || 0) + 1; continue; }
     let take = pid;
     if (s.stock[take].shelf < 1) {
@@ -501,6 +541,7 @@ function buildDayRecord(s) {
   const expenses = sumExp(s), net = round2(revenue - cogs - expenses);
   const prev = s.history[s.history.length - 1];
   const t = s.today, notes = [];
+  if (!prev && s.loc !== "default") { const l = locOf(s); notes.push(`Location: ${l.name}. Customer volume x${l.demand}, rent x${l.rent}, wages x${l.wage}, rivals take about ${Math.round(l.competition * 30)}% of demand.`); }
   if (prev) notes.push(prev.customers > t.customers ? `Fewer customers than yesterday (${t.customers} vs ${prev.customers}).` : `More customers than yesterday (${t.customers} vs ${prev.customers}).`);
   if (t.lost.stockout) { const worst = Object.entries(t.lostBy).sort((a, b) => b[1] - a[1])[0]; notes.push(`${t.lost.stockout} sales were lost to empty shelves${worst ? ` (most often ${PRODUCT[worst[0]].name})` : ""}.`); }
   if (t.lost.price) notes.push(`${t.lost.price} items were skipped because the price felt too high.`);
@@ -579,6 +620,7 @@ export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const sup = SUPPLIER[sid];
   if (!sup) return fail("Unknown supplier.");
+  if (!supplierAvailable(s, sup)) return fail(`${sup.name} does not deliver to ${locOf(s).city}.`);
   if (!Array.isArray(lines) || !lines.length || lines.length > 12) return fail("Add at least one product.");
   if (pay !== "bank" && pay !== "cash") return fail("Pay from bank or cash.");
   const clean = [], seenP = new Set();
@@ -595,12 +637,12 @@ export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   if (units < sup.minUnits) return fail(`${sup.name} needs at least ${sup.minUnits} units per order.`);
   if (whUsed(s) + incomingUnits(s) + units > whCap(s)) return fail(`Warehouse is too small: ${whCap(s) - whUsed(s) - incomingUnits(s)} free slots left.`);
   const priced = clean.map(l => { const unit = unitCost(s, sup, l.pid, units); return { ...l, unit, total: round2(unit * l.qty) }; });
-  const goods = round2(priced.reduce((a, l) => a + l.total, 0)), fee = sup.fee, total = round2(goods + fee);
+  const goods = round2(priced.reduce((a, l) => a + l.total, 0)), fee = supFee(s, sup), total = round2(goods + fee);
   if (bal(s, pay) < total) return fail(`Not enough ${pay === "bank" ? "bank balance" : "cash"}: need $${total.toFixed(2)}, have $${bal(s, pay).toFixed(2)}. Move money or take a loan.`);
   const id = ++s.orderSeq;
   post(s.ledger, s.day, `Order #${id} to ${sup.name}`, [{ acct: "transit", dr: goods }, { acct: "delivery", dr: fee }, { acct: pay, cr: total }], "order:" + id);
   const delayEv = s.events.active.find(e => e.id === "delay" && e.sup === sid);
-  let lead = sup.lead * (delayEv ? 1.6 : 1), delayed = !!delayEv;
+  let lead = supLead(s, sup) * (delayEv ? 1.6 : 1), delayed = !!delayEv;
   if (rnd(s) > clamp(sup.reliability + diffOf(s).reliability, 0.5, 0.995)) { lead *= 1.5; delayed = true; }
   const rec = s.supRec[sid]; rec.n++; if (delayed) rec.late++;
   s.orders.push({ id, supplier: sid, lines: priced, units, goods, fee, total, pay, lead: round2(lead), t: 0, status: "processing", delayed, day: s.day });
@@ -856,6 +898,7 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 // Returns a short description of the first malformed part of a save, or null. Everything the engine, the score and
 // the multiplayer verifier read later is checked here, so a crafted save is rejected instead of throwing deep in the code.
 function saveShapeError(o) {
+  if (typeof o.loc !== "string" || !LOC.hasLocation(o.loc)) return "location";
   if (!isArr(o.campaigns, 10) || !o.campaigns.every(c => isObj(c) && D.CAMPAIGNS.some(d => d.id === c.kind) && Number.isInteger(c.start) && Number.isInteger(c.days) && c.days >= 1 && c.days <= 30 && isNum(c.lift) && c.lift >= 0 && c.lift <= 1) || !isNum(o.campSeq)) return "campaigns";
   if (!isObj(o.supIdx) || !isObj(o.supRec) || !D.SUPPLIERS.every(x => isNum(o.supIdx[x.id]) && o.supIdx[x.id] >= 0.5 && o.supIdx[x.id] <= 2 && isObj(o.supRec[x.id]) && isNum(o.supRec[x.id].n) && isNum(o.supRec[x.id].late))) return "supplier records";
   if (!isObj(o.budget) || !isNum(o.budget.revenue) || !isNum(o.budget.expenses) || !isNum(o.noise) || o.noise < 0.5 || o.noise > 1.5) return "budget";
@@ -894,6 +937,7 @@ export function validateSave(raw) {
   try { o = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return { ok: false, error: "Save file is corrupted (not valid JSON)." }; }
   if (!o || typeof o !== "object") return { ok: false, error: "Save file is empty." };
   if (o.v === 3) migrateV3(o);
+  if (o.v === 4) { o.v = 5; o.loc = "default"; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, error: `This save is from an older version (v${o.v ?? "?"}). Start a new game; old shop-prototype saves cannot be migrated.` };
   const need = ["mode", "day", "clock", "ledger", "stock", "val", "prices", "orders", "staff", "upgrades", "loans", "rng"];
   for (const k of need) if (!(k in o)) return { ok: false, error: `Save is missing "${k}".` };

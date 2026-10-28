@@ -31,7 +31,9 @@ function playMatch(config, tamper) {
 
 test("room codes are six digits and configs are clamped", () => {
   for (let i = 0; i < 200; i++) assert.match(genCode(), CODE_RE);
-  assert.deepEqual(sanitizeConfig({ days: 999, difficulty: "x", capital: 1 }), { days: 60, difficulty: "normal", capital: 300, seed: 0 });
+  assert.deepEqual(sanitizeConfig({ days: 999, difficulty: "x", capital: 1 }), { days: 60, difficulty: "normal", capital: 300, seed: 0, location: "default" });
+  assert.equal(sanitizeConfig({ location: "id-medan-central" }).location, "id-medan-central");
+  assert.equal(sanitizeConfig({ location: "<script>" }).location, "default");
 });
 
 test("create, join, ready, start: everyone gets the same settings", async () => {
