@@ -1,0 +1,85 @@
+/* Pixel-console skin. Loaded last. Restyles chrome only: navy backgrounds, beveled panels, amber accent,
+   segment-style clock, framed map. On wide screens the HUD and controls move into a left console column. */
+:root {
+  --bg:#0a0e19; --surface:#121a2c; --surface-2:#18223a; --surface-sheet:#0f1626; --surface-dialog:#111a2e;
+  --px-edge:#04060c; --px-hi:#2c3a5e; --px-lo:#0b1020;
+  --brass:#f2a93b; --amber:#f2a93b; --brass-ink:#1c1100;
+  --mint:#6fd3a0; --coral:#f0647a; --fg:#e9edf7; --muted:#8e9bb8; --line:#26324f;
+  --radius-card:6px; --radius-btn:5px;
+}
+body { background:var(--bg); background-image:none; }
+.px, .pills, .scenes, .stage-card, .today .stat, .stat, .card, .ctrl, #status, details.tip, .sheet, dialog, .tutcard, .rotate-hint {
+  border:2px solid var(--px-hi); border-radius:var(--radius-card);
+  box-shadow:0 0 0 2px var(--px-edge), inset 0 2px 0 rgba(255,255,255,.05), inset 0 -3px 0 rgba(0,0,0,.4);
+}
+.pills, .scenes, .ctrl, .stat, .card { background:var(--surface); }
+.scenes { background:var(--surface); padding:6px; gap:6px; }
+.scenes button { border:2px solid transparent; border-radius:5px; color:var(--muted); font-weight:600; }
+.scenes button.on { background:var(--surface-2); color:var(--brass); border-color:var(--brass); box-shadow:none; }
+
+/* HUD: segment clock, big money tiles */
+.pills { display:grid; gap:6px; padding:8px; overflow:visible; background:var(--surface); }
+.pill { border:2px solid var(--px-hi); border-radius:5px; background:var(--px-lo); box-shadow:inset 0 2px 0 rgba(0,0,0,.5); padding:8px 12px; }
+.pill:last-child { border-right:2px solid var(--px-hi); }
+.pill span { font-size:.62rem; letter-spacing:.1em; color:var(--muted); }
+.pill b { font:700 1.3rem/1.2 var(--display); }
+.k-time b { font:400 3rem/1 "VT323", monospace; color:var(--brass); letter-spacing:.06em; text-shadow:0 0 10px rgba(242,169,59,.55); }
+.k-cash b, .k-bank b { font-size:1.45rem; }
+.k-net b { color:var(--brass); }
+.meter { height:6px; border-radius:2px; background:#05070d; border:1px solid var(--px-hi); } .meter i { background:var(--brass); border-radius:0; }
+
+/* buttons */
+button { border-radius:5px; }
+button.ghost { background:var(--surface-2); border:2px solid var(--px-hi); box-shadow:inset 0 -2px 0 rgba(0,0,0,.4); }
+button:not(.ghost):not(.mb):not(.tab):not(.mini) { box-shadow:inset 0 2px 0 rgba(255,255,255,.3), inset 0 -3px 0 rgba(0,0,0,.3); }
+.ctrl { padding:4px; gap:4px; background:var(--surface); }
+.ctrl button { border:2px solid transparent; }
+.ctrl button.on, .spd.on { background:var(--surface-2); color:var(--brass); border-color:var(--brass); }
+
+/* manage tiles: icon over label */
+.mb { flex-direction:column; justify-content:center; align-items:center; gap:6px; padding:10px 4px 8px; min-height:74px; text-align:center; font-size:.8rem; line-height:1.1;
+  background:var(--surface-2); border:2px solid var(--px-hi); border-radius:5px; box-shadow:0 0 0 2px var(--px-edge), inset 0 2px 0 rgba(255,255,255,.06), inset 0 -4px 0 rgba(0,0,0,.45); }
+.mb:hover:not(:disabled) { border-color:var(--brass); transform:translateY(-2px); }
+.mb:active:not(:disabled) { transform:translateY(1px); box-shadow:0 0 0 2px var(--px-edge), inset 0 3px 0 rgba(0,0,0,.45); }
+.mb-ic svg { width:26px; height:26px; color:var(--brass); }
+.side h2, .stage h2 { color:var(--muted); font-size:.7rem; letter-spacing:.18em; }
+
+/* map frame */
+.stage-card { padding:6px; background:#05070d; border:4px solid var(--px-hi); box-shadow:0 0 0 3px var(--px-edge), 0 0 0 6px #1a2440, 0 0 0 9px var(--px-edge); overflow:hidden; }
+#stage { filter:none; }
+.banner { background:rgba(10,14,25,.88); border:2px solid var(--px-hi); border-radius:5px; }
+.today { gap:10px; }
+.stat { background:var(--surface); padding:8px 12px; }
+.stat small { letter-spacing:.1em; font-size:.62rem; }
+.stat b { font:700 1.4rem/1.2 var(--display); }
+button.alert { border-radius:5px; border-width:2px; }
+.tutcard { background:var(--surface-2); border-color:var(--brass); }
+.tab { border-radius:5px; } .tab.on { border:2px solid var(--brass); }
+details.tip { border-left:2px solid var(--px-hi); border-left-color:var(--brass); }
+
+/* wide screens: console column on the left, framed map on the right */
+@media (min-width:1100px) {
+  .wrap { display:grid; grid-template-columns:clamp(380px,28vw,460px) minmax(0,1fr); grid-template-rows:auto auto auto auto 1fr auto; gap:14px 28px; align-items:start; }
+  header, main, .stage { display:contents; }
+  header { border:0; }
+  .brand { grid-column:1; grid-row:1; }
+  .ctrl { grid-column:2; grid-row:1; justify-self:end; flex-wrap:wrap; }
+  .netpill { grid-column:1; grid-row:2; }
+  .pills { grid-column:1; grid-row:2; grid-template-columns:repeat(4,minmax(0,1fr)); margin:0; }
+  .pills .k-time { grid-column:1 / span 2; grid-row:1; } .pills .k-day { grid-column:3; grid-row:1; } .pills .k-happy { grid-column:4; grid-row:1; }
+  .pills .k-cash { grid-column:1 / span 2; grid-row:2; } .pills .k-bank { grid-column:3 / span 2; grid-row:2; }
+  .pills .k-debt { grid-column:1 / span 2; grid-row:3; } .pills .k-net { grid-column:3 / span 2; grid-row:3; }
+  .scenes { grid-column:1; grid-row:3; margin:0; }
+  .side { grid-column:1; grid-row:4 / span 3; }
+  .manage { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .stage-card { grid-column:2; grid-row:2 / span 3; align-self:start; }
+  .rotate-hint { display:none; }
+  .today { grid-column:2; grid-row:5; align-self:start; grid-template-columns:repeat(4,minmax(0,1fr)); margin:0; }
+}
+@media (max-width:1099px) { .k-time b { font-size:2.2rem; } }
+@media (max-width:1099px) {
+  .k-time b { font-size:1.9rem; letter-spacing:0; white-space:nowrap; }
+  .pill { padding:6px 8px; } .pill span { font-size:.56rem; letter-spacing:.06em; }
+  .stat small { font-size:.54rem; letter-spacing:.04em; white-space:nowrap; }
+  .stat { padding:6px 8px; } .stat b { font-size:1.2rem; }
+}
