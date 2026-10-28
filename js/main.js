@@ -242,10 +242,24 @@ $("setExport").onclick = () => {
 };
 $("setReset").onclick = () => { if (nativeConfirm("Delete the local save?")) { localStorage.removeItem(SAVE_KEY); toast("Local save deleted.", "ok"); $("mContinue").hidden = !state; } };
 $("mImport").onclick = () => { if (!mpBlock()) $("fileIn").click(); };
+function readSaveFile(file) {
+  if (typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error || new Error("Save file read failed."));
+    reader.onabort = () => reject(new Error("Save file read was canceled."));
+    reader.readAsText(file, "UTF-8");
+  });
+}
 $("fileIn").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   if (f.size > 5e6) return toast("File too large.", "err");
-  const v = E.validateSave(await f.text());
+  let raw;
+  try { raw = await readSaveFile(f); }
+  catch { return toast("Could not read this file. Try a valid UTF-8 JSON save.", "err"); }
+  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
+  const v = E.validateSave(raw);
   if (!v.ok) return toast(v.error, "err");
   menu.close(); startState(v.state); toast("Save loaded.", "ok");
 };
