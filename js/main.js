@@ -65,6 +65,7 @@ const cloud = createCloud();
 // ---------- game flow ----------
 function startState(s) {
   state = s; reportShown = false; finalShown = false;
+  for (const k of Object.keys(hud)) delete hud[k];            // a different game: snap the money numbers instead of gliding from the old game
   if (state.phase === "report" && state.lastReport) reportShown = false;
   E.updateDerived(state);
   saveLocal(); updateHud(true); ui.refresh();
@@ -102,7 +103,8 @@ function showFinal() {
 // Money numbers glide to their new value and the pill flashes green (up) or red (down).
 const hud = {};
 function setTarget(id, v) {
-  const h = hud[id] || (hud[id] = { shown: v, target: v });
+  if (!hud[id]) { hud[id] = { shown: v, target: v }; $(id).textContent = money0(v); return; }   // first value (new game, loaded save): show it at once
+  const h = hud[id];
   if (v === h.target) return;
   const pill = $(id).parentElement, dir = v > h.target ? "up" : "down";
   const good = id === "hDebt" ? dir === "down" : dir === "up";   // less debt is good news

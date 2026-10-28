@@ -122,3 +122,6 @@ button { overflow-wrap:normal; word-break:normal; }
 .sup b { white-space:nowrap; } .sup small { white-space:normal; overflow-wrap:break-word; display:block; }
 .tbl { min-width:0; }
 button.alert { white-space:normal; }
+
+/* event notices (rain, broken fridge...) sit under the map instead of covering it */
+.banner { position:static !important; margin:6px 0 0; left:auto; right:auto; top:auto; text-align:center; white-space:normal; overflow-wrap:break-word; font-size:.8rem; padding:6px 10px; }
