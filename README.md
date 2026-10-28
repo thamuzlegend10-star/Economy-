@@ -5,6 +5,16 @@
 ## Learning the game
 A guided tutorial starts with every new game (replay it from the menu). Every panel has a collapsible tips box, and **How to play** in the menu explains goals, the daily loop, money, staff and tips.
 
+## Planning loop (v4)
+Decisions connect from demand to the books:
+- **Forecast**: Planning shows expected customers for 3 days as a range (weekday, reputation, booked campaigns). Random events and daily variation are not in it; each day report compares forecast with actual traffic and shows accuracy.
+- **Stock plan**: expected units per product and days of cover (stock plus incoming) turn the forecast into buying decisions. Low cover also raises an alert.
+- **Campaigns**: Flyers, Local radio, Social ads. Paid up front from the bank or cash (booked as a marketing expense), they start after a delay and lift customer traffic for a few days. This replaces the old always-on marketing level.
+- **Supplier terms**: each supplier's price drifts daily around its normal price (shown as a percentage on the Procurement cards), and your own on-time record per supplier is tracked.
+- **Budgets**: an optional daily revenue target and expense limit. Reports show variance and whether the budget was met; the final report summarizes forecast accuracy, budget days met and service level.
+
+Save version is 4. Version 3 saves are migrated on load (marketing level dropped, new fields get neutral defaults); older versions are rejected with a message. Multiplayer: all players run the same engine, so campaigns and budgets are validated by the same `validateSave` the host already uses. Players on different versions cannot be compared, because the host rejects saves from another version.
+
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.
 - **Infinite**: no end date, milestones and upgrades, recoverable bankruptcy.

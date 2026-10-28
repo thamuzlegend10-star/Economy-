@@ -20,13 +20,14 @@ const TIPS = {
   bank: ["Banking", "Sales land in the till as cash. Bills are paid from the bank first, then cash, then an <b>overdraft</b> (1% a day). <b>Loans</b> give cash now and are repaid daily with interest. Borrow to grow, not to survive."],
   finance: ["Your books", "Every number comes from a double-entry ledger. <b>Today</b> is live, <b>History</b> shows past days. Net worth = cash + bank + inventory + equipment - debt."],
   upgrades: ["Investments", "Permanent upgrades. A <b>Checkout counter</b> adds a lane and is the usual first buy when customers leave from long queues. Shelves and racks add space. Signage is cosmetic."],
+  plan: ["Planning", "Plan before you buy. The <b>forecast</b> estimates customers for the next days from your reputation, the weekday and booked campaigns. It is a range, not a promise: random events and daily variation are not in it, and the day report shows how close it was. <b>Days of cover</b> tells you how long your stock lasts at the expected demand. <b>Campaigns</b> cost money now and bring customers later. A <b>budget</b> is a daily target: the report shows where you beat it or missed it and why."],
   goals: ["Milestones", "Goals show your progress. In Standard mode your final score comes from wealth growth, cash health, low debt, happiness, stock management and expansion."],
 };
 const tipState = (() => { try { return JSON.parse(localStorage.getItem("economy-tips")) || {}; } catch { return {}; } })();
 
 export const PANELS = [
   ["store", "Store"], ["procure", "Procurement"], ["inventory", "Inventory"], ["staff", "Staff"],
-  ["bank", "Bank"], ["finance", "Finance"], ["upgrades", "Upgrades"], ["goals", "Goals"],
+  ["plan", "Planning"], ["bank", "Bank"], ["finance", "Finance"], ["upgrades", "Upgrades"], ["goals", "Goals"],
 ];
 
 export function createUI(ctx) {
@@ -71,7 +72,7 @@ export function createUI(ctx) {
     tabs.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.id === view.panel));
     const tp = TIPS[view.panel];
     const tipHtml = tp ? `<details class="tip" data-tip="${view.panel}" ${tipState[view.panel] === false ? "" : "open"}><summary>${tp[0]}: how it works</summary><p>${tp[1]}</p></details>` : "";
-    const html = tipHtml + ({ store, procure, inventory, staff, bank, finance, upgrades, goals })[view.panel](s);
+    const html = tipHtml + ({ store, procure, inventory, staff, plan, bank, finance, upgrades, goals })[view.panel](s);
     if (html === lastHtml && lastPanel === view.panel) return;        // nothing changed: leave the DOM and the scroll position alone
     lastHtml = html; lastPanel = view.panel;
     body.innerHTML = html;
@@ -110,12 +111,10 @@ export function createUI(ctx) {
         <td class="nowrap">${btn(5)} ${btn(10)} ${btn(Math.max(1, Math.min(can, 40)))}</td>
         <td><input class="tgt" type="number" min="0" max="200" step="5" value="${s.shelfTarget[p.id]}" data-act="target" data-id="${p.id}" aria-label="Auto restock target for ${esc(p.name)}"></td></tr>`;
     }).join("");
-    const mk = D.CATEGORIES && E.MARKETING_COST.map((c, i) => `<option value="${i}" ${s.marketing === i ? "selected" : ""}>${["None", "Flyers", "Local ads", "Billboard"][i]} ${c ? "(" + money0(c) + "/day, +" + i * 18 + "% customers)" : "(free)"}</option>`).join("");
     return `<h3>Store management</h3>
       <p class="muted">Customers compare your price with a fair market price. Above ~15% over fair, fewer buy. Shelf space: <b>${E.shelfUsed(s)}</b> / ${E.shelfCap(s)} (+${E.pendingRestock(s)} queued). Restocking moves goods from the warehouse using your stockers. Auto target refills when the shelf drops below half.</p>
       <div class="scroll"><table class="tbl tbl-store"><thead><tr><th>Product</th><th>Price</th><th>Avg cost</th><th>Margin</th><th>Shelf</th><th>Warehouse</th><th>Sold today</th><th>Restock</th><th>Auto target</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="row gap"><label class="field">Marketing<select data-act="marketing">${mk}</select></label>
-      <div class="note">Expected customers today: <b>${Math.round(E.expectedCustomers(s))}</b>. Reputation <b>${Math.round(s.rep)}</b>/100 and satisfaction <b>${Math.round(s.sat)}</b>/100 raise or lower this.</div></div>`;
+      <div class="row gap"><div class="note">Expected customers today: <b>${Math.round(E.expectedCustomers(s))}</b>. Reputation <b>${Math.round(s.rep)}</b>/100 and satisfaction <b>${Math.round(s.sat)}</b>/100 raise or lower this. Plan campaigns and see the forecast in <button class="mini" data-act="tab" data-id="plan">Planning</button>.</div></div>`;
   }
 
   // ---------- PROCUREMENT ----------
@@ -127,15 +126,28 @@ export function createUI(ctx) {
     const goods = round2(priced.reduce((a, l) => a + l.unit * l.qty, 0));
     return { sup, lines, units, goods, fee: lines.length ? sup.fee : 0, total: round2(goods + (lines.length ? sup.fee : 0)) };
   }
+  function cover(s, pid, un) {
+    if (!un) return "-";
+    const d = E.unitDemand(s)[pid] || 0, have = s.stock[pid].wh + s.stock[pid].shelf + E.incomingOf(s, pid);
+    if (d <= 0) return "-";
+    const days = have / d;
+    return `<span class="${days < 1 ? "neg" : ""}" title="Units on hand and on the way, divided by the expected units sold per day">${days.toFixed(1)}d</span>`;
+  }
+  function priceTag(s, x) {
+    const i = s.supIdx[x.id], pct = Math.round((i - 1) * 100), rec = s.supRec[x.id];
+    const cls = pct <= -3 ? "ok" : pct >= 3 ? "warn" : "info";
+    return `<small><span class="tag ${cls}" title="Today's price against this supplier's normal price. It drifts a little every day.">price today ${pct > 0 ? "+" : ""}${pct}%${pct <= -3 ? " (good time to buy)" : pct >= 3 ? " (expensive)" : ""}</span>${rec.n ? ` · your orders: ${rec.n - rec.late} of ${rec.n} on time` : ""}</small>`;
+  }
   function procure(s) {
     const c = cartSummary(s), sup = c.sup;
     const cards = D.SUPPLIERS.map(x => `<button class="sup ${x.id === sup.id ? "on" : ""}" data-act="supplier" data-id="${x.id}">
         <b>${esc(x.name)}</b><span>${esc(x.desc)}</span>
-        <small>Delivery ~${x.lead}s · fee ${money0(x.fee)} · ${Math.round(x.reliability * 100)}% on time · cost ×${x.mult}${x.bulkOff ? ` · ${Math.round(x.bulkOff * 100)}% off at ${x.bulkAt}+` : ""}</small></button>`).join("");
+        <small>Delivery ~${x.lead}s · fee ${money0(x.fee)} · ${Math.round(x.reliability * 100)}% on time · cost ×${x.mult}${x.bulkOff ? ` · ${Math.round(x.bulkOff * 100)}% off at ${x.bulkAt}+` : ""}</small>
+        ${priceTag(s, x)}</button>`).join("");
     const items = D.PRODUCTS.filter(p => sup.cats.includes(p.cat)).map(p => {
       const un = E.isUnlocked(s, p.id), unit = E.unitCost(s, sup, p.id, c.units), q = view.cart[p.id] || 0;
       const ev = s.events.active.find(e => e.id === "market" && e.pid === p.id);
-      return `<tr class="${un ? "" : "locked"}"><td><b>${esc(p.name)}</b> ${ev ? '<span class="tag warn">+25% market</span>' : ""}</td><td>${money(unit)}</td><td>${s.stock[p.id].wh + s.stock[p.id].shelf}</td><td>${E.incomingOf(s, p.id)}</td>
+      return `<tr class="${un ? "" : "locked"}"><td><b>${esc(p.name)}</b> ${ev ? '<span class="tag warn">+25% market</span>' : ""}</td><td>${money(unit)}</td><td>${s.stock[p.id].wh + s.stock[p.id].shelf}</td><td>${E.incomingOf(s, p.id)}</td><td>${cover(s, p.id, un)}</td>
         <td>${un ? `<input class="qty" type="number" min="0" max="999" step="1" value="${q}" data-act="cart" data-id="${p.id}" aria-label="Quantity of ${esc(p.name)}">` : `<span class="muted">day ${p.unlockDay}</span>`}</td></tr>`;
     }).join("");
     const free = E.whCap(s) - E.whUsed(s) - E.incomingUnits(s);
@@ -155,7 +167,7 @@ export function createUI(ctx) {
     const done = s.doneOrders.slice(-4).reverse().map(o => `<div class="muted">#${o.id} ${esc(E.supplier(o.supplier).name)}: ${o.units} units received on day ${o.day}</div>`).join("");
     return `<h3>Procurement</h3>
       <div class="sups">${cards}</div>
-      <div class="split"><div><div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th>Unit cost</th><th>Have</th><th>Incoming</th><th>Order</th></tr></thead><tbody>${items}</tbody></table></div></div>
+      <div class="split"><div><div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th>Unit cost</th><th>Have</th><th>Incoming</th><th>Cover</th><th>Order</th></tr></thead><tbody>${items}</tbody></table></div></div>
       <div class="sum"><h4>Order summary</h4>
         <div class="kv"><span>Units</span><b>${c.units}</b></div><div class="kv"><span>Goods</span><b>${money(c.goods)}</b></div>
         <div class="kv"><span>Delivery fee</span><b>${money(c.fee)}</b></div><div class="kv tot"><span>Total</span><b>${money(c.total)}</b></div>
@@ -164,6 +176,42 @@ export function createUI(ctx) {
         <button class="primary" data-act="order" ${block ? `disabled title="${esc(block)}"` : ""}>Place order</button>${block ? `<div class="muted small">${esc(block)}</div>` : ""}
         <button class="ghost" data-act="clearcart">Clear</button></div></div>
       <h4>Orders in progress</h4>${orders}${done ? "<h4>Recently received</h4>" + done : ""}`;
+  }
+
+  // ---------- PLANNING ----------
+  function plan(s) {
+    const fc = E.forecast(s, 3), dem = E.unitDemand(s), nextDay = s.phase === "report" ? s.day + 1 : s.day;
+    const fcRows = fc.map((f, i) => `<tr><td>Day ${f.day}${i === 0 ? (s.phase === "report" ? " (next)" : " (today)") : ""}</td><td><b>${f.expected}</b></td><td>${f.low} to ${f.high}</td><td>${f.campaign ? '<span class="tag ok">campaign running</span>' : ""}</td></tr>`).join("");
+    const acc = s.stats.fcDays ? `Average accuracy so far: <b>${Math.round(100 * (1 - s.stats.fcErr / s.stats.fcDays))}%</b> over ${s.stats.fcDays} days.` : "Accuracy appears after your first closed day.";
+    const prodRows = D.PRODUCTS.filter(p => E.isUnlocked(s, p.id)).map(p => {
+      const d = dem[p.id] || 0, have = s.stock[p.id].wh + s.stock[p.id].shelf, inc = E.incomingOf(s, p.id), days = d > 0 ? (have + inc) / d : null;
+      const need = Math.max(0, Math.ceil(d * 2 - have - inc));
+      return `<tr><td><b>${esc(p.name)}</b></td><td>~${d.toFixed(1)}</td><td>${have}</td><td>${inc}</td><td class="${days != null && days < 1 ? "neg" : ""}">${days == null ? "-" : days.toFixed(1)}</td><td>${need ? "+" + need : "ok"}</td></tr>`;
+    }).join("");
+    const active = s.campaigns.map(c => {
+      const end = c.start + c.days - 1, state = nextDay < c.start ? `starts day ${c.start}` : `running until day ${end}`;
+      return `<li><b>${esc(c.name)}</b>: +${Math.round(c.lift * 100)}% customers, ${state}.</li>`;
+    }).join("") || `<li class="muted">No campaigns booked.</li>`;
+    const camp = D.CAMPAIGNS.map(c => {
+      const booked = s.campaigns.some(x => x.kind === c.id), funds = Math.max(balance(s.ledger, "bank"), balance(s.ledger, "cash")), full = s.campaigns.length >= D.MAX_CAMPAIGNS;
+      const why = booked ? "Already booked" : full ? "Too many campaigns" : funds < c.cost ? `Need ${money0(c.cost)}` : "";
+      return `<div class="upg"><b>${esc(c.name)}</b> <span class="tag info">${money0(c.cost)}</span><div class="muted">${esc(c.desc)}</div>
+        <div class="muted small">+${Math.round(c.lift * 100)}% customers for ${c.days} day${c.days > 1 ? "s" : ""}${c.delay ? `, starts after ${c.delay} day${c.delay > 1 ? "s" : ""}` : ", starts right away"}. Paid now from the bank.</div>
+        <button data-act="campaign" data-id="${c.id}" ${why ? `disabled title="${esc(why)}"` : ""}>${booked ? "Booked" : "Book for " + money0(c.cost)}</button></div>`;
+    }).join("");
+    const b = s.budget;
+    return `<h3>Planning</h3>
+      <h4>Customer forecast</h4>
+      <div class="scroll"><table class="tbl"><thead><tr><th>Day</th><th>Expected</th><th>Likely range</th><th></th></tr></thead><tbody>${fcRows}</tbody></table></div>
+      <p class="muted small">${acc} The forecast knows the weekday, your reputation and booked campaigns. It does not know random events or normal day-to-day variation.</p>
+      <h4>Stock plan</h4>
+      <div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th>Expected sales/day</th><th>On hand</th><th>Incoming</th><th>Days of cover</th><th>To order (2 days)</th></tr></thead><tbody>${prodRows}</tbody></table></div>
+      <p class="muted small">A rough guide from the forecast, your prices and the share of items customers buy. Orders take time to arrive, so order before the cover runs out.</p>
+      <h4>Campaigns</h4><div class="cards up">${camp}</div><ul class="check">${active}</ul>
+      <h4>Daily budget</h4>
+      <div class="row gap wrap"><label class="field">Revenue target<input id="budRev" type="number" min="0" step="10" value="${b.revenue || ""}" placeholder="none" data-act="budget"></label>
+      <label class="field">Expense limit<input id="budExp" type="number" min="0" step="10" value="${b.expenses || ""}" placeholder="none" data-act="budget"></label></div>
+      <p class="muted small">Leave empty for no budget. Each report shows actual against budget. Expenses include rent, wages, utilities, marketing and interest; the cost of goods is not in them.</p>`;
   }
 
   // ---------- INVENTORY ----------
@@ -265,6 +313,10 @@ export function createUI(ctx) {
     const rows = Object.entries(units).sort((a, b) => b[1] - a[1]).map(([pid, n]) => `<tr><td>${esc(pName(pid))}</td><td>${n}</td><td>${money(n * s.prices[pid])}</td></tr>`).join("");
     return rows ? `<h4>Sales by product</h4><table class="tbl"><thead><tr><th>Product</th><th>Units</th><th>Revenue</th></tr></thead><tbody>${rows}</tbody></table>` : "";
   }
+  function budgetTable(r) {
+    const b = r.budget, row = (n, bud, act, v) => `<tr><td>${n}</td><td class="num">${money(bud)}</td><td class="num">${money(act)}</td><td class="num ${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${money(v)}</td></tr>`;
+    return `<table class="tbl"><thead><tr><th>Budget</th><th>Target</th><th>Actual</th><th>Variance</th></tr></thead><tbody>${b.revVar != null ? row("Revenue", b.revenue, r.revenue, b.revVar) : ""}${b.expVar != null ? row("Expenses", b.expenses, r.expenses, b.expVar) : ""}</tbody></table><p class="muted small">Positive variance is good: more revenue or lower expenses than planned.</p>`;
+  }
   function reportHtml(s, r) {
     const ex = Object.entries(r.opex).filter(([, v]) => v > 0).map(([k, v]) => `<tr><td>${esc(ACCT_NAME(k))}</td><td class="num">-${money(v)}</td></tr>`).join("");
     const chg = r.charges.map(c => `<div class="muted small">${esc(c.label)}: ${money(c.amount)}${c.over ? ` <span class="neg">(${money(c.over)} on overdraft)</span>` : ""}${c.principal ? " (principal)" : ""}</div>`).join("");
@@ -274,6 +326,8 @@ export function createUI(ctx) {
       <table class="tbl"><thead><tr><th colspan="2">Cash flow</th></tr></thead><tbody><tr><td>Opening cash + bank</td><td class="num">${money(r.openLiquid)}</td></tr>
         <tr><td>Closing cash + bank</td><td class="num">${money(r.closeLiquid)}</td></tr><tr class="tot"><td>Change</td><td class="num ${r.closeLiquid - r.openLiquid < 0 ? "neg" : "pos"}">${money(r.closeLiquid - r.openLiquid)}</td></tr></tbody></table></div>
       <div class="cards"><div class="stat"><small>Customers</small><b>${r.customers}</b></div><div class="stat"><small>Served</small><b>${r.served}</b></div><div class="stat"><small>Avg wait</small><b>${r.avgWait}s</b></div><div class="stat"><small>Satisfaction</small><b>${Math.round(r.sat)}</b></div></div>
+      ${r.forecast ? `<div class="cards"><div class="stat"><small>Forecast</small><b>${r.forecast.expected}</b></div><div class="stat"><small>Actual</small><b>${r.forecast.actual}</b></div><div class="stat"><small>Accuracy</small><b>${Math.round(r.forecast.accuracy * 100)}%</b></div>${r.budget ? `<div class="stat"><small>Budget</small><b>${r.budget.hit ? "met" : "missed"}</b></div>` : ""}</div>` : ""}
+      ${r.budget ? budgetTable(r) : ""}
       <h4>Why did it change?</h4><ul class="why">${(r.notes.length ? r.notes : ["A steady day."]).map(n => `<li>${esc(n)}</li>`).join("")}</ul>
       ${chg ? "<h4>Charges at closing</h4>" + chg : ""}${unitsTable(s, r.units)}<p class="muted small">Books ${r.reconciled ? "reconciled" : "did not reconcile"}.</p>`;
   }
@@ -304,6 +358,7 @@ export function createUI(ctx) {
       { text: "Put 25+ units on your shelves (Store > Restock)", done: E.shelfUsed(s) >= 25 || s.day > 1 },
       { text: "Make your first sale", done: s.stats.totalSales > 0 },
       { text: "Finish day 1 and read the report", done: s.day > 1 },
+      { text: "Check the forecast in Planning and book a campaign", done: s.campaigns.length > 0 || s.decisions.some(d => d.includes("campaign")) },
       { text: "Buy an upgrade or hire your first employee", done: Object.values(s.upgrades).some(v => v) || s.staff.length > 0 },
     ];
   }
@@ -344,6 +399,7 @@ export function createUI(ctx) {
         run(E.buyUpgrade(s, id, uid()), "Upgrade built.");
         break;
       }
+      case "campaign": run(E.launchCampaign(s, id, uid()), "Campaign booked."); break;
       case "tab": open(id); break;
       case "fintab": view.finTab = id; refresh(); break;
     }
@@ -353,7 +409,10 @@ export function createUI(ctx) {
     switch (t.dataset.act) {
       case "price": { const r = E.setPrice(s, t.dataset.id, Number(t.value)); if (!r.ok) toast(r.error, "err"); onChange(); refresh(); break; }
       case "target": run(E.setShelfTarget(s, t.dataset.id, Math.round(Number(t.value)))); break;
-      case "marketing": run(E.setMarketing(s, Number(t.value))); break;
+      case "budget": {
+        const v = id => { const el = bodyEl.querySelector(id); return el && el.value !== "" ? Number(el.value) : 0; };
+        run(E.setBudget(s, { revenue: v("#budRev"), expenses: v("#budExp") }), "Budget saved."); break;
+      }
       case "cart": view.cart[t.dataset.id] = Math.max(0, Math.min(999, Math.floor(Number(t.value) || 0))); refresh(); break;
       case "pay": view.pay = t.value; refresh(); break;
       case "invcat": view.invCat = t.value; refresh(); break;
@@ -390,6 +449,7 @@ export function createUI(ctx) {
       <p>${f.reason === "completed" ? `You ran the shop for ${f.day} days.` : `Overdraft stayed above your limit for 3 days on day ${f.day}.`}</p>
       <div class="split"><div>${kv("Starting net worth", money(f.startNetWorth))}${kv("Ending net worth", money(f.endNetWorth))}${kv("Cash + bank", money(f.cash))}${kv("Inventory", money(f.inventory))}${kv("Debt", money(f.debt))}${kv("Total assets", money(f.assets))}${kv("Total revenue", money(f.revenue))}${kv("Total expenses", money(f.expenses))}${kv("Total profit", money(f.profit))}</div>
       <div>${f.score.parts.map(p => `${kv(p.name, Math.round(p.v * 100) + "%")}${bar(p.v, 1)}`).join("")}</div></div>
+      ${f.planning ? `<h4>Planning and service</h4><div class="split"><div>${kv("Forecast accuracy", f.planning.forecastAccuracy == null ? "-" : Math.round(f.planning.forecastAccuracy * 100) + "%")}${kv("Budget days met", f.planning.budgetDays ? `${f.planning.budgetHit} of ${f.planning.budgetDays}` : "no budget set")}</div><div>${kv("Customers served by stock", f.planning.serviceRate == null ? "-" : Math.round(f.planning.serviceRate * 100) + "%")}${kv("Best day profit", money(f.planning.bestDay))}</div></div>` : ""}
       <h4>Key decisions</h4><ul class="why">${f.decisions.map(d => `<li>${esc(d)}</li>`).join("") || "<li>None recorded.</li>"}</ul>`;
     document.getElementById("finalContinue").hidden = f.reason !== "completed";
     document.getElementById("finalContinue").onclick = () => { dlg.close(); handlers.cont(); };

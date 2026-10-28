@@ -33,7 +33,7 @@ const policies = {
   smart: s => {
     stockUp(s, 24);
     if (s.day === 2 && s.staff.length === 0) { for (const c of [...s.candidates]) if (c.role === "stocker" || c.role === "cashier") E.hire(s, c.id); }
-    if (s.day >= 3) E.setMarketing(s, 1);
+    if (s.day >= 3 && !s.campaigns.length) E.launchCampaign(s, "flyers");
     if (s.day === 6 && E.updateDerived(s).liquid > 600) E.buyUpgrade(s, "counter", "u" + s.day);
   },
 };

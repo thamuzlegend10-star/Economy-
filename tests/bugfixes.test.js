@@ -94,22 +94,6 @@ test("4: the dump-the-rest rule only applies when no units remain anywhere", () 
 });
 
 // ---------- 5. billing exploits ----------
-test("5: marketing is charged for the time it was active, not the level at closing", () => {
-  const s = fresh(); E.setMarketing(s, 3);
-  const open = D.DAY_LEN * 0.95;
-  while (s.clock < open) E.tick(s, 0.25);
-  E.setMarketing(s, 0);                                           // drop it after the customers have stopped arriving
-  while (s.phase === "open") E.tick(s, 0.25);
-  const charged = s.lastReport.opex.marketing;
-  assert.ok(charged > E.MARKETING_COST[3] * 0.85, `marketing charge ${charged} should be about 95% of ${E.MARKETING_COST[3]}`);
-  assert.ok(charged <= E.MARKETING_COST[3] + 0.01);
-  clean(s);
-});
-test("5: marketing never changed still costs its full daily price", () => {
-  const s = fresh(); E.setMarketing(s, 2);
-  while (s.phase === "open") E.tick(s, 0.25);
-  assert.ok(Math.abs(s.lastReport.opex.marketing - E.MARKETING_COST[2]) < 0.02);
-});
 test("5: a basket line is paid at the price it was picked at", () => {
   const s = fresh();
   const old = s.prices.apple;

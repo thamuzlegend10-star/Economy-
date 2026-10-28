@@ -158,6 +158,7 @@ const PANEL_ICON = {
   bank: SVG('<path d="M3 10l9-6 9 6M5 10v8M10 10v8M14 10v8M19 10v8M3 20h18"/>'),
   finance: SVG('<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>'),
   upgrades: SVG('<path d="M12 21V7M6 12l6-6 6 6M5 21h14"/>'),
+  plan: SVG('<path d="M3 20h18M5 16l4-5 3 3 5-7M17 7h3v3"/>'),
   goals: SVG('<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0zM17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/>'),
 };
 function renderManage() {
@@ -272,7 +273,7 @@ const HELP = {
     <li><b>Bank</b>: pays suppliers and bills. Bills are paid from the bank first, then cash.</li>
     <li><b>Overdraft</b>: if both are empty, bills still get paid but at 1% daily interest. Avoid it.</li>
     <li><b>Loans</b>: cash now, repaid in daily installments with interest. Good for growth, risky for survival.</li>
-    <li><b>Daily costs</b>: rent, utilities, wages, marketing, loan payments. A tax of 10% of profit is charged every 7th day.</li>
+    <li><b>Daily costs</b>: rent, utilities, wages, loan payments. Campaigns are paid when you book them. A tax of 10% of profit is charged every 7th day.</li>
     <li><b>Profit</b> = sales - cost of goods - expenses. The report shows each line and explains changes.</li></ul>`,
   people: `<h3>Staff and growth</h3>
     <ul><li><b>Cashier</b>: faster checkout. Fixes long queues.</li>
@@ -280,7 +281,8 @@ const HELP = {
     <li><b>Warehouse worker</b>: unloads trucks faster.</li>
     <li><b>Manager</b>: raises customer happiness.</li>
     <li><b>Upgrades</b>: more lanes, more shelf and warehouse space, faster unloading.</li>
-    <li><b>Marketing</b>: costs money every day but brings more customers.</li></ul>
+    <li><b>Campaigns</b> (Planning): pay now, customers come later for a few days. Radio and social ads start after a delay, so book them early.</li>
+    <li><b>Planning</b>: the customer forecast, days of cover per product and a daily budget. The report compares forecast and budget with what happened.</li></ul>
     <p class="help-note">Hire when profit can carry the wage. Wages are charged every closing.</p>`,
   tips: `<h3>Tips for a strong start</h3>
     <ul><li>Never let best sellers run out. Empty shelves lose sales and happiness.</li>
@@ -289,11 +291,16 @@ const HELP = {
     <li>If customers leave because of queues, add a <b>Checkout counter</b> or a <b>Cashier</b>.</li>
     <li>Raise prices slowly. If &quot;skipped, price too high&quot; grows in the report, go back down.</li>
     <li>Keep at least 3 days of bills in the bank.</li>
+    <li>Check <b>Planning</b> before ordering: low <b>days of cover</b> means you will run out before the next truck.</li>
+    <li>Supplier prices drift every day. When the price tag says a few percent below normal, stock up (mind warehouse space).</li>
     <li>Watch events: rain, festivals, supplier delays and price rises change your day.</li></ul>`,
   words: `<h3>Glossary</h3>
     <dl><dt>Margin</dt><dd>Selling price minus what the goods cost you.</dd>
     <dt>COGS</dt><dd>Cost of goods sold: what the sold items cost you.</dd>
     <dt>Inventory</dt><dd>Goods you own: warehouse + shelves. Counted as an asset.</dd>
+    <dt>Forecast</dt><dd>An estimate of customers, shown as a range. It cannot see random events.</dd>
+    <dt>Variance</dt><dd>Actual result minus budget. Positive is good.</dd>
+    <dt>Days of cover</dt><dd>How many days your stock lasts at the expected sales.</dd>
     <dt>Lead time</dt><dd>How long a supplier truck needs to arrive.</dd>
     <dt>Net worth</dt><dd>Everything you own minus everything you owe.</dd>
     <dt>Happiness</dt><dd>Customer mood. Raises or lowers daily visitors.</dd>

@@ -17,6 +17,7 @@ export function rnd(s) {
   t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
+const round3 = n => Math.round(n * 1000) / 1000;
 const rint = (s, a, b) => a + Math.floor(rnd(s) * (b - a + 1));
 const pickOf = (s, arr) => arr[Math.floor(rnd(s) * arr.length)];
 
@@ -38,14 +39,15 @@ export function newGame(opts = {}) {
     orders: [], doneOrders: [], tasks: [], taskSeq: 0, orderSeq: 0,
     staff: [], candidates: [], staffSeq: 0,
     upgrades: { shelves: 0, racks: 0, counter: 0, dock: 0, signage: 0 },
-    marketing: 0, autoDeposit: true,
+    campaigns: [], campSeq: 0, supIdx: { freshfarm: 1, metro: 1, quickship: 1 }, supRec: { freshfarm: { n: 0, late: 0 }, metro: { n: 0, late: 0 }, quickship: { n: 0, late: 0 } },
+    budget: { revenue: 0, expenses: 0 }, noise: 1, forecastToday: null, autoDeposit: true,
     loans: [], loanSeq: 0, lastBailoutDay: -99, distressDays: 0,
     customers: [], custSeq: 0, spawnAcc: 0, autoT: 0,
     rep: 50, sat: 60,
     events: { active: [], todayText: [] },
     today: null, dayStart: null, history: [], archive: { days: 0, revenue: 0, profit: 0 }, lastReport: null,
     log: [], decisions: [], milestones: [],
-    stats: { customers: 0, totalSales: 0, units: {}, tookLoan: false, bestDay: 0 },
+    stats: { customers: 0, totalSales: 0, units: {}, tookLoan: false, bestDay: 0, unitsSold: 0, fcErr: 0, fcDays: 0, budgetDays: 0, budgetHit: 0 },
     cmdSeen: [], derived: null,
   };
   for (const p of D.PRODUCTS) { s.stock[p.id] = { wh: 0, shelf: 0 }; s.val[p.id] = 0; s.prices[p.id] = round2(p.ref * 1.12); s.shelfTarget[p.id] = 0; }
@@ -96,13 +98,12 @@ const inflation = s => 1 + 0.0015 * (s.day - 1);
 const diffOf = s => D.DIFFICULTY[s.difficulty];
 export function unitCost(s, sup, pid, qtyTotal = 0) {
   const ev = s.events.active.find(e => e.id === "market" && e.pid === pid);
-  let c = PRODUCT[pid].cost * sup.mult * diffOf(s).cost * inflation(s) * (ev ? 1.25 : 1);
+  let c = PRODUCT[pid].cost * sup.mult * diffOf(s).cost * inflation(s) * (ev ? 1.25 : 1) * ((s.supIdx && s.supIdx[sup.id]) || 1);
   if (qtyTotal >= sup.bulkAt) c *= 1 - sup.bulkOff;
   return round2(Math.max(0.05, c));
 }
 export const rent = s => round2(diffOf(s).rent * inflation(s));
 export const utilities = s => round2((diffOf(s).utilities + 3 * Object.values(s.upgrades).reduce((a, b) => a + b, 0)) * inflation(s));
-export const MARKETING_COST = [0, 15, 35, 70];
 export const wagesPerDay = s => round2(s.staff.reduce((a, x) => a + x.wage, 0));
 
 function logMsg(s, kind, text) {
@@ -139,6 +140,10 @@ function beginDay(s, first = false) {
   // age events
   s.events.active = s.events.active.map(e => ({ ...e, daysLeft: e.daysLeft - (first ? 0 : 1) })).filter(e => e.daysLeft > 0);
   if (!first) rollEvents(s);
+  s.campaigns = s.campaigns.filter(c => c.start + c.days > s.day);
+  s.noise = round3(0.92 + 0.16 * rnd(s));                // hidden day-to-day variation: forecasts cannot see it
+  if (!first) for (const sp of D.SUPPLIERS) { const cur = s.supIdx[sp.id]; s.supIdx[sp.id] = round3(clamp(cur + (rnd(s) - 0.5) * 2 * D.SUP_DRIFT.step + (1 - cur) * 0.08, D.SUP_DRIFT.min, D.SUP_DRIFT.max)); }
+  { const mid = demandBase(s, s.day, s.rep), e = 0.10; s.forecastToday = { day: s.day, expected: Math.round(mid), low: Math.round(mid * (1 - e)), high: Math.round(mid * (1 + e)) }; }
   for (const e of s.events.active) { const def = D.EVENTS.find(x => x.id === e.id); s.events.todayText.push(e.text || def.text); }
   for (const t of s.events.todayText) logMsg(s, "event", t);
   const nowUnlocked = D.PRODUCTS.filter(p => p.unlockDay === s.day && s.day > 1);
@@ -159,9 +164,38 @@ function rollEvents(s) {
 const eventDemand = s => s.events.active.reduce((m, e) => m * (D.EVENTS.find(x => x.id === e.id).demand || 1), 1);
 const DOW = [1.0, 0.9, 0.9, 1.0, 1.1, 1.35, 1.2];
 
-export function expectedCustomers(s) {
+// Customers that will visit. `known` leaves out the hidden day-to-day noise and today's random events: that is what a
+// forecast can honestly see. Campaign lift is only counted for days the campaign is actually running.
+export function campaignLift(s, day = s.day) {
+  let lift = 0;
+  for (const c of s.campaigns) if (day >= c.start && day < c.start + c.days) lift += c.lift;
+  return Math.min(0.6, lift);
+}
+function demandBase(s, day, rep) {
   const d = diffOf(s);
-  return 48 * d.demand * (0.6 + 0.9 * s.rep / 100) * (1 + 0.18 * s.marketing) * DOW[s.day % 7] * eventDemand(s) * (1 + Math.min(0.5, s.day * 0.004));
+  return 48 * d.demand * (0.6 + 0.9 * rep / 100) * (1 + campaignLift(s, day)) * DOW[day % 7] * (1 + Math.min(0.5, day * 0.004));
+}
+export function expectedCustomers(s) { return demandBase(s, s.day, s.rep) * eventDemand(s) * (s.noise || 1); }
+
+// Planning signal for the next days. Honest about uncertainty: a band, not a promise.
+export function forecast(s, days = 3) {
+  const out = [];
+  for (let i = 0; i < days; i++) {
+    const day = (s.phase === "report" ? s.day + 1 : s.day) + i;
+    const mid = demandBase(s, day, s.rep);
+    const err = 0.10 + 0.04 * i;                       // the further ahead, the wider the band
+    out.push({ day, expected: Math.round(mid), low: Math.round(mid * (1 - err)), high: Math.round(mid * (1 + err)), campaign: campaignLift(s, day) > 0 });
+  }
+  return out;
+}
+export const itemsPerCustomer = s => (s.stats.customers >= 20 && s.stats.unitsSold > 0 ? s.stats.unitsSold / s.stats.customers : 1.5);
+// Rough units of each product the shop can expect to sell on an average day at the forecast traffic.
+export function unitDemand(s, day = s.day) {
+  const avail = D.PRODUCTS.filter(p => PRODUCT[p.id].unlockDay <= day);
+  const w = avail.map(p => p.pop * clamp(Math.pow(p.ref / s.prices[p.id], 1.2), 0.6, 1.6)), tot = w.reduce((a, b) => a + b, 0) || 1;
+  const units = demandBase(s, day, s.rep) * itemsPerCustomer(s), out = {};
+  avail.forEach((p, i) => { out[p.id] = Math.round(units * w[i] / tot * 10) / 10; });
+  return out;
 }
 
 export function refreshCandidates(s) {
@@ -193,9 +227,6 @@ const unloadRate = s => 8 * (1 + s.staff.filter(x => x.role === "warehouse").red
 const hasManager = s => s.staff.some(x => x.role === "manager");
 
 function step(s, dt) {
-  // marketing is billed for the time it was active: a fraction of today's price for every second at the current level
-  const used = Math.min(dt, Math.max(0, DAY_LEN - s.clock));
-  s.today.mktCost = (s.today.mktCost || 0) + MARKETING_COST[s.marketing] * used / DAY_LEN;
   s.clock += dt;
   stepOrders(s, dt);
   stepTasks(s, dt);
@@ -357,6 +388,7 @@ function checkout(s, c) {
     cost = round2(cost + c1);
     revenue = round2(revenue + money[pid]);
     s.today.units[pid] = (s.today.units[pid] || 0) + n;
+    s.stats.unitsSold = (s.stats.unitsSold || 0) + n;
     s.stats.units[pid] = (s.stats.units[pid] || 0) + n;
   }
   if (revenue > 0) {
@@ -389,7 +421,6 @@ function closeDay(s) {
   charge("rent", "Daily rent", rent(s));
   charge("utilities", "Utilities", utilities(s));
   charge("wages", "Staff wages", wagesPerDay(s));
-  charge("marketing", "Marketing", round2(s.today.mktCost || 0));
   const rep_ev = s.events.active.find(e => e.id === "repair");
   if (rep_ev) charge("repairs", "Equipment repair", rep_ev.amount);
   // 3. loans: interest + scheduled principal
@@ -426,6 +457,24 @@ function closeDay(s) {
 
   // 7. report
   Object.assign(rep, buildDayRecord(s));
+  // forecast accuracy: what the planning screen promised at opening against what actually happened
+  const fc = s.forecastToday;
+  if (fc && fc.day === day) {
+    const err = Math.abs(rep.customers - fc.expected) / Math.max(1, fc.expected);
+    rep.forecast = { expected: fc.expected, low: fc.low, high: fc.high, actual: rep.customers, accuracy: round2(Math.max(0, 1 - err)), inBand: rep.customers >= fc.low && rep.customers <= fc.high };
+    s.stats.fcErr += Math.min(1, err); s.stats.fcDays++;
+    const diff = rep.customers - fc.expected;
+    if (Math.abs(diff) > 0.1 * fc.expected) rep.notes.push(`Traffic was ${Math.abs(Math.round(100 * diff / fc.expected))}% ${diff > 0 ? "above" : "below"} the forecast of ${fc.expected}. Forecasts cannot see random events or day-to-day variation.`);
+  }
+  // budget variance: only the lines the player set a budget for
+  const b = s.budget;
+  if (b && (b.revenue > 0 || b.expenses > 0)) {
+    const v = { revenue: b.revenue, expenses: b.expenses, revVar: b.revenue > 0 ? round2(rep.revenue - b.revenue) : null, expVar: b.expenses > 0 ? round2(b.expenses - rep.expenses) : null };
+    v.hit = (v.revVar == null || v.revVar >= 0) && (v.expVar == null || v.expVar >= 0);
+    rep.budget = v; s.stats.budgetDays++; if (v.hit) s.stats.budgetHit++;
+    if (v.revVar != null) rep.notes.push(`Revenue ${v.revVar >= 0 ? "beat" : "missed"} the budget by ${Math.abs(v.revVar).toFixed(2)}.`);
+    if (v.expVar != null) rep.notes.push(`Expenses were ${v.expVar >= 0 ? "under" : "over"} budget by ${Math.abs(v.expVar).toFixed(2)}.`);
+  }
   s.lastReport = rep;
   snapshotDayStart(s);                    // postings made during the report phase (loan fees, upgrades...) belong to the NEXT day's record
   s.history.push({ day, revenue: rep.revenue, net: rep.net, customers: rep.customers, liquid: rep.closeLiquid, netWorth: updateDerived(s).netWorth });
@@ -456,6 +505,7 @@ function buildDayRecord(s) {
   if (t.lost.stockout) { const worst = Object.entries(t.lostBy).sort((a, b) => b[1] - a[1])[0]; notes.push(`${t.lost.stockout} sales were lost to empty shelves${worst ? ` (most often ${PRODUCT[worst[0]].name})` : ""}.`); }
   if (t.lost.price) notes.push(`${t.lost.price} items were skipped because the price felt too high.`);
   if (t.lost.patience) notes.push(`${t.lost.patience} customers left after waiting too long. More checkout lanes or cashiers help.`);
+  const lift = campaignLift(s); if (lift > 0) notes.push(`Marketing campaigns lifted expected traffic by about ${Math.round(lift * 100)}% today.`);
   for (const id of t.events) notes.push(D.EVENTS.find(e => e.id === id).name + " affected today.");
   if (net < 0) notes.push("The day made a loss: expenses were higher than gross profit.");
   return { revenue, cogs, gross: round2(revenue - cogs), opex, expenses, net, customers: t.customers, served: t.served, lost: { ...t.lost },
@@ -494,7 +544,9 @@ function endGame(s, reason) {
   const d = updateDerived(s), sc = score(s);
   const t = totals(s.ledger);
   s.ended = { reason, day: s.day, startNetWorth: s.startNetWorth, endNetWorth: d.netWorth, cash: d.liquid, revenue: t.revenue, expenses: t.costs, profit: round2(t.revenue - t.costs),
-    inventory: d.inventory, debt: d.debt, assets: d.assets, score: sc, decisions: s.decisions.slice(-12) };
+    inventory: d.inventory, debt: d.debt, assets: d.assets, score: sc, decisions: s.decisions.slice(-12),
+    planning: { forecastAccuracy: s.stats.fcDays ? round2(1 - s.stats.fcErr / s.stats.fcDays) : null, budgetDays: s.stats.budgetDays, budgetHit: s.stats.budgetHit,
+      serviceRate: s.stats.customers ? round2(1 - (s.stats.stockLost || 0) / s.stats.customers) : null, customers: s.stats.customers, bestDay: s.stats.bestDay } };
 }
 
 // Start the next day after the player has read the report.
@@ -550,6 +602,7 @@ export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   const delayEv = s.events.active.find(e => e.id === "delay" && e.sup === sid);
   let lead = sup.lead * (delayEv ? 1.6 : 1), delayed = !!delayEv;
   if (rnd(s) > clamp(sup.reliability + diffOf(s).reliability, 0.5, 0.995)) { lead *= 1.5; delayed = true; }
+  const rec = s.supRec[sid]; rec.n++; if (delayed) rec.late++;
   s.orders.push({ id, supplier: sid, lines: priced, units, goods, fee, total, pay, lead: round2(lead), t: 0, status: "processing", delayed, day: s.day });
   decide(s, `Ordered ${units} units from ${sup.name} ($${total.toFixed(2)})`);
   remember(s, cmdId);
@@ -591,7 +644,30 @@ export function setShelfTarget(s, pid, n) {
   if (!isInt(n, 0, 200)) return fail("Target must be 0 to 200.");
   s.shelfTarget[pid] = n; return okr();
 }
-export function setMarketing(s, lvl) { if (!isInt(lvl, 0, 3)) return fail("Level 0 to 3."); s.marketing = lvl; return okr(); }
+export function launchCampaign(s, cid, cmdId) {
+  const g = guard(s); if (g) return g;
+  if (seen(s, cmdId)) return fail("Duplicate request ignored.");
+  const def = D.CAMPAIGNS.find(c => c.id === cid);
+  if (!def) return fail("Unknown campaign.");
+  if (s.campaigns.length >= D.MAX_CAMPAIGNS) return fail(`At most ${D.MAX_CAMPAIGNS} campaigns at a time.`);
+  if (s.campaigns.some(c => c.kind === cid)) return fail(`${def.name} is already booked. Wait until it ends.`);
+  const from = bal(s, "bank") >= def.cost ? "bank" : bal(s, "cash") >= def.cost ? "cash" : null;
+  if (!from) return fail(`Not enough funds: need $${def.cost}.`);
+  const start = (s.phase === "report" ? s.day + 1 : s.day) + def.delay;
+  post(s.ledger, s.day, `Campaign: ${def.name}`, [{ acct: "marketing", dr: def.cost }, { acct: from, cr: def.cost }]);
+  s.campaigns.push({ id: ++s.campSeq, kind: cid, name: def.name, start, days: def.days, lift: def.lift });
+  decide(s, `Booked ${def.name} campaign ($${def.cost})`);
+  remember(s, cmdId);
+  return okr({ start });
+}
+
+export function setBudget(s, { revenue = 0, expenses = 0 } = {}) {
+  const ok = n => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1e5;
+  if (!ok(revenue) || !ok(expenses)) return fail("Budgets must be numbers from 0 to 100000. Use 0 for no budget.");
+  s.budget = { revenue: round2(revenue), expenses: round2(expenses) };
+  return okr();
+}
+
 export function setAutoDeposit(s, on) { s.autoDeposit = !!on; return okr(); }
 
 export function hire(s, candId) {
@@ -736,7 +812,6 @@ export function liveToday(s) {
 export function upcomingCharges(s) {
   const out = [{ label: "Rent", amount: rent(s) }, { label: "Utilities", amount: utilities(s) }];
   if (s.staff.length) out.push({ label: "Wages", amount: wagesPerDay(s) });
-  if (s.marketing) out.push({ label: "Marketing", amount: MARKETING_COST[s.marketing] });
   for (const l of s.loans) { out.push({ label: `${l.name} interest`, amount: round2(l.remaining * l.dailyRate) }); out.push({ label: `${l.name} installment`, amount: Math.min(l.remaining, l.installment) }); }
   if (bal(s, "overdraft") > 0) out.push({ label: "Overdraft interest", amount: round2(bal(s, "overdraft") * D.OVERDRAFT_RATE) });
   if (s.day % 7 === 0) out.push({ label: "Weekly tax (if profitable)", amount: null });
@@ -751,6 +826,12 @@ export function alerts(s) {
     if (st.shelf + st.wh === 0 && incomingOf(s, p.id) === 0) a.push({ kind: "warn", text: `${p.name} is sold out everywhere.`, panel: "procure" });
     else if (st.shelf < 4 && st.wh > 0) a.push({ kind: "warn", text: `${p.name} is low on the shelf. Restock from the warehouse.`, panel: "store" });
     else if (st.shelf < 4 && st.wh === 0 && incomingOf(s, p.id) === 0) a.push({ kind: "warn", text: `${p.name} is nearly out. Order more.`, panel: "procure" });
+  }
+  const dem = unitDemand(s);
+  for (const p of D.PRODUCTS) {
+    if (!isUnlocked(s, p.id) || !dem[p.id]) continue;
+    const have = unitsTotal(s, p.id) + incomingOf(s, p.id);
+    if (have > 0 && have < dem[p.id] && !a.some(x => x.text.startsWith(p.name))) a.push({ kind: "info", text: `${p.name}: stock covers less than a day of expected demand (~${Math.round(dem[p.id])} units/day).`, panel: "procure" });
   }
   if (whUsed(s) + incomingUnits(s) > whCap(s) * 0.9) a.push({ kind: "info", text: "Warehouse is almost full.", panel: "upgrades" });
   const od = bal(s, "overdraft");
@@ -775,6 +856,10 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 // Returns a short description of the first malformed part of a save, or null. Everything the engine, the score and
 // the multiplayer verifier read later is checked here, so a crafted save is rejected instead of throwing deep in the code.
 function saveShapeError(o) {
+  if (!isArr(o.campaigns, 10) || !o.campaigns.every(c => isObj(c) && D.CAMPAIGNS.some(d => d.id === c.kind) && Number.isInteger(c.start) && Number.isInteger(c.days) && c.days >= 1 && c.days <= 30 && isNum(c.lift) && c.lift >= 0 && c.lift <= 1) || !isNum(o.campSeq)) return "campaigns";
+  if (!isObj(o.supIdx) || !isObj(o.supRec) || !D.SUPPLIERS.every(x => isNum(o.supIdx[x.id]) && o.supIdx[x.id] >= 0.5 && o.supIdx[x.id] <= 2 && isObj(o.supRec[x.id]) && isNum(o.supRec[x.id].n) && isNum(o.supRec[x.id].late))) return "supplier records";
+  if (!isObj(o.budget) || !isNum(o.budget.revenue) || !isNum(o.budget.expenses) || !isNum(o.noise) || o.noise < 0.5 || o.noise > 1.5) return "budget";
+  if (!["unitsSold", "fcErr", "fcDays", "budgetDays", "budgetHit"].every(k => isNum(o.stats?.[k]))) return "statistics";
   if (!isObj(o.stats) || !isNum(o.stats.customers) || !isNum(o.stats.totalSales) || !isNum(o.stats.bestDay) || !isObj(o.stats.units) || (o.stats.stockLost != null && !isNum(o.stats.stockLost))) return "statistics";
   if (!isArr(o.history, 200) || !o.history.every(h => isObj(h) && [h.revenue, h.net, h.customers, h.liquid, h.netWorth].every(isNum))) return "history";
   if (!isObj(o.archive) || !isNum(o.archive.days) || !isNum(o.archive.revenue) || !isNum(o.archive.profit)) return "archive";
@@ -796,10 +881,19 @@ function saveShapeError(o) {
   return null;
 }
 
+// v3 -> v4: the always-on marketing level is replaced by booked campaigns; suppliers and budgets get neutral defaults.
+function migrateV3(o) {
+  delete o.marketing;
+  Object.assign(o, { v: 4, campaigns: [], campSeq: 0, supIdx: { freshfarm: 1, metro: 1, quickship: 1 }, supRec: { freshfarm: { n: 0, late: 0 }, metro: { n: 0, late: 0 }, quickship: { n: 0, late: 0 } }, budget: { revenue: 0, expenses: 0 }, noise: 1, forecastToday: null });
+  if (isObj(o.stats)) Object.assign(o.stats, { unitsSold: Object.values(o.stats.units || {}).reduce((a, b) => a + (isNum(b) ? b : 0), 0), fcErr: 0, fcDays: 0, budgetDays: 0, budgetHit: 0 });
+  if (isObj(o.today)) delete o.today.mktCost;
+}
+
 export function validateSave(raw) {
   let o;
   try { o = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return { ok: false, error: "Save file is corrupted (not valid JSON)." }; }
   if (!o || typeof o !== "object") return { ok: false, error: "Save file is empty." };
+  if (o.v === 3) migrateV3(o);
   if (o.v !== D.SAVE_VERSION) return { ok: false, error: `This save is from an older version (v${o.v ?? "?"}). Start a new game; old shop-prototype saves cannot be migrated.` };
   const need = ["mode", "day", "clock", "ledger", "stock", "val", "prices", "orders", "staff", "upgrades", "loans", "rng"];
   for (const k of need) if (!(k in o)) return { ok: false, error: `Save is missing "${k}".` };

@@ -1,5 +1,5 @@
 // Static game data. Everything tunable lives here.
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const DAY_LEN = 120;          // sim-seconds per business day (at 1x speed)
 export const OPEN_HOUR = 8, CLOSE_HOUR = 20;
 
@@ -88,3 +88,14 @@ export const MILESTONES = [
   { id:"debt_free",   name:"Debt-free after a loan", test:s => s.stats.tookLoan && s.derived && s.derived.debt === 0 },
   { id:"unlock_all",  name:"Every product unlocked", test:s => s.day >= 12 },
 ];
+
+// Marketing campaigns: paid up front, start after a delay, run for a fixed number of days. `lift` is the extra share of
+// customers while running. Reach is shown to the player as a range so the choice is a real trade-off.
+export const CAMPAIGNS = [
+  { id: "flyers", name: "Flyers", cost: 40, delay: 0, days: 2, lift: 0.12, desc: "Cheap and quick. Hand out leaflets in the neighborhood." },
+  { id: "radio", name: "Local radio", cost: 110, delay: 1, days: 3, lift: 0.22, desc: "Starts tomorrow, runs three days." },
+  { id: "social", name: "Social ads", cost: 240, delay: 2, days: 5, lift: 0.30, desc: "Takes two days to ramp up, then runs five days." },
+];
+export const MAX_CAMPAIGNS = 3;
+// Supplier price index: a bounded daily random walk around 1.00. Buy when it is low, wait when it is high.
+export const SUP_DRIFT = { step: 0.025, min: 0.88, max: 1.18 };

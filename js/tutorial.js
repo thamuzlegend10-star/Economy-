@@ -2,7 +2,7 @@
 // Action steps wait for the player to really do the thing (checked against game state).
 import * as E from "./engine.js";
 
-const KEY = "economy-tutorial-v2";
+const KEY = "economy-tutorial-v3";
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
 const write = o => { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch { /* storage blocked */ } };
 
@@ -30,6 +30,8 @@ export function createTutorial({ getState, ui, world, setPaused }) {
       body: "Every product has a price in <b>Store</b>. Customers expect a fair price, and the default is about 12% above it. Higher price means more profit per sale but more customers walk away. Watch the <b>margin</b> column." },
     { title: "Watch your customers", target: "#scenes [data-scene=shop]", pause: false, scene: "shop", closePanel: true,
       body: "Customers walk in, browse, queue and pay. <b>Empty shelves</b> lose sales and <b>long queues</b> make people leave. Both lower happiness, and happy shops get more visitors." },
+    { title: "Plan ahead", target: "#manage [data-panel=plan]", pause: true, openPanel: "plan",
+      body: "<b>Planning</b> shows how many customers to expect, how many <b>days your stock will last</b>, and lets you book a <b>campaign</b> or set a daily <b>budget</b>. Supplier prices change daily, so check them in Procurement before big orders. The day report shows how close the forecast was." },
     { title: "End of day", target: "#hTime", pause: true, scene: "district",
       body: "At 20:00 the shop closes. <b>Rent, utilities, wages</b> and loan payments are charged, then a report explains why profit changed. Keep enough money in the bank for these bills, or an overdraft with 1% daily interest kicks in." },
     { title: "Grow your business", target: "#manage [data-panel=upgrades]", pause: true,

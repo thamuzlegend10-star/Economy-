@@ -50,7 +50,7 @@
 
   .side { margin-top:12px; gap:8px; }
   .side h2 { margin:12px 2px 0; }
-  .manage { grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+  .manage { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
   .mb { flex-direction:column; justify-content:center; gap:4px; padding:10px 2px 8px; min-height:64px; font-size:.66rem; text-align:center; line-height:1.1; }
   .mb-ic svg { width:22px; height:22px; }
   #tutorial { font-size:.85rem; padding:12px; }
@@ -106,7 +106,7 @@
 
 /* very narrow phones */
 @media (max-width: 360px) {
-  .manage { grid-template-columns:repeat(4,minmax(0,1fr)); } .mb { font-size:.64rem; }
+  .manage { grid-template-columns:repeat(3,minmax(0,1fr)); } .mb { font-size:.64rem; }
   .pill b { font-size:.92rem; }
 }
 
@@ -130,7 +130,7 @@
   .rotate-hint { display:none !important; }
   .today { display:none; }
   .scenes { margin-bottom:6px; } .scenes button { min-height:34px; padding:4px 10px; font-size:.8rem; }
-  .manage { grid-template-columns:repeat(4,minmax(0,1fr)); } .mb { min-height:52px; }
+  .manage { grid-template-columns:repeat(3,minmax(0,1fr)); } .mb { min-height:52px; }
   .tutcard { left:auto; right:8px; width:min(380px,50vw); }
   .sheet-body { padding-bottom:12px; }
 }

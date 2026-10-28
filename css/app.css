@@ -150,7 +150,7 @@ button.primary.big { min-height:54px; font-size:1.05rem; }
 .mb-ic svg { width:22px; height:22px; display:block; }
 .mb-store{--c1:#ff8a3d;--c2:#ffd45e} .mb-procure{--c1:#3fb4ff;--c2:#7be0ff} .mb-inventory{--c1:#a98bff;--c2:#d4b8ff}
 .mb-staff{--c1:#ff5fc8;--c2:#ff9ad8} .mb-bank{--c1:#2de2c4;--c2:#a0f5e4} .mb-finance{--c1:#b8f24a;--c2:#e2ff8f}
-.mb-upgrades{--c1:#ffbf3d;--c2:#fff08a} .mb-goals{--c1:#ff6b8f;--c2:#ffb0c4}
+.mb-plan{--c1:#7be0ff;--c2:#b8f24a} .mb-upgrades{--c1:#ffbf3d;--c2:#fff08a} .mb-goals{--c1:#ff6b8f;--c2:#ffb0c4}
 
 /* scene tabs, stats */
 .scenes button { background:var(--glass); color:var(--fg); border:1px solid var(--line); box-shadow:none; }
