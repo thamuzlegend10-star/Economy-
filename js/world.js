@@ -1,7 +1,7 @@
 // Canvas renderer. Reads engine state only; never changes it (except via onOpen callbacks).
 import * as D from "./data.js";
 import * as E from "./engine.js";
-import { lerp, clamp, ease, mix, shade, rr, text, shadow, chip, bubble, drawProduct, circle, ellipse, box, person, lookFor, truck, car, forklift, tree, catColor } from "./art.js";
+import { lerp, clamp, ease, mix, shade, rr, text as artText, shadow, chip as artChip, bubble, drawProduct, circle, ellipse, box, person, lookFor, truck, car, forklift, tree, catColor } from "./art.js";
 
 const W = 960, H = 540;                 // canvas size
 const WW = 1200, WH = 700;              // district world size
@@ -24,7 +24,16 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
   const SS = 2;                          // backing-store scale: crisp when the canvas is shown wider than 960px
   canvas.width = W * SS; canvas.height = H * SS;
-  const ctx = canvas.getContext("2d");
+  const mainCtx = canvas.getContext("2d");
+  let ctx = mainCtx;
+  // Pixel pass: the district is drawn into a small buffer (one art pixel = PX world units) and scaled up without smoothing.
+  // Text, labels and hover outlines are queued and drawn crisp on top, so they stay readable.
+  const PX = 3;
+  const pixBuf = document.createElement("canvas"); pixBuf.width = Math.ceil(WW / PX); pixBuf.height = Math.ceil(WH / PX);
+  const pctx = pixBuf.getContext("2d"); pctx.imageSmoothingEnabled = false;
+  let overlayQ = null;
+  const text = (c, ...a) => (overlayQ && c === pctx ? overlayQ.push(() => artText(mainCtx, ...a)) : artText(c, ...a));
+  const chip = (c, ...a) => (overlayQ && c === pctx ? overlayQ.push(() => artChip(mainCtx, ...a)) : artChip(c, ...a));
   let scene = "district", clock = 0, last = performance.now();
   let cam = { x: 0, y: 0, z: 0.77 };
   let hotspots = [], hover = null, drag = null, mouse = { x: -1, y: -1 };
@@ -104,8 +113,8 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     hotspots = [];
     // On touch screens: when the map is zoomed in, one finger pans it; otherwise a swipe scrolls the page.
     canvas.style.touchAction = scene === "district" && cam.z > Math.max(W / WW, H / WH) * 1.03 ? "none" : "pan-y";
-    ctx.setTransform(SS, 0, 0, SS, 0, 0);
-    ctx.clearRect(0, 0, W, H);
+    mainCtx.setTransform(SS, 0, 0, SS, 0, 0);
+    mainCtx.clearRect(0, 0, W, H);
     ({ district: drawDistrict, shop: drawShop, warehouse: drawWarehouse, bank: drawBank, office: drawOffice })[scene](s);
     drawTooltip();
     for (let i = flashes.length - 1; i >= 0; i--) { flashes[i].t -= dt; if (flashes[i].t <= 0) flashes.splice(i, 1); }
@@ -120,7 +129,10 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     const o = { x, y, w, h, label, ...target };
     hotspots.push(o);
     const q = scene === "district" ? toWorld(mouse) : mouse;
-    if (outline && q.x >= x && q.x <= x + w && q.y >= y && q.y <= y + h) { ctx.save(); ctx.strokeStyle = "#ffd36b"; ctx.lineWidth = 3 / (scene === "district" ? cam.z : 1); ctx.setLineDash([8, 5]); ctx.strokeRect(x, y, w, h); ctx.restore(); }
+    if (outline && q.x >= x && q.x <= x + w && q.y >= y && q.y <= y + h) {
+      const draw = () => { mainCtx.save(); mainCtx.strokeStyle = "#ffd36b"; mainCtx.lineWidth = 3 / (scene === "district" ? cam.z : 1); mainCtx.setLineDash([8, 5]); mainCtx.strokeRect(x, y, w, h); mainCtx.restore(); };
+      if (overlayQ) overlayQ.push(draw); else draw();
+    }
   }
   function drawTooltip() {
     if (!hover || mouse.x < 0) return;
@@ -135,18 +147,23 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   // =====================================================================
   function drawDistrict(s) {
     const n = night(s), t = todFrac(s);
-    ctx.save(); ctx.translate(cam.x, cam.y); ctx.scale(cam.z, cam.z);
-    // ground
-    const g = ctx.createLinearGradient(0, 0, 0, WH); g.addColorStop(0, mix("#3b8a5a", "#1f4a38", n)); g.addColorStop(1, mix("#2f7a4e", "#183a2d", n));
-    ctx.fillStyle = g; ctx.fillRect(0, 0, WW, WH);
-    ctx.fillStyle = "rgba(255,255,255,.04)"; for (let x = 0; x < WW; x += 60) for (let y = (x / 60 % 2) * 30; y < WH; y += 60) ctx.fillRect(x, y, 30, 30);
+    mainCtx.save(); mainCtx.translate(cam.x, cam.y); mainCtx.scale(cam.z, cam.z);
+    pctx.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); pctx.clearRect(0, 0, WW, WH);
+    ctx = pctx; overlayQ = [];
+    // ground: flat grass with a checker of lighter and darker tiles (no gradients, so it reads as pixel art)
+    ctx.fillStyle = mix("#3f9a5a", "#1f4a38", n); ctx.fillRect(0, 0, WW, WH);
+    for (let x = 0; x < WW; x += 24) for (let y = 0; y < WH; y += 24) {
+      const h = ((x * 7 + y * 13) / 24) % 5;
+      if (h < 1) { ctx.fillStyle = mix("#4aa864", "#27583f", n); ctx.fillRect(x, y, 24, 24); }
+      else if (h < 2) { ctx.fillStyle = mix("#37894f", "#1a4030", n); ctx.fillRect(x + 6, y + 6, 12, 12); }
+    }
     // sidewalks + road
     ctx.fillStyle = "#b8b6ad"; ctx.fillRect(0, 268, WW, 36); ctx.fillRect(0, 368, WW, 36);
     ctx.fillStyle = "#3a3f55"; ctx.fillRect(0, 304, WW, 64);
     ctx.fillStyle = "#e8e0b0"; for (let x = 10; x < WW; x += 70) ctx.fillRect(x, 334, 38, 4);
     ctx.fillStyle = "rgba(255,255,255,.4)"; for (let x = 520; x < 620; x += 14) ctx.fillRect(x, 306, 8, 60);   // crossing
     // plaza between shop and bank
-    rr(ctx, 540, 420, 140, 200, 14, mix("#c9c3b2", "#4a4a58", n));
+    ctx.fillStyle = mix("#c9c3b2", "#4a4a58", n); ctx.fillRect(540, 420, 140, 200); ctx.fillStyle = mix("#aaa491", "#3b3b48", n); ctx.fillRect(540, 612, 140, 8);
     circle(ctx, 610, 520, 34, "#6aa9d8"); circle(ctx, 610, 520, 22, "#8fc4ec"); circle(ctx, 610, 520, 5, "#e8f4ff");
     tree(ctx, 560, 470, 0.9); tree(ctx, 665, 600, 1); tree(ctx, 45, 400, 1); tree(ctx, 1130, 600, 1.1); tree(ctx, 1150, 420, 0.9); tree(ctx, 40, 640, 1.1);
 
@@ -180,7 +197,12 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     drawSorted(layer);
     // overlay for night
     if (n > 0) { ctx.fillStyle = `rgba(6,10,40,${0.45 * n})`; ctx.fillRect(0, 0, WW, WH); }
-    ctx.restore();
+    // blit the pixel buffer, then draw the crisp text layer on top
+    ctx = mainCtx;
+    mainCtx.imageSmoothingEnabled = false;
+    mainCtx.drawImage(pixBuf, 0, 0, pixBuf.width * PX, pixBuf.height * PX);
+    const q = overlayQ; overlayQ = null; for (const fn of q) fn();
+    mainCtx.restore();
     // HUD bits (screen space)
     chip(ctx, 62, 28, hourText(s) + (n > 0.5 ? "  night" : t < 0.25 ? "  morning" : t < 0.6 ? "  day" : "  evening"), { size: 13 });
     chip(ctx, W - 100, 28, (coarse ? "Drag to pan · pinch to zoom" : "Drag to pan · Ctrl + wheel to zoom"), { size: 11, bg: "rgba(10,14,36,.6)" });
@@ -205,10 +227,12 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
   }
 
   function building(x, y, w, h, roof, wall, nightK) {
-    shadow(ctx, x + w / 2, y + h + 6, w / 2 + 10, 10, 0.3);
-    rr(ctx, x, y, w, 34, [8, 8, 0, 0], roof);                           // roof strip (depth)
-    rr(ctx, x, y + 26, w, h - 26, [0, 0, 4, 4], wall);
-    ctx.fillStyle = "rgba(0,0,0,.12)"; ctx.fillRect(x, y + 26, w, 8);
+    ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.fillRect(x + 6, y + h, w, 9);   // hard pixel shadow
+    ctx.fillStyle = "#12162b"; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);    // 1-pixel outline
+    ctx.fillStyle = roof; ctx.fillRect(x, y, w, 34);                        // roof strip (depth)
+    ctx.fillStyle = shade(roof, 1.25); ctx.fillRect(x, y, w, 6);
+    ctx.fillStyle = wall; ctx.fillRect(x, y + 34, w, h - 34);
+    ctx.fillStyle = shade(wall, 0.8); ctx.fillRect(x, y + 34, w, 6); ctx.fillRect(x + w - 9, y + 40, 9, h - 40);
   }
   function windowRow(x, y, n, w, h, gap, nightK, lit = true) {
     for (let i = 0; i < n; i++) {

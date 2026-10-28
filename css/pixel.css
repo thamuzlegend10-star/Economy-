@@ -83,3 +83,20 @@ details.tip { border-left:2px solid var(--px-hi); border-left-color:var(--brass)
   .stat small { font-size:.54rem; letter-spacing:.04em; white-space:nowrap; }
   .stat { padding:6px 8px; } .stat b { font-size:1.2rem; }
 }
+
+/* text stays inside its box: labels shrink or truncate, long words wrap, nothing paints outside the border */
+.pill, .stat, .mb, .tab, .scenes button, .sup, .upg, .tag, .alert, button.alert { min-width:0; max-width:100%; }
+.pill span, .stat small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.pill span svg { display:inline-block; vertical-align:-2px; margin-right:3px; }
+.k-happy span svg { display:none; }
+.mb { overflow:hidden; overflow-wrap:anywhere; hyphens:auto; }
+.mb { font-size:clamp(.64rem,.78rem,.8rem); }
+.tab, .scenes button, .sup, .upg, .card, .tag, td, th, .note, .alert, label.field { overflow-wrap:anywhere; }
+.tab, .scenes button { white-space:nowrap; }
+.sup { overflow:hidden; }
+button { max-width:100%; }
+button { overflow-wrap:normal; word-break:normal; }
+.rotate-hint button, .mini, .ctrl button { white-space:nowrap; flex:0 0 auto; }
+.tabs { flex-wrap:nowrap; } .tab { flex:0 0 auto; }
+.tab, .scenes button { width:auto; min-width:max-content; }
+@media (max-width:1099px) { .pill span svg { display:none; } .pill span { font-size:.54rem; letter-spacing:.02em; } }
