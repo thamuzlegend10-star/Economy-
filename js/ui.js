@@ -21,7 +21,7 @@ const TIPS = {
   inventory: ["Your goods", "See what you own in the warehouse and on shelves, what is on the way, and what it is worth. <b>Out</b> and <b>Low shelf</b> mean lost sales, <b>Overstock</b> means cash tied up in goods."],
   staff: ["Your team", "Hire to remove bottlenecks: <b>cashiers</b> speed up checkout, <b>stockers</b> fill shelves, <b>warehouse workers</b> unload trucks, <b>managers</b> raise happiness. Wages are charged every closing, so hire only when profit can carry them."],
   bank: ["Banking", "Sales land in the till as cash. Bills are paid from the bank first, then cash, then an <b>overdraft</b> (1% a day). <b>Loans</b> give cash now and are repaid daily with interest. Borrow to grow, not to survive."],
-  finance: ["Your books", "Every number comes from a double-entry ledger. <b>Today</b> is live, <b>History</b> shows past days. Net worth = cash + bank + inventory + equipment - debt."],
+  finance: ["Your books", "Every number comes from a double-entry ledger. <b>Today</b> is live, <b>Cash flow</b> splits money in and out by purpose, <b>Market</b> shows your share against rivals and what moves it, <b>History</b> shows past days. Net worth = cash + bank + inventory + equipment - debt."],
   upgrades: ["Investments", "Permanent upgrades. A <b>Checkout counter</b> adds a lane and is the usual first buy when customers leave from long queues. Shelves and racks add space. Signage is cosmetic."],
   plan: ["Planning", "Plan before you buy. The <b>forecast</b> estimates customers for the next days from your reputation, the weekday and booked campaigns. It is a range, not a promise: random events and daily variation are not in it, and the day report shows how close it was. <b>Days of cover</b> tells you how long your stock lasts at the expected demand. <b>Campaigns</b> cost money now and bring customers later. A <b>budget</b> is a daily target: the report shows where you beat it or missed it and why."],
   branches: ["Branches", "A <b>branch</b> is a second shop in another district (up to 2, from day 5, net worth $1,200). It has its own customers, rivals, reputation, rent and cashiers. It is simulated once a day: <b>transfer goods</b> from your warehouse (a small fee), set 1 to 3 cashiers, and read its daily result. Prices and suppliers are shared with your main shop. No stock means no sales, and too few cashiers turn customers away."],
@@ -339,7 +339,7 @@ export function createUI(ctx) {
   // ---------- FINANCE ----------
   const ACCT_ORDER = ["cash", "bank", "inventory", "transit", "equipment", "loan", "overdraft", "payables", "capital", "sales", "cogs", "rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs"];
   function finance(s) {
-    const tabsHtml = [["today", "Today"], ["last", "Last day report"], ["sheet", "Balance sheet"], ["ledger", "Ledger audit"], ["history", "History"], ["upcoming", "Upcoming charges"]]
+    const tabsHtml = [["today", "Today"], ["last", "Last day report"], ["cash", "Cash flow"], ["market", "Market"], ["sheet", "Balance sheet"], ["ledger", "Ledger audit"], ["history", "History"], ["upcoming", "Upcoming charges"]]
       .map(([id, n]) => `<button class="tab small ${view.finTab === id ? "on" : ""}" data-act="fintab" data-id="${id}">${n}</button>`).join("");
     let inner = "";
     const rec = E.reconcile(s);
@@ -348,7 +348,25 @@ export function createUI(ctx) {
       inner = `<div class="cards"><div class="stat"><small>Revenue so far</small><b>${money(t.revenue)}</b></div><div class="stat"><small>Cost of goods</small><b>${money(t.cogs)}</b></div><div class="stat"><small>Gross profit</small><b>${money(t.gross)}</b></div><div class="stat"><small>Customers</small><b>${t.customers}</b></div></div>
         <p class="muted">Rent, wages, utilities, interest and other costs are charged once, at closing. Lost today: ${t.lost.stockout} to empty shelves, ${t.lost.price} to price, ${t.lost.patience} to waiting.</p>` + unitsTable(s, t.units);
     } else if (view.finTab === "last") inner = s.lastReport ? reportHtml(s, s.lastReport) : `<p class="muted">Finish a day to see the first report.</p>`;
-    else if (view.finTab === "sheet") {
+    else if (view.finTab === "cash") {
+      const h = s.history.filter(x => x.cf).slice(-14);
+      const sum = k => round2(h.reduce((a, x) => a + (x.cf[k] || 0), 0));
+      const max = Math.max(1, ...h.map(x => Math.abs(x.cf.op)));
+      inner = h.length ? `<div class="chart">${h.map(x => `<div class="col" title="Day ${x.day}: operating ${money(x.cf.op)}"><i class="${x.cf.op < 0 ? "neg" : ""}" style="height:${Math.max(3, 100 * Math.abs(x.cf.op) / max)}%"></i><small>${x.day}</small></div>`).join("")}</div>
+        <p class="muted">Operating cash flow per day (last ${h.length}). Cash flow is not profit: buying stock, paying loans and buying upgrades move cash without being costs.</p>
+        <div class="scroll"><table class="tbl"><thead><tr><th>Day</th><th>Operating</th><th>Investing</th><th>Financing</th><th>Net change</th></tr></thead><tbody>${h.slice().reverse().map(x => `<tr><td>${x.day}</td><td class="num ${x.cf.op < 0 ? "neg" : ""}">${money(x.cf.op)}</td><td class="num">${money(x.cf.inv)}</td><td class="num">${money(x.cf.fin)}</td><td class="num ${x.cf.op + x.cf.inv + x.cf.fin < 0 ? "neg" : "pos"}">${money(round2(x.cf.op + x.cf.inv + x.cf.fin))}</td></tr>`).join("")}</tbody>
+        <tfoot><tr class="tot"><td>Total</td><td class="num">${money(sum("op"))}</td><td class="num">${money(sum("inv"))}</td><td class="num">${money(sum("fin"))}</td><td class="num">${money(round2(sum("op") + sum("inv") + sum("fin")))}</td></tr></tfoot></table></div>` : `<p class="muted">Finish a day to see cash flow.</p>`;
+    } else if (view.finTab === "market") {
+      const b = E.shareBreakdown(s), h = s.history.filter(x => x.share != null).slice(-20), pc = v => Math.round(v * 100) + "%";
+      if (!s.rivals.length) inner = `<p class="muted">This site has no simulated rivals, so you hold the whole local market.</p>`;
+      else inner = `<div class="cards"><div class="stat"><small>Your share now</small><b>${pc(b.share)}</b></div><div class="stat"><small>Your price vs fair</small><b>${b.priceIndex >= 1.12 ? "+" : ""}${Math.round((b.priceIndex / 1.12 - 1) * 100)}%</b></div></div>
+        ${h.length ? `<div class="chart">${h.map(x => `<div class="col" title="Day ${x.day}: share ${pc(x.share)}"><i style="height:${Math.max(3, 100 * x.share)}%"></i><small>${x.day}</small></div>`).join("")}</div><p class="muted">Your market share per day (last ${h.length}).</p>` : ""}
+        <h4>Who takes the demand</h4><div class="scroll"><table class="tbl"><thead><tr><th>Shop</th><th>Share</th><th></th></tr></thead><tbody>${b.rows.map(r => `<tr class="${r.you ? "me" : ""}"><td><b>${esc(r.name)}</b>${r.kind ? ` <span class="muted small">${esc(E.RIVAL_KIND[r.kind].label)}</span>` : ""}</td><td class="num">${pc(r.share)}</td><td>${r.promo ? '<span class="tag warn">Promo</span>' : ""}</td></tr>`).join("")}</tbody></table></div>
+        <h4>What drives your share</h4><div class="kv"><span>Reputation factor</span><b>${b.factors.reputation.toFixed(2)}</b></div><div class="kv"><span>Price factor</span><b>${b.factors.price.toFixed(2)}</b></div><div class="kv"><span>Availability factor</span><b>${b.factors.stock.toFixed(2)}</b></div>
+        <p class="muted small">Above 1.00 helps you, below 1.00 hurts. Price is judged against a fair price of 1.12 times each product's reference price.</p>
+        <h4>If you changed all prices</h4><div class="scroll"><table class="tbl"><thead><tr><th>Change</th><th>Your share</th></tr></thead><tbody>${b.whatIf.map(w => `<tr><td>${w.change > 0 ? "+" : ""}${Math.round(w.change * 100)}%</td><td class="num">${pc(w.share)}</td></tr>`).join("")}</tbody></table></div>
+        <p class="muted small">Share only. A lower price wins customers but cuts your margin: check Profit by product in the day report before you move prices. Rivals also react.</p>`;
+    } else if (view.finTab === "sheet") {
       const d = s.derived;
       const row = (n, v, c = "") => `<tr class="${c}"><td>${n}</td><td class="num">${money(v)}</td></tr>`;
       inner = `<div class="split"><table class="tbl"><thead><tr><th colspan="2">Assets</th></tr></thead><tbody>${row("Cash on hand", d.cash)}${row("Bank balance", d.bank)}${row("Inventory (at cost)", d.inventory)}${row("Goods in transit", d.transit)}${row("Equipment & upgrades", d.equipment)}${row("Total assets", d.assets, "tot")}</tbody></table>
@@ -367,9 +385,29 @@ export function createUI(ctx) {
       inner = `<table class="tbl"><thead><tr><th>Charge at closing</th><th>Amount</th></tr></thead><tbody>${E.upcomingCharges(s).map(c => `<tr><td>${esc(c.label)}</td><td class="num">${c.amount == null ? "10% of profit" : money(c.amount)}</td></tr>`).join("")}</tbody></table>
         <p class="muted">Bills are paid from the bank, then cash, then overdraft. Available now: ${money(s.derived.liquid)}.</p>`;
     }
-    return `<h3>Finance</h3><div class="row gap wrap">${tabsHtml}<span class="tag ${rec.ok ? "ok" : "bad"}" title="${esc(rec.problems.join(" "))}">Books ${rec.ok ? "reconciled" : "MISMATCH"}</span></div>${inner}`;
+    return `<h3>Finance</h3><div class="subtabs">${tabsHtml}<span class="tag ${rec.ok ? "ok" : "bad"}" title="${esc(rec.problems.join(" "))}">Books ${rec.ok ? "reconciled" : "MISMATCH"}</span></div>${inner}`;
   }
   const ACCT_NAME = a => ({ cash: "Cash", bank: "Bank", inventory: "Inventory", transit: "In transit", equipment: "Equipment", loan: "Loans", overdraft: "Overdraft", payables: "Supplier invoices", capital: "Capital", sales: "Sales", cogs: "COGS", rent: "Rent", utilities: "Utilities", wages: "Wages", interest: "Interest", tax: "Tax", marketing: "Marketing", delivery: "Delivery fees", fees: "Bank fees", repairs: "Repairs" }[a] || a);
+  // Direct cash flow: what moved through cash + bank, by purpose. Reports from older saves have no breakdown.
+  function cashFlowTable(r) {
+    const cf = r.cashflow, change = round2(r.closeLiquid - r.openLiquid);
+    const row = (n, v, c = "") => `<tr class="${c}"><td>${n}</td><td class="num ${v < 0 ? "neg" : ""}">${money(v)}</td></tr>`;
+    const head = `<tr><td>Opening cash + bank</td><td class="num">${money(r.openLiquid)}</td></tr>`;
+    const foot = `<tr><td>Closing cash + bank</td><td class="num">${money(r.closeLiquid)}</td></tr>`;
+    if (!cf) return `<table class="tbl"><thead><tr><th colspan="2">Cash flow</th></tr></thead><tbody>${head}${foot}${row("Change", change, "tot")}</tbody></table>`;
+    return `<table class="tbl"><thead><tr><th colspan="2">Cash flow</th></tr></thead><tbody>${head}
+      ${row("Customer receipts", cf.receipts)}${row("Supplier payments", cf.suppliers)}${row("Rent, wages and other costs", cf.expenses)}${cf.interest ? row("Interest", cf.interest) : ""}${cf.tax ? row("Tax", cf.tax) : ""}
+      ${row("Operating cash flow", cf.operating, "tot")}${row("Upgrades and fit-outs", cf.investing)}${row("Loans and overdraft", cf.financing)}
+      ${row("Change", cf.net, "tot")}${foot}</tbody></table>`;
+  }
+  // Sales by product with margin; falls back to units and price for reports without cost data.
+  function productTable(s, r) {
+    if (!r.products || !r.products.length) return unitsTable(s, r.units);
+    const rows = r.products.map(p => `<tr><td>${esc(pName(p.pid))}</td><td>${p.units}</td><td class="num">${money(p.revenue)}</td><td class="num">${money(p.revenue - p.cogs)}</td><td class="num ${p.margin < 0.1 ? "neg" : ""}">${Math.round(p.margin * 100)}%</td></tr>`).join("");
+    const best = r.products[0], worst = r.products[r.products.length - 1];
+    return `<h4>Sales and margin by product</h4><div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th>Units</th><th>Revenue</th><th>Profit</th><th>Margin</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="muted small">Main shop only. Most profit: ${esc(pName(best.pid))}${r.products.length > 1 ? `. Thinnest margin: ${esc(pName(worst.pid))} (${Math.round(Math.min(...r.products.map(p => p.margin)) * 100)}%)` : ""}.</p>`;
+  }
   function unitsTable(s, units) {
     const rows = Object.entries(units).sort((a, b) => b[1] - a[1]).map(([pid, n]) => `<tr><td>${esc(pName(pid))}</td><td>${n}</td><td>${money(n * s.prices[pid])}</td></tr>`).join("");
     return rows ? `<h4>Sales by product</h4><table class="tbl"><thead><tr><th>Product</th><th>Units</th><th>Revenue</th></tr></thead><tbody>${rows}</tbody></table>` : "";
@@ -384,14 +422,13 @@ export function createUI(ctx) {
     return `<div class="split"><table class="tbl"><thead><tr><th colspan="2">Income statement - day ${r.day}</th></tr></thead><tbody>
         <tr><td>Revenue</td><td class="num">${money(r.revenue)}</td></tr><tr><td>Cost of goods sold</td><td class="num">-${money(r.cogs)}</td></tr><tr class="tot"><td>Gross profit</td><td class="num">${money(r.gross)}</td></tr>${ex}
         <tr class="tot"><td>Net profit</td><td class="num ${r.net < 0 ? "neg" : "pos"}">${money(r.net)}</td></tr></tbody></table>
-      <table class="tbl"><thead><tr><th colspan="2">Cash flow</th></tr></thead><tbody><tr><td>Opening cash + bank</td><td class="num">${money(r.openLiquid)}</td></tr>
-        <tr><td>Closing cash + bank</td><td class="num">${money(r.closeLiquid)}</td></tr><tr class="tot"><td>Change</td><td class="num ${r.closeLiquid - r.openLiquid < 0 ? "neg" : "pos"}">${money(r.closeLiquid - r.openLiquid)}</td></tr></tbody></table></div>
-      <div class="cards"><div class="stat"><small>Customers</small><b>${r.customers}</b></div><div class="stat"><small>Served</small><b>${r.served}</b></div><div class="stat"><small>Avg wait</small><b>${r.avgWait}s</b></div><div class="stat"><small>Satisfaction</small><b>${Math.round(r.sat)}</b></div></div>
+      ${cashFlowTable(r)}</div>
+      <div class="cards"><div class="stat"><small>Customers</small><b>${r.customers}</b></div><div class="stat"><small>Served</small><b>${r.served}</b></div><div class="stat"><small>Avg wait</small><b>${r.avgWait}s</b></div><div class="stat"><small>Satisfaction</small><b>${Math.round(r.sat)}</b></div>${r.share != null && s.rivals.length ? `<div class="stat"><small>Market share</small><b>${Math.round(r.share * 100)}%</b></div>` : ""}</div>
       ${r.forecast ? `<div class="cards"><div class="stat"><small>Forecast</small><b>${r.forecast.expected}</b></div><div class="stat"><small>Actual</small><b>${r.forecast.actual}</b></div><div class="stat"><small>Accuracy</small><b>${Math.round(r.forecast.accuracy * 100)}%</b></div>${r.budget ? `<div class="stat"><small>Budget</small><b>${r.budget.hit ? "met" : "missed"}</b></div>` : ""}</div>` : ""}
       ${r.branches && r.branches.length ? `<table class="tbl"><thead><tr><th>Branch</th><th>Customers</th><th>Sales</th><th>Net</th></tr></thead><tbody>${r.branches.map(b => `<tr><td>${esc(b.name)}</td><td>${b.customers}</td><td class="num">${money(b.revenue)}</td><td class="num ${b.net < 0 ? "neg" : "pos"}">${money(b.net)}</td></tr>`).join("")}</tbody></table><p class="muted small">Company revenue and profit above include the branches.</p>` : ""}
       ${r.budget ? budgetTable(r) : ""}
       <h4>Why did it change?</h4><ul class="why">${(r.notes.length ? r.notes : ["A steady day."]).map(n => `<li>${esc(n)}</li>`).join("")}</ul>
-      ${chg ? "<h4>Charges at closing</h4>" + chg : ""}${unitsTable(s, r.units)}<p class="muted small">Books ${r.reconciled ? "reconciled" : "did not reconcile"}.</p>`;
+      ${chg ? "<h4>Charges at closing</h4>" + chg : ""}${productTable(s, r)}<p class="muted small">Books ${r.reconciled ? "reconciled" : "did not reconcile"}.</p>`;
   }
 
   // ---------- UPGRADES ----------
@@ -517,6 +554,7 @@ export function createUI(ctx) {
     btn.textContent = s.ended ? "See final results" : `Start day ${s.day + 1}`;
     btn.onclick = () => { dlg.close(); onNext(); };
     if (!dlg.open) dlg.showModal();
+    dlg.scrollTop = 0; document.getElementById("dayBody").scrollTop = 0;
   }
   function finalReport(s, handlers) {
     const f = s.ended, dlg = document.getElementById("finalDlg");
@@ -527,7 +565,7 @@ export function createUI(ctx) {
     document.getElementById("finalBody").innerHTML = `<h2>${f.reason === "completed" ? "Final results" : "Bankrupt"}</h2>
       <div class="grade">${f.score.rating}<small>${f.score.total} / 100</small></div>
       <p>${f.reason === "completed" ? `You ran the shop for ${f.day} days.` : `Overdraft stayed above your limit for 3 days on day ${f.day}.`}</p>
-      <div class="split"><div>${kv("Starting net worth", money(f.startNetWorth))}${kv("Ending net worth", money(f.endNetWorth))}${kv("Cash + bank", money(f.cash))}${kv("Inventory", money(f.inventory))}${kv("Debt", money(f.debt))}${kv("Total assets", money(f.assets))}${kv("Total revenue", money(f.revenue))}${kv("Total expenses", money(f.expenses))}${kv("Total profit", money(f.profit))}</div>
+      <div class="split"><div>${kv("Net profit", money(f.profit))}${kv("Starting net worth", money(f.startNetWorth))}${kv("Ending net worth", money(f.endNetWorth))}${kv("Cash + bank", money(f.cash))}${kv("Inventory", money(f.inventory))}${kv("Debt", money(f.debt))}${kv("Total assets", money(f.assets))}${kv("Total revenue", money(f.revenue))}${kv("Total expenses", money(f.expenses))}${kv("Total profit", money(f.profit))}</div>
       <div>${f.score.parts.map(p => `${kv(p.name, Math.round(p.v * 100) + "%")}${bar(p.v, 1)}`).join("")}</div></div>
       ${f.planning ? `<h4>Planning and service</h4><div class="split"><div>${kv("Forecast accuracy", f.planning.forecastAccuracy == null ? "-" : Math.round(f.planning.forecastAccuracy * 100) + "%")}${kv("Budget days met", f.planning.budgetDays ? `${f.planning.budgetHit} of ${f.planning.budgetDays}` : "no budget set")}</div><div>${kv("Customers served by stock", f.planning.serviceRate == null ? "-" : Math.round(f.planning.serviceRate * 100) + "%")}${kv("Best day profit", money(f.planning.bestDay))}</div></div>` : ""}
       ${scnBlock}

@@ -46,6 +46,13 @@ Limits: branches are not walkable scenes (the map still shows the main district)
 
 Limits: the room is still friendly play, so injected events and scenario play are not enforced or verified beyond the final-save checks (a modified client can ignore them). There is no teacher dashboard, no per-student login and no live pausing. Scenario thresholds were checked only with simple bots (idle fails, a basic stock-up bot clears most goals), not with real players. Saves from v8 migrate with no scenario.
 
+## Reports
+- **Net profit in the top bar:** the HUD tile now shows cumulative net profit (all income minus all costs, from the ledger). Net worth stays on the balance sheet and in the score.
+- **Cash flow statement** (day report and Finance > Cash flow): customer receipts, supplier payments, rent/wages/other costs, interest, tax (operating), upgrades and fit-outs (investing), loans and overdraft (financing). It adds up to the change in cash + bank and is tested on every day of a game with loans, terms, upgrades and a branch. Overdraft-funded costs move no cash, so they are not in it.
+- **Sales and margin by product** in the day report (main shop only).
+- **Finance > Market:** share per day, who takes the demand (you vs each rival), the three factors behind your share (reputation, price, availability) and a price what-if. The day report shows the day's market share.
+Limits: reports from games saved before this version have no cash-flow breakdown for the day in progress; branch sales are in the totals but not in the product table.
+
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.
 - **Infinite**: no end date, milestones and upgrades, recoverable bankruptcy.

@@ -134,7 +134,7 @@ function updateHud(force) {
   const s = state, d = E.updateDerived(s), t = E.liveToday(s);
   $("hDay").textContent = s.dayLimit ? `${s.day} / ${s.dayLimit}` : s.day;
   $("hTime").textContent = s.phase === "open" ? clockText(s) : "Closed";
-  setTarget("hCash", d.cash ?? 0); setTarget("hBank", d.bank ?? 0); setTarget("hDebt", d.debt ?? 0); setTarget("hNet", d.netWorth ?? 0);
+  setTarget("hCash", d.cash ?? 0); setTarget("hBank", d.bank ?? 0); setTarget("hDebt", d.debt ?? 0); setTarget("hNet", d.profit ?? 0);
   $("hHappy").textContent = Math.round(s.sat) + "%";
   $("hHappyBar").style.width = Math.max(0, Math.min(100, s.sat)) + "%";
   $("modeLabel").textContent = s.mode === "infinite" ? "Infinite mode" : "Standard mode";
@@ -290,7 +290,7 @@ $("bMenu").onclick = () => openMenu(true);
 // ---------- how-to-play guide ----------
 const HELP = {
   goal: `<h3>The goal</h3>
-    <p>You own a small corner shop. Buy goods from suppliers, sell them to customers for more than you paid, pay your bills, and grow into a bigger business. Your score is based on how much your <b>net worth</b> grows.</p>
+    <p>You own a small corner shop. Buy goods from suppliers, sell them to customers for more than you paid, pay your bills, and grow into a bigger business. The top bar shows your <b>net profit</b> (all income minus all costs so far). Your score is based on how much your <b>net worth</b> (what you own minus what you owe) grows.</p>
     <ul><li><b>Standard mode:</b> you get a fixed number of days. At the end you see a score from S (best) to D, with a full report.</li>
     <li><b>Infinite mode:</b> no end date. Unlock products, expand, and chase milestones. If money runs out you get a recovery option, not a game over.</li></ul>
     <p class="help-note">Net worth = cash + bank + inventory + equipment - debt.</p>`,
@@ -351,6 +351,9 @@ const HELP = {
     <dt>Variance</dt><dd>Actual result minus budget. Positive is good.</dd>
     <dt>Days of cover</dt><dd>How many days your stock lasts at the expected sales.</dd>
     <dt>Lead time</dt><dd>How long a supplier truck needs to arrive.</dd>
+    <dt>Net profit</dt><dd>Income minus costs. Buying stock or an upgrade is not a cost until goods are sold or used.</dd>
+    <dt>Cash flow</dt><dd>Money moving in and out of cash and bank, split into operating, investing and financing. It differs from profit.</dd>
+    <dt>Market share</dt><dd>Your slice of local demand against rivals.</dd>
     <dt>Net worth</dt><dd>Everything you own minus everything you owe.</dd>
     <dt>Happiness</dt><dd>Customer mood. Raises or lowers daily visitors.</dd>
     <dt>Ledger</dt><dd>The double-entry books behind every number. Reports are built from it.</dd></dl>`,

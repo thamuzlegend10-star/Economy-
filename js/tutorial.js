@@ -12,7 +12,7 @@ export function createTutorial({ getState, ui, world, setPaused }) {
 
   const steps = [
     { title: "Welcome to Economy", pause: true,
-      body: "You run a corner shop. Buy goods from suppliers, put them on shelves, and customers pay you. One business day lasts about four minutes (08:00 to 20:00). Your goal: grow your <b>net worth</b>. This short tour shows you how." },
+      body: "You run a corner shop. Buy goods from suppliers, put them on shelves, and customers pay you. One business day lasts about four minutes (08:00 to 20:00). Your goal: make a steady <b>net profit</b> (the top bar shows it) and grow your wealth. This short tour shows you how." },
     { title: "Your dashboard", target: "#hud", pause: true,
       body: "<b>Cash</b> is money in the till: sales land here. <b>Bank</b> pays suppliers and bills. <b>Debt</b> is loans and overdraft. <b>Net worth</b> is everything you own minus debt, the number that really matters. <b>Happiness</b> decides how many customers visit." },
     { title: "Your business district", target: ".stage-card", pause: true,

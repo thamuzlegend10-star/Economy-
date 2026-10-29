@@ -95,7 +95,7 @@ export function updateDerived(s) {
     cash: bal(s, "cash"), bank: bal(s, "bank"), debt, loans: bal(s, "loan"), overdraft: bal(s, "overdraft"), payables: bal(s, "payables"),
     inventory: bal(s, "inventory"), equipment: bal(s, "equipment"), transit: bal(s, "transit"),
     assets: t.assets, netWorth: round2(t.assets - t.liabilities), balanced: t.balanced,
-    liquid: round2(bal(s, "cash") + bal(s, "bank")),
+    liquid: round2(bal(s, "cash") + bal(s, "bank")), profit: round2(t.revenue - t.costs),
   };
   return s.derived;
 }
@@ -164,6 +164,7 @@ function beginDay(s, first = false) {
   for (const p of nowUnlocked) logMsg(s, "info", `New product unlocked: ${p.name}.`);
   if (first) snapshotDayStart(s);
   s.today.openLiquid = s.derived ? s.derived.liquid : round2(bal(s, "cash") + bal(s, "bank"));
+  s.today.seq0 = s.ledger.seq;
 }
 
 function rollEvents(s) {
@@ -524,6 +525,7 @@ function checkout(s, c) {
     cost = round2(cost + c1);
     revenue = round2(revenue + money[pid]);
     s.today.units[pid] = (s.today.units[pid] || 0) + n;
+    (s.today.rev ||= {})[pid] = round2(((s.today.rev || {})[pid] || 0) + money[pid]); (s.today.cst ||= {})[pid] = round2(((s.today.cst || {})[pid] || 0) + c1);
     s.stats.unitsSold = (s.stats.unitsSold || 0) + n;
     s.stats.units[pid] = (s.stats.units[pid] || 0) + n;
   }
@@ -628,7 +630,7 @@ function closeDay(s) {
   }
   s.lastReport = rep;
   snapshotDayStart(s);                    // postings made during the report phase (loan fees, upgrades...) belong to the NEXT day's record
-  s.history.push({ day, revenue: rep.revenue, net: rep.net, customers: rep.customers, liquid: rep.closeLiquid, netWorth: updateDerived(s).netWorth });
+  s.history.push({ day, share: rep.share, cf: rep.cashflow ? { op: rep.cashflow.operating, inv: rep.cashflow.investing, fin: rep.cashflow.financing } : null, revenue: rep.revenue, net: rep.net, customers: rep.customers, liquid: rep.closeLiquid, netWorth: updateDerived(s).netWorth });
   if (s.history.length > 60) { const old = s.history.shift(); s.archive.days++; s.archive.revenue = round2(s.archive.revenue + old.revenue); s.archive.profit = round2(s.archive.profit + old.net); }
   s.stats.bestDay = Math.max(s.stats.bestDay, rep.net);
   // distress tracking
@@ -646,6 +648,34 @@ function dayDeltaNat(s, acct) { return round2(s.ledger.bal[acct] - s.dayStart[ac
 function sumExp(s) { return round2(OPEX.reduce((a, k) => a + dayDeltaNat(s, k), 0)); }
 function netSoFar(s) { return round2(-dayDeltaNat(s, "sales") - dayDeltaNat(s, "cogs") - sumExp(s)); }
 
+// Direct-method cash flow for one day: every cash/bank movement since the day opened, grouped by what it was for.
+// Movements funded by overdraft change no cash, so they do not appear; the total equals the change in cash + bank.
+export function cashFlow(s, seq0) {
+  const g = { receipts: 0, suppliers: 0, expenses: 0, interest: 0, tax: 0, investing: 0, debt: 0 };
+  for (const e of s.ledger.entries) {
+    if (!(e.id > (seq0 || 0)) || e.ref === "open") continue;
+    let d = 0; for (const l of e.lines) if (l.acct === "cash" || l.acct === "bank") d += (l.dr || 0) - (l.cr || 0);
+    d = round2(d); if (!d) continue;
+    const other = new Set(e.lines.map(l => l.acct).filter(a => a !== "cash" && a !== "bank"));
+    const key = other.has("sales") ? "receipts" : (other.has("transit") || other.has("payables") || other.has("inventory")) ? "suppliers" : other.has("interest") ? "interest" : other.has("tax") ? "tax"
+      : other.has("equipment") ? "investing" : (other.has("loan") || other.has("overdraft") || other.has("capital")) ? "debt" : "expenses";
+    g[key] = round2(g[key] + d);
+  }
+  const operating = round2(g.receipts + g.suppliers + g.expenses + g.interest + g.tax);
+  return { ...g, operating, financing: g.debt, net: round2(operating + g.investing + g.debt) };
+}
+function productRows(t) {
+  return Object.keys(t.units).map(pid => { const rev = round2((t.rev || {})[pid] || 0), cogs = round2((t.cst || {})[pid] || 0);
+    return { pid, units: t.units[pid], revenue: rev, cogs, margin: rev > 0 ? round3((rev - cogs) / rev) : 0 }; }).sort((a, b) => (b.revenue - b.cogs) - (a.revenue - a.cogs));
+}
+// Where your share of local demand comes from: you against each rival, the three factors behind your pull, and what a price change would do.
+export function shareBreakdown(s) {
+  const l = locOf(s), me = playerPull(s, s.rep), rows = [{ name: "You", pull: me, you: true }, ...s.rivals.map(r => ({ name: r.name, kind: r.kind, pull: rivalPull(s, r), promo: r.promo > 0 }))];
+  const tot = rows.reduce((a, r) => a + r.pull, 0) || 1; rows.forEach(r => { r.share = round3(r.pull / tot); });
+  const factors = { reputation: round3(Math.pow(clamp(s.rep / 50, 0.5, 1.6), 0.8)), price: round3(Math.pow(1.12 / priceIndex(s), 2 * l.priceSens)), stock: round3(1 - 0.5 * clamp(s.stockoutRate || 0, 0, 1)) };
+  const whatIf = [-0.1, -0.05, 0.05, 0.1].map(d => { const prices = {}; for (const p of D.PRODUCTS) prices[p.id] = round2(s.prices[p.id] * (1 + d)); return { change: d, share: round3(marketShare({ ...s, prices })) }; });
+  return { share: round3(marketShare(s)), rows, factors, whatIf, priceIndex: round3(priceIndex(s)) };
+}
 function buildDayRecord(s) {
   const revenue = round2(-dayDeltaNat(s, "sales")), cogs = dayDeltaNat(s, "cogs");
   const opex = {}; for (const k of OPEX) opex[k] = dayDeltaNat(s, k);
@@ -672,6 +702,7 @@ function buildDayRecord(s) {
   for (const id of t.events) notes.push(D.EVENTS.find(e => e.id === id).name + " affected today.");
   if (net < 0) notes.push("The day made a loss: expenses were higher than gross profit.");
   return { share, revenue, cogs, gross: round2(revenue - cogs), opex, expenses, net, customers: t.customers, served: t.served, lost: { ...t.lost },
+    cashflow: t.seq0 == null ? null : cashFlow(s, t.seq0), products: productRows(t),
     units: { ...t.units }, avgWait: t.waitN ? round2(t.waitSum / t.waitN) : 0, openLiquid: t.openLiquid,
     closeLiquid: round2(bal(s, "cash") + bal(s, "bank")), notes, sat: round2(s.sat), rep: round2(s.rep) };
 }

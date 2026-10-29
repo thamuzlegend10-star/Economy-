@@ -1,6 +1,6 @@
 // Fit-to-box rule: when text does not fit its box, shrink the font (down to a floor) instead of cutting or breaking it.
 // Runs after every render through a MutationObserver. Layout only; never touches game state.
-const SINGLE = ".pill span, .stat small, .tab, .scenes button, .mb, .tag, .sup b, .mini, .ctrl button, .brand small, .field > span, .kv span, .kv b, .mode small, .helptabs button";
+const SINGLE = ".pill span, .pill b, .stat b, .brand b, .stat small, .tab, .scenes button, .mb, .tag, .sup b, .mini, .ctrl button, .brand small, .field > span, .kv span, .kv b, .mode small, .helptabs button";
 const MIN = 7;
 
 function fitOne(el) {
