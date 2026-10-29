@@ -285,6 +285,7 @@ const HELP = {
   place: `<h3>Location</h3>
     <p>In <b>New game</b> press <b>Choose on globe</b>. Drag to rotate, scroll or pinch to zoom, search a name, or go Country, Region, City, District. Each site shows an <b>estimate</b> (customers, sales range, fixed costs, break-even) and a suitability score with its reasons. Add up to three sites to compare them side by side.</p>
     <ul><li><b>Demand</b>: a big busy district brings more customers, but rivals take a share.</li><li><b>Costs</b>: rent, wages, utilities and delivery fees change with the place.</li><li><b>Taste and wallet</b>: each place buys different product types, and reacts differently to your prices.</li><li><b>Suppliers</b>: remote towns wait longer and some suppliers do not deliver there.</li></ul>
+    <p><b>Rivals:</b> busy districts have simulated rival shops (small buildings at the map edge). Cheaper prices, good reputation and full shelves win share; rivals cut prices when you undercut them and run promos. See them in <i>Planning</i>.</p>
     <p class="help-note">Districts are simulated and all numbers are game-balancing estimates, not real statistics. The globe is a schematic and works offline.</p>`,
   loop: `<h3>One business day</h3>
     <ol class="steps">

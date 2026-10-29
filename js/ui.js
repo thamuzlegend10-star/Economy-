@@ -200,11 +200,21 @@ export function createUI(ctx) {
         <div class="muted small">+${Math.round(c.lift * 100)}% customers for ${c.days} day${c.days > 1 ? "s" : ""}${c.delay ? `, starts after ${c.delay} day${c.delay > 1 ? "s" : ""}` : ", starts right away"}. Paid now from the bank.</div>
         <button data-act="campaign" data-id="${c.id}" ${why ? `disabled title="${esc(why)}"` : ""}>${booked ? "Booked" : "Book for " + money0(c.cost)}</button></div>`;
     }).join("");
+    const mine = E.priceIndex(s), sh = Math.round(100 * E.marketShare(s));
+    const rivalRows = s.rivals.map(r => {
+      const pr = r.price * (r.promo > 0 ? 0.9 : 1), diff = Math.round((pr / mine - 1) * 100);
+      return `<tr><td><b>${esc(r.name)}</b></td><td>${E.RIVAL_KIND[r.kind].label}</td><td class="${diff < 0 ? "neg" : ""}">${diff === 0 ? "same" : (diff > 0 ? "+" : "") + diff + "%"}</td><td>${r.promo > 0 ? '<span class="tag warn">Promo</span>' : r.avail < 1 ? '<span class="tag">Low stock</span>' : "Normal"}</td></tr>`;
+    }).join("");
+    const market = s.rivals.length ? `<h4>Market and rivals</h4>
+      <p>Your estimated share of local demand: <b>${sh}%</b>. Rivals are simulated shops. Price is shown against yours (negative means they are cheaper).</p>
+      <div class="scroll"><table class="tbl"><thead><tr><th>Rival</th><th>Type</th><th>Price vs yours</th><th>Today</th></tr></thead><tbody>${rivalRows}</tbody></table></div>
+      <p class="muted small">Share rises with better prices, reputation and full shelves. Rivals cut prices when you undercut them, and run short promotions.</p>` : `<h4>Market and rivals</h4><p class="muted small">This site has no simulated rivals, so you have the whole local market.</p>`;
     const b = s.budget;
     return `<h3>Planning</h3>
       <h4>Customer forecast</h4>
       <div class="scroll"><table class="tbl"><thead><tr><th>Day</th><th>Expected</th><th>Likely range</th><th></th></tr></thead><tbody>${fcRows}</tbody></table></div>
       <p class="muted small">${acc} The forecast knows the weekday, your reputation and booked campaigns. It does not know random events or normal day-to-day variation.</p>
+      ${market}
       <h4>Stock plan</h4>
       <div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th>Expected sales/day</th><th>On hand</th><th>Incoming</th><th>Days of cover</th><th>To order (2 days)</th></tr></thead><tbody>${prodRows}</tbody></table></div>
       <p class="muted small">A rough guide from the forecast, your prices and the share of items customers buy. Orders take time to arrive, so order before the cover runs out.</p>

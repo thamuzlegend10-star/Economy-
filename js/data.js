@@ -1,5 +1,5 @@
 // Static game data. Everything tunable lives here.
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 export const DAY_LEN = 120;          // sim-seconds per business day (at 1x speed)
 export const OPEN_HOUR = 8, CLOSE_HOUR = 20;
 

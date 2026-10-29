@@ -175,7 +175,7 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     circle(ctx, 610, 520, 34, "#6aa9d8"); circle(ctx, 610, 520, 22, "#8fc4ec"); circle(ctx, 610, 520, 5, "#e8f4ff");
     tree(ctx, 560, 470, 0.9); tree(ctx, 665, 600, 1); tree(ctx, 45, 400, 1); tree(ctx, 1130, 600, 1.1); tree(ctx, 1150, 420, 0.9); tree(ctx, 40, 640, 1.1);
 
-    drawDepot(s, n); drawWarehouseBuilding(s, n); drawOfficeBuilding(s, n); drawShopBuilding(s, n); drawBankBuilding(s, n);
+    drawDepot(s, n); drawWarehouseBuilding(s, n); drawOfficeBuilding(s, n); drawShopBuilding(s, n); drawBankBuilding(s, n); drawRivals(s, n);
 
     // everything that moves, drawn far-to-near by its ground line so nothing overlaps illogically
     const layer = [];
@@ -289,6 +289,20 @@ export function createWorld(canvas, { getState, onOpen, onScene }) {
     const q = s.customers.filter(c => ["queue", "pay"].includes(c.state)).length, inside = s.customers.filter(c => ["browse", "queue", "pay"].includes(c.state)).length;
     chip(ctx, 330, 412, `${inside} inside · ${q} at checkout`, { size: 11 });
     hs(130, 424, 380, 190, "Shop: open the store floor", { scene: "shop" });
+  }
+  // Rival shops: small neighbours on the right edge. Click one to open Planning, where their prices are listed.
+  function drawRivals(s, n) {
+    s.rivals.forEach((r, i) => {
+      const x = 1052, y = 424 + i * 52, w = 130, h = 44, promo = r.promo > 0;
+      ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.fillRect(x + 4, y + h, w, 5);
+      ctx.fillStyle = "#12162b"; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+      ctx.fillStyle = promo ? "#c2453b" : r.kind === "premium" ? "#6a4c93" : r.kind === "discounter" ? "#2f7f5f" : "#8a6a4a"; ctx.fillRect(x, y, w, 16);
+      ctx.fillStyle = "#d9d3bf"; ctx.fillRect(x, y + 16, w, h - 16);
+      ctx.fillStyle = n > 0.3 ? "#ffe9a8" : "#a9d6f5"; ctx.fillRect(x + 8, y + 22, 22, 16); ctx.fillRect(x + w - 30, y + 22, 22, 16);
+      text(ctx, r.name.toUpperCase(), x + w / 2, y + 8, { size: 9, color: "#fff", weight: 800 });
+      if (promo) text(ctx, "PROMO", x + w / 2, y + 30, { size: 9, color: "#a02b22", weight: 800 });
+      hs(x, y, w, h, `${r.name} (${E.RIVAL_KIND[r.kind].label}): see rivals in Planning`, { panel: "plan" });
+    });
   }
   function drawBankBuilding(s, n) {
     building(700, 424, 330, 190, "#4a5a6a", "#e8e4d8", n);

@@ -2,5 +2,5 @@
   "name": "economy",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/engine.test.js tests/multiplayer.test.js tests/bugfixes.test.js tests/mp-bugfixes.test.js tests/monsoon.test.js tests/locations.test.js" }
+  "scripts": { "test": "node --test tests/engine.test.js tests/multiplayer.test.js tests/bugfixes.test.js tests/mp-bugfixes.test.js tests/monsoon.test.js tests/locations.test.js tests/rivals.test.js" }
 }

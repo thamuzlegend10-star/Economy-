@@ -22,7 +22,12 @@ The location is used by the real simulation: customer volume and rival pressure,
 
 Data honesty: country, region, city names and coordinates are real; **districts are simulated** and **every coefficient is a game-balancing estimate, not a statistic**. Game money stays in dollars (the currency field is informational). The globe is a schematic with coarse hand-made coastlines and works offline; there is no map service.
 
-Not built yet: street-level maps, multiple stores or cities in one game, competitor businesses as separate entities, supplier payment terms, a facilitator mode, server-authoritative multiplayer.
+Not built yet: street-level maps, multiple stores or cities in one game, supplier payment terms, a facilitator mode, server-authoritative multiplayer.
+
+## Rivals (v6)
+Busy sites have 1 to 4 simulated rival shops (`s.rivals`): name, type (discounter, balanced, premium), price level, quality, stock availability and promotions. Your share of local demand is your attractiveness divided by yours plus all rivals', where attractiveness depends on price against the market, reputation and your stockout rate. Each morning rivals react: they match prices if you undercut them, drift back to their usual level, run 2-day promotions and sometimes run low on stock. Rivals use their own random stream, so game results stay deterministic for a seed. The day report notes share swings of 3 points or more and the likely cause; Planning lists the rivals with their price against yours; rival shops appear on the district map. Neutral start has no rivals.
+
+Limits: rivals are simulated, not real businesses, and do not own money or a ledger. In online rooms each player has their own rivals (same seed, so same start). v5 saves migrate by generating rivals.
 
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.

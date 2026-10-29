@@ -55,7 +55,7 @@ test("purchasing power and price sensitivity change how price affects demand", (
   assert.ok(w(rich) > w(poor), "same high prices hurt the lower-power site more");
 });
 test("competition lowers the forecast", () => {
-  const a = mk("id-medan-residential"), b = mk("id-medan-residential"); b.loc = "id-jakarta-central";
+  const a = mk("id-medan-residential"), b = mk("id-jakarta-central");
   const lowComp = E.forecast(a, 1)[0].expected / LOC.getLocation(a.loc).demand;
   const hiComp = E.forecast(b, 1)[0].expected / LOC.getLocation(b.loc).demand;
   assert.ok(lowComp > hiComp);

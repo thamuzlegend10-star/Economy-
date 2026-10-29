@@ -41,7 +41,7 @@ export function newGame(opts = {}) {
     staff: [], candidates: [], staffSeq: 0,
     upgrades: { shelves: 0, racks: 0, counter: 0, dock: 0, signage: 0 },
     campaigns: [], campSeq: 0, supIdx: { freshfarm: 1, metro: 1, quickship: 1 }, supRec: { freshfarm: { n: 0, late: 0 }, metro: { n: 0, late: 0 }, quickship: { n: 0, late: 0 } },
-    budget: { revenue: 0, expenses: 0 }, noise: 1, forecastToday: null, autoDeposit: true,
+    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, forecastToday: null, autoDeposit: true,
     loans: [], loanSeq: 0, lastBailoutDay: -99, distressDays: 0,
     customers: [], custSeq: 0, spawnAcc: 0, autoT: 0,
     rep: 50, sat: 60,
@@ -64,6 +64,7 @@ export function newGame(opts = {}) {
   post(s.ledger, 1, "Starter inventory (gift from owner)", [{ acct: "inventory", dr: round2(starterVal) }, { acct: "capital", cr: round2(starterVal) }], "open");
   s.startNetWorth = round2(capital + starterVal);
   refreshCandidates(s);
+  s.rivals = makeRivals(s, s.rng);
   beginDay(s, true);
   logMsg(s, "info", "Welcome! Order stock from a supplier, restock your shelves, and open for customers.");
   updateDerived(s);
@@ -147,6 +148,7 @@ function beginDay(s, first = false) {
   s.events.active = s.events.active.map(e => ({ ...e, daysLeft: e.daysLeft - (first ? 0 : 1) })).filter(e => e.daysLeft > 0);
   if (!first) rollEvents(s);
   s.campaigns = s.campaigns.filter(c => c.start + c.days > s.day);
+  if (!first) stepRivals(s);
   s.noise = round3(0.92 + 0.16 * rnd(s));                // hidden day-to-day variation: forecasts cannot see it
   if (!first) for (const sp of D.SUPPLIERS) { const cur = s.supIdx[sp.id]; s.supIdx[sp.id] = round3(clamp(cur + (rnd(s) - 0.5) * 2 * D.SUP_DRIFT.step + (1 - cur) * 0.08, D.SUP_DRIFT.min, D.SUP_DRIFT.max)); }
   { const mid = demandBase(s, s.day, s.rep), e = 0.10; s.forecastToday = { day: s.day, expected: Math.round(mid), low: Math.round(mid * (1 - e)), high: Math.round(mid * (1 + e)) }; }
@@ -177,10 +179,58 @@ export function campaignLift(s, day = s.day) {
   for (const c of s.campaigns) if (day >= c.start && day < c.start + c.days) lift += c.lift;
   return Math.min(0.6, lift);
 }
+// ---------- rivals ----------
+// Rival shops are real entities: each has a price level, quality, stock availability and promotions that change daily.
+// The player's share of the local market is attractiveness / (attractiveness + all rivals), so what you do changes it.
+const RIVAL_NAMES = ["Corner Mart", "Daily Basket", "Fresh Stop", "Value Hub", "Prime Grocer", "Lucky Store", "Town Pantry", "Quick Cart"];
+const RIVAL_KINDS = { discounter: { price: 0.97, quality: 0.9, label: "Discounter" }, balanced: { price: 1.12, quality: 1.0, label: "Balanced" }, premium: { price: 1.3, quality: 1.15, label: "Premium" } };
+export const RIVAL_KIND = RIVAL_KINDS;
+function makeRivals(s, seed) {
+  const l = locOf(s); if (!(l.competition > 0)) return [];
+  let st = seed | 0; const r = () => { st = (st + 0x6D2B79F5) | 0; let t = Math.imul(st ^ (st >>> 15), 1 | st); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };   // own stream: never advances the game rng
+  const n = clamp(Math.round(l.competition * 4), 1, 4), total = 0.3 * l.competition / (1 - 0.3 * l.competition), out = [];
+  const kinds = Object.keys(RIVAL_KINDS), names = [...RIVAL_NAMES];
+  for (let i = 0; i < n; i++) {
+    const kind = kinds[Math.floor(r() * kinds.length)], k = RIVAL_KINDS[kind];
+    out.push({ id: i + 1, name: names.splice(Math.floor(r() * names.length), 1)[0], kind, base: round3(total / n), price: round3(k.price * (0.97 + 0.06 * r())), quality: k.quality, avail: 1, promo: 0 });
+  }
+  return out;
+}
+export const priceIndex = s => {
+  const ps = D.PRODUCTS.filter(p => isUnlocked(s, p.id)); let a = 0, b = 0;
+  for (const p of ps) { a += p.pop * s.prices[p.id] / p.ref; b += p.pop; }
+  return b ? a / b : 1.12;
+};
+const rivalPull = (s, r) => {
+  const l = locOf(s), price = r.price * (r.promo > 0 ? 0.9 : 1);
+  return r.base * r.quality * r.avail * Math.pow(1.12 / price, 2 * l.priceSens);
+};
+function playerPull(s, rep) {
+  const l = locOf(s), stockK = 1 - 0.5 * clamp(s.stockoutRate || 0, 0, 1);
+  return Math.pow(clamp(rep / 50, 0.5, 1.6), 0.8) * Math.pow(1.12 / priceIndex(s), 2 * l.priceSens) * stockK;
+}
+export function marketShare(s, rep = s.rep) {
+  if (!s.rivals || !s.rivals.length) return 1;
+  const me = playerPull(s, rep), them = s.rivals.reduce((a, r) => a + rivalPull(s, r), 0);
+  return clamp(me / (me + them), 0.1, 1);
+}
+// Each morning rivals react: undercut a cheaper player, drift back toward their usual price, run short promotions, sometimes run low on stock.
+function stepRivals(s) {
+  if (!s.rivals.length) return;
+  const mine = priceIndex(s), l = locOf(s);
+  for (const r of s.rivals) {
+    const k = RIVAL_KINDS[r.kind], floor = k.price * 0.88, ceil = k.price * 1.12;
+    if (r.promo > 0) r.promo--;
+    if (mine < r.price - 0.08 && rnd(s) < 0.5) r.price = round3(Math.max(floor, r.price - 0.03));   // matches your lower prices
+    else if (rnd(s) < 0.4) r.price = round3(clamp(r.price + (k.price - r.price) * 0.3, floor, ceil));
+    if (r.promo === 0 && rnd(s) < 0.05 + 0.06 * l.competition) r.promo = 2;
+    r.avail = round3(rnd(s) < 0.1 ? 0.7 : 1);
+  }
+}
 function demandBase(s, day, rep) {
   const d = diffOf(s);
   const l = locOf(s);
-  return 48 * d.demand * l.demand * (1 - 0.3 * l.competition) * (0.6 + 0.9 * rep / 100) * (1 + campaignLift(s, day)) * DOW[day % 7] * (1 + Math.min(0.5, day * 0.004));
+  return 48 * d.demand * l.demand * marketShare(s, rep) * (0.6 + 0.9 * rep / 100) * (1 + campaignLift(s, day)) * DOW[day % 7] * (1 + Math.min(0.5, day * 0.004));
 }
 export function expectedCustomers(s) { return demandBase(s, s.day, s.rep) * eventDemand(s) * (s.noise || 1); }
 
@@ -541,7 +591,18 @@ function buildDayRecord(s) {
   const expenses = sumExp(s), net = round2(revenue - cogs - expenses);
   const prev = s.history[s.history.length - 1];
   const t = s.today, notes = [];
+  s.stockoutRate = t.customers ? clamp(t.lost.stockout / Math.max(1, t.customers), 0, 1) : 0;
   if (!prev && s.loc !== "default") { const l = locOf(s); notes.push(`Location: ${l.name}. Customer volume x${l.demand}, rent x${l.rent}, wages x${l.wage}, rivals take about ${Math.round(l.competition * 30)}% of demand.`); }
+  const share = round3(marketShare(s));
+  if (s.rivals.length) {
+    const dShare = Math.round((share - s.shareLast) * 100);
+    if (Math.abs(dShare) >= 3) {
+      const promo = s.rivals.find(r => r.promo > 0), cheap = s.rivals.find(r => r.price < priceIndex(s) - 0.05);
+      const why = dShare < 0 ? (promo ? `${promo.name} ran a promotion` : cheap ? `${cheap.name} is cheaper than you` : "your price or reputation slipped") : "your price, stock or reputation improved against rivals";
+      notes.push(`Your local market share ${dShare < 0 ? "fell" : "rose"} ${Math.abs(dShare)} points to ${Math.round(share * 100)}%: ${why}.`);
+    }
+    s.shareLast = share;
+  }
   if (prev) notes.push(prev.customers > t.customers ? `Fewer customers than yesterday (${t.customers} vs ${prev.customers}).` : `More customers than yesterday (${t.customers} vs ${prev.customers}).`);
   if (t.lost.stockout) { const worst = Object.entries(t.lostBy).sort((a, b) => b[1] - a[1])[0]; notes.push(`${t.lost.stockout} sales were lost to empty shelves${worst ? ` (most often ${PRODUCT[worst[0]].name})` : ""}.`); }
   if (t.lost.price) notes.push(`${t.lost.price} items were skipped because the price felt too high.`);
@@ -549,7 +610,7 @@ function buildDayRecord(s) {
   const lift = campaignLift(s); if (lift > 0) notes.push(`Marketing campaigns lifted expected traffic by about ${Math.round(lift * 100)}% today.`);
   for (const id of t.events) notes.push(D.EVENTS.find(e => e.id === id).name + " affected today.");
   if (net < 0) notes.push("The day made a loss: expenses were higher than gross profit.");
-  return { revenue, cogs, gross: round2(revenue - cogs), opex, expenses, net, customers: t.customers, served: t.served, lost: { ...t.lost },
+  return { share, revenue, cogs, gross: round2(revenue - cogs), opex, expenses, net, customers: t.customers, served: t.served, lost: { ...t.lost },
     units: { ...t.units }, avgWait: t.waitN ? round2(t.waitSum / t.waitN) : 0, openLiquid: t.openLiquid,
     closeLiquid: round2(bal(s, "cash") + bal(s, "bank")), notes, sat: round2(s.sat), rep: round2(s.rep) };
 }
@@ -903,6 +964,7 @@ function saveShapeError(o) {
   if (!isObj(o.supIdx) || !isObj(o.supRec) || !D.SUPPLIERS.every(x => isNum(o.supIdx[x.id]) && o.supIdx[x.id] >= 0.5 && o.supIdx[x.id] <= 2 && isObj(o.supRec[x.id]) && isNum(o.supRec[x.id].n) && isNum(o.supRec[x.id].late))) return "supplier records";
   if (!isObj(o.budget) || !isNum(o.budget.revenue) || !isNum(o.budget.expenses) || !isNum(o.noise) || o.noise < 0.5 || o.noise > 1.5) return "budget";
   if (!["unitsSold", "fcErr", "fcDays", "budgetDays", "budgetHit"].every(k => isNum(o.stats?.[k]))) return "statistics";
+  if (!isArr(o.rivals, 8) || !o.rivals.every(r => isObj(r) && isNum(r.id) && typeof r.name === "string" && has(RIVAL_KINDS, r.kind) && [r.base, r.price, r.quality, r.avail].every(isNum) && r.price > 0.5 && r.price < 3 && r.avail >= 0 && r.avail <= 1 && Number.isInteger(r.promo) && r.promo >= 0 && r.promo <= 5) || !isNum(o.shareLast) || !isNum(o.stockoutRate)) return "rivals";
   if (!isObj(o.stats) || !isNum(o.stats.customers) || !isNum(o.stats.totalSales) || !isNum(o.stats.bestDay) || !isObj(o.stats.units) || (o.stats.stockLost != null && !isNum(o.stats.stockLost))) return "statistics";
   if (!isArr(o.history, 200) || !o.history.every(h => isObj(h) && [h.revenue, h.net, h.customers, h.liquid, h.netWorth].every(isNum))) return "history";
   if (!isObj(o.archive) || !isNum(o.archive.days) || !isNum(o.archive.revenue) || !isNum(o.archive.profit)) return "archive";
@@ -938,6 +1000,7 @@ export function validateSave(raw) {
   if (!o || typeof o !== "object") return { ok: false, error: "Save file is empty." };
   if (o.v === 3) migrateV3(o);
   if (o.v === 4) { o.v = 5; o.loc = "default"; }
+  if (o.v === 5) { o.v = 6; o.shareLast = 1; o.stockoutRate = 0; o.rivals = LOC.hasLocation(o.loc) ? makeRivals(o, (Number(o.rng) | 0) ^ 0x5bd1e995) : []; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, error: `This save is from an older version (v${o.v ?? "?"}). Start a new game; old shop-prototype saves cannot be migrated.` };
   const need = ["mode", "day", "clock", "ledger", "stock", "val", "prices", "orders", "staff", "upgrades", "loans", "rng"];
   for (const k of need) if (!(k in o)) return { ok: false, error: `Save is missing "${k}".` };
