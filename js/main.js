@@ -7,6 +7,7 @@ import { createCloud } from "./cloud.js";
 import { createTutorial } from "./tutorial.js";
 import { sound } from "./sound.js";
 import { createMultiplayer } from "./multiplayer.js";
+import * as SCN from "./scenarios.js";
 import { createSupabaseNet, createLocalNet } from "./net.js";
 import { startFit } from "./fit.js";
 import * as LOC from "./locations.js";
@@ -205,6 +206,7 @@ function openSetup(mode) {
     ? "A fixed number of days. At the end you get a score and a final report."
     : "No end date. Grow forever. Bankruptcy offers a recovery, not a game over.";
   $("sDaysWrap").hidden = mode !== "standard";
+  $("sScnWrap").hidden = mode !== "standard"; if (mode !== "standard") { $("sScn").value = ""; scnChanged(); }
   showSection("menuSetup");
 }
 menu.addEventListener("cancel", e => { if (!state) e.preventDefault(); });
@@ -215,9 +217,18 @@ $("sBack").onclick = () => showSection("menuMain");
 let chosenLoc = "default";
 const picker = createLocationPicker({ root: $("globeDlg"), getDifficulty: () => $("sDiff").value, onPick: id => { chosenLoc = id; $("sLocLabel").textContent = LOC.getLocation(id).name; } });
 $("sLocBtn").onclick = () => picker.open(chosenLoc);
+const scnOptions = `<option value="">Free play (your own settings)</option>` + SCN.SCENARIOS.map(x => `<option value="${x.id}">${x.name} (${x.level})</option>`).join("");
+$("sScn").innerHTML = scnOptions; $("lbScn").innerHTML = scnOptions;
+function scnChanged() {
+  const sc = SCN.getScenario($("sScn").value);
+  $("sScnBrief").textContent = sc ? `${sc.brief} Fixed: ${sc.setup.days} days, ${sc.setup.difficulty}, $${sc.setup.capital}, ${LOC.getLocation(sc.setup.location).name}.` : "Pick a ready-made challenge with scripted events and goals, or play freely.";
+  for (const id of ["sDiff", "sCap", "sDays", "sLocBtn"]) $(id).disabled = !!sc;
+  if (sc) { $("sDiff").value = sc.setup.difficulty; $("sCap").value = sc.setup.capital; $("sDays").value = sc.setup.days; chosenLoc = sc.setup.location; $("sLocLabel").textContent = LOC.getLocation(chosenLoc).name; }
+}
+$("sScn").onchange = scnChanged; scnChanged();
 $("lbLoc").innerHTML = ["default", ...LOC.playableLocations().map(l => l.id)].map(id => `<option value="${id}">${LOC.getLocation(id).id === "default" ? "Neutral start" : LOC.getLocation(id).name}</option>`).join("");
 $("sStart").onclick = () => {
-  const s = E.newGame({ mode: setupMode, difficulty: $("sDiff").value, capital: Number($("sCap").value), dayLimit: Number($("sDays").value), location: chosenLoc });
+  const s = E.newGame({ mode: setupMode, difficulty: $("sDiff").value, capital: Number($("sCap").value), dayLimit: Number($("sDays").value), location: chosenLoc, scenario: setupMode === "standard" ? $("sScn").value : "" });
   writeLS(TUT_KEY, "false"); localStorage.removeItem(TUT_KEY);
   menu.close(); startState(s); world.setScene("district"); world.reset();
   paused = false; tut.start();
@@ -292,6 +303,10 @@ const HELP = {
     <p>From day 5 and $1,200 net worth you can open up to 2 <b>branches</b> in other districts (<i>Branches</i> panel). Each has its own customers, rivals, reputation, rent, utilities and 1 to 3 cashiers.</p>
     <ul><li><b>Stock:</b> send goods from your warehouse with <i>Transfer</i> (small fee, instant). No stock, no sales.</li><li><b>Capacity:</b> a cashier serves about 45 customers a day; extra customers are turned away.</li><li><b>Books:</b> branch sales, costs and stock are part of your company accounts and day report.</li></ul>
     <p class="help-note">Branches are simulated once a day, not customer by customer, and share your prices and suppliers.</p>`,
+  scenarios: `<h3>Scenarios</h3>
+    <p>In <b>New game: Standard</b> pick a <b>Scenario</b>: a ready-made challenge with a fixed setup, scripted events on set days and goals judged after the last day. Progress shows in <i>Goals</i>; the final report lists goals met and a discussion point, and you can download a <b>debrief</b> (text) and daily results (CSV).</p>
+    <ul><li><b>Facilitator:</b> in an online room the host can pick a scenario and, during a match, send an event to everyone. It arrives at the start of each player's next day.</li></ul>
+    <p class="help-note">Friendly play: events and scenarios are not enforced against a modified client.</p>`,
   loop: `<h3>One business day</h3>
     <ol class="steps">
       <li><b>Order</b> goods in <i>Procurement</i>. A truck brings them to the warehouse.</li>
@@ -369,11 +384,12 @@ const mp = createMultiplayer({
   onStart: cfg => startMatch(cfg),
   onResume: cfg => resumeMatch(cfg),
   onResults: rows => showResults(rows),
+  onInject: kind => { if (state && mpMatch && !state.ended) { E.injectShock(state, { kind, cmdId: "inj" + Date.now() + kind }); saveLocal(); toast(`Facilitator: ${SCN.SHOCK_LABEL[kind]} arrives tomorrow.`, "ok"); } },
 });
 const mpEsc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));   // every network-supplied value goes through this before it reaches innerHTML
 
 function startMatch(cfg) {
-  const s = E.newGame({ mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, seed: cfg.seed, location: cfg.location });
+  const s = E.newGame({ mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, seed: cfg.seed, location: cfg.location, scenario: cfg.scenario });
   mpMatch = true; tut.stop(); ui.close(); menu.close();
   startState(s); world.setScene("district"); world.reset(); paused = false;
   setStatus(`Match started: ${cfg.days} days. Everyone has the same start. Good luck!`, "ok");
@@ -407,6 +423,7 @@ function renderMp(v) {
   // scoreboard during a match
   const showBoard = v.code && (v.phase === "playing" || v.phase === "finished");
   $("mpBoard").hidden = $("mpH").hidden = !showBoard;
+  $("facBox").hidden = !(v.isHost && v.phase === "playing");
   if (showBoard) {
     const rows = [...v.players].sort((a, b) => (b.finished - a.finished) || ((b.netWorth ?? -1e9) - (a.netWorth ?? -1e9)));
     $("mpBoard").innerHTML = rows.map((p, i) => `<div class="mprow ${p.isMe ? "me" : ""}"><b>${i + 1}</b><span class="mpname">${mpEsc(p.name)}${p.isHost ? " ★" : ""}</span>
@@ -424,7 +441,7 @@ function renderMp(v) {
       ${v.isHost && !p.isMe ? `<button class="ghost mini" data-kick="${mpEsc(p.id)}" aria-label="Remove ${mpEsc(p.name)}">Remove</button>` : ""}</div>`).join("");
     $("lbPlayers").querySelectorAll("[data-kick]").forEach(b => b.onclick = () => mp.kick(b.dataset.kick));
     const editable = v.isHost && v.phase === "lobby";
-    for (const [id, key] of [["lbDays", "days"], ["lbDiff", "difficulty"], ["lbCap", "capital"], ["lbLoc", "location"]]) { const el = $(id); el.disabled = !editable; if (document.activeElement !== el) el.value = v.config[key]; }
+    for (const [id, key] of [["lbDays", "days"], ["lbDiff", "difficulty"], ["lbCap", "capital"], ["lbLoc", "location"], ["lbScn", "scenario"]]) { const el = $(id); el.disabled = !editable || (!!v.config.scenario && id !== "lbScn"); if (document.activeElement !== el) el.value = v.config[key]; }
     $("lbStart").hidden = !v.isHost; $("lbReady").hidden = v.isHost;
     const me = v.players.find(p => p.isMe);
     $("lbReady").textContent = me && me.ready ? "Not ready" : "I am ready"; $("lbReady").classList.toggle("on", !!(me && me.ready));
@@ -461,7 +478,9 @@ $("lbCopy").onclick = async () => { try { await navigator.clipboard.writeText(mp
 $("lbReady").onclick = () => { const me = mp.view().players.find(p => p.isMe); mp.setReady(!(me && me.ready)); };
 $("lbStart").onclick = () => { const r = mp.start(); if (r.error) { $("lbMsg").textContent = r.error; $("lbMsg").className = "mp-msg err"; } };
 $("lbLeave").onclick = () => { mp.leave(); showSection("menuMain"); openMenu(!!state && !mpMatch); };
-for (const id of ["lbDays", "lbDiff", "lbCap", "lbLoc"]) $(id).addEventListener("change", () => mp.setConfig({ days: Number($("lbDays").value), difficulty: $("lbDiff").value, capital: Number($("lbCap").value), location: $("lbLoc").value }));
+for (const id of ["lbDays", "lbDiff", "lbCap", "lbLoc", "lbScn"]) $(id).addEventListener("change", () => mp.setConfig({ days: Number($("lbDays").value), difficulty: $("lbDiff").value, capital: Number($("lbCap").value), location: $("lbLoc").value, scenario: $("lbScn").value }));
+$("facKind").innerHTML = SCN.SHOCK_KINDS.map(k => `<option value="${k}">${SCN.SHOCK_LABEL[k]}</option>`).join("");
+$("facSend").onclick = () => { const r = mp.inject($("facKind").value); if (r.error) toast(r.error, "err"); else toast("Event sent to all players.", "ok"); };
 setInterval(() => { if (mpMatch && state && !state.ended) mp.reportProgress(state); }, 5000);
 window.addEventListener("beforeunload", () => { if (mpMatch) saveLocal(); });
 

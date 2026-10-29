@@ -9,6 +9,7 @@
 // server-authoritative play needs a backend that runs the rules (see README, "Multiplayer limits").
 import * as E from "./engine.js";
 import { hasLocation } from "./locations.js";
+import { getScenario, SHOCK_KINDS } from "./scenarios.js";
 
 export const CODE_RE = /^\d{6}$/;
 const JOIN_LIMIT = 5, JOIN_WINDOW_MS = 60000, GRACE_MS = 90000;
@@ -19,7 +20,9 @@ export function sanitizeConfig(c = {}) {
   const capital = Math.max(300, Math.min(20000, Math.round(Number(c.capital) || 1000)));
   const seed = Number.isInteger(c.seed) ? c.seed : 0;
   const location = typeof c.location === "string" && hasLocation(c.location) ? c.location : "default";
-  return { days, difficulty, capital, seed, location };
+  const scn = typeof c.scenario === "string" ? getScenario(c.scenario) : null;
+  if (scn) return { days: scn.setup.days, difficulty: scn.setup.difficulty, capital: scn.setup.capital, seed, location: scn.setup.location, scenario: scn.id };   // a scenario fixes the setup for everyone
+  return { days, difficulty, capital, seed, location, scenario: "" };
 }
 
 const rid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
@@ -54,7 +57,7 @@ const cleanResults = a => (Array.isArray(a) ? a.slice(0, 20) : []).filter(r => r
   netWorth: cleanNum(r.netWorth), day: cleanInt(r.day, 0, 120), note: cleanText(r.note, 80), rank: cleanInt(r.rank, 1, 20) || i + 1,
 }));
 
-export function createMultiplayer({ net, storage = null, settleMs = 1200, helloMs = 2500, hostMs = 2000, retryMs = 4000, now = () => Date.now(), onChange = () => {}, onStart = () => {}, onResume = () => {}, onResults = () => {} }) {
+export function createMultiplayer({ net, storage = null, settleMs = 1200, helloMs = 2500, hostMs = 2000, retryMs = 4000, now = () => Date.now(), onChange = () => {}, onStart = () => {}, onResume = () => {}, onResults = () => {}, onInject = () => {} }) {
   const store = {
     get: k => { try { return storage ? storage.getItem(k) : null; } catch { return null; } },
     set: (k, v) => { try { storage && storage.setItem(k, v); } catch { /* blocked */ } },
@@ -221,7 +224,7 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
         break;
       case "verdict": {
         if (!fromHost || !own(room.roster, m.id)) break;
-        const v = m.ok === true ? { ok: true, score: cleanInt(m.score, 0, 100), rating: cleanRating(m.rating), netWorth: cleanNum(m.netWorth), bankrupt: m.bankrupt === true } : { ok: false, reason: cleanText(m.reason, 80) || "Rejected" };
+        const v = m.ok === true ? { ok: true, score: cleanInt(m.score, 0, 100), rating: cleanRating(m.rating), netWorth: cleanNum(m.netWorth), bankrupt: m.bankrupt === true, goalsMet: cleanInt(m.goalsMet, 0, 10), goalsTotal: cleanInt(m.goalsTotal, 0, 10) } : { ok: false, reason: cleanText(m.reason, 80) || "Rejected" };
         room.progress[m.id] = { ...(room.progress[m.id] || {}), verdict: v, day: room.config.days, netWorth: v.ok ? v.netWorth : (room.progress[m.id] || {}).netWorth ?? null };
         if (m.id === me.id) stopRetry();
         emit(); break;
@@ -230,6 +233,9 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
         if (!fromHost) break;
         room.phase = "finished"; room.results = cleanResults(m.results); store.del("economy-session"); stopRetry();
         onResults(room.results); emit(); break;
+      case "inject":                                    // facilitator (host) event: applied at the start of the next day; friendly play, not enforced
+        if (!fromHost || room.phase !== "playing" || !SHOCK_KINDS.includes(m.kind)) break;
+        onInject(m.kind); break;
       case "kick":
         if (fromHost && m.id === me.id) { leave(); error = "The host removed you from the room."; emit(); }
         break;
@@ -252,21 +258,21 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
       const v = E.validateSave(raw);
       if (!v.ok) return { ok: false, reason: cleanText(v.error, 80) };
       const s = v.state, c = room.config;
-      if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital || s.loc !== c.location) return { ok: false, reason: "Save does not match the room settings." };
+      if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital || s.loc !== c.location || (s.scenario || "") !== (c.scenario || "")) return { ok: false, reason: "Save does not match the room settings." };
       const bankrupt = !!s.ended && s.ended.reason === "bankrupt" && s.day <= c.days;
       if (!bankrupt && (!s.ended || s.day !== c.days)) return { ok: false, reason: "Save is not a finished match." };
       const rec = E.reconcile(s);
       if (!rec.ok) return { ok: false, reason: "Books do not reconcile: " + cleanText(rec.problems[0], 50) };
       const d = E.updateDerived(s), revenue = s.history.reduce((a, h) => a + h.revenue, 0) + s.archive.revenue;
       if (bankrupt) return { ok: true, score: 0, rating: "-", netWorth: d.netWorth, revenue, bankrupt: true };   // finished, but with nothing left to score
-      const sc = E.score(s);
-      return { ok: true, score: sc.total, rating: sc.rating, netWorth: d.netWorth, revenue };
+      const sc = E.score(s), goals = E.evaluateGoals(s);
+      return { ok: true, score: sc.total, rating: sc.rating, netWorth: d.netWorth, revenue, goalsMet: goals.filter(x => x.ok).length, goalsTotal: goals.length };
     } catch { return { ok: false, reason: "Save could not be checked." }; }
   }
   function verify(id, raw) {
     if (!own(room.roster, id) || (room.progress[id] && room.progress[id].verdict && room.progress[id].verdict.ok)) return;
     const r = verifySave(raw, id);
-    room.progress[id] = { ...(room.progress[id] || {}), day: room.config.days, netWorth: r.netWorth ?? null, verdict: r.ok ? { ok: true, score: r.score, rating: r.rating, netWorth: r.netWorth, bankrupt: !!r.bankrupt } : { ok: false, reason: r.reason } };
+    room.progress[id] = { ...(room.progress[id] || {}), day: room.config.days, netWorth: r.netWorth ?? null, verdict: r.ok ? { ok: true, score: r.score, rating: r.rating, netWorth: r.netWorth, bankrupt: !!r.bankrupt, goalsMet: r.goalsMet || 0, goalsTotal: r.goalsTotal || 0 } : { ok: false, reason: r.reason } };
     send("verdict", { id, ...r });
     if (id === me.id) stopRetry();
     emit(); checkEnd();
@@ -286,7 +292,7 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
     if (!isHost() || room.phase !== "playing") return { error: "Not playing." };
     const rows = Object.keys(room.roster).map(id => {
       const pr = room.progress[id] || {}, v = pr.verdict;
-      return { id, name: room.roster[id].name || "Player", finished: !!(v && v.ok), score: v && v.ok ? v.score : 0, rating: v && v.ok ? v.rating : "-", netWorth: v && v.ok ? v.netWorth : (pr.netWorth ?? 0), day: pr.day || 0, note: v ? (v.ok ? (v.bankrupt ? "Bankrupt" : "") : "Rejected: " + v.reason) : "Did not finish" };
+      return { id, name: room.roster[id].name || "Player", finished: !!(v && v.ok), score: v && v.ok ? v.score : 0, rating: v && v.ok ? v.rating : "-", netWorth: v && v.ok ? v.netWorth : (pr.netWorth ?? 0), day: pr.day || 0, note: v ? (v.ok ? (v.bankrupt ? "Bankrupt" : v.goalsTotal ? `Goals ${v.goalsMet}/${v.goalsTotal}` : "") : "Rejected: " + v.reason) : "Did not finish" };
     }).sort((a, b) => (b.finished - a.finished) || (b.score - a.score) || (b.netWorth - a.netWorth));
     rows.forEach((r, i) => { r.rank = i + 1; });
     rows.splice(20);                                                           // never more than 20 rows on the wire
@@ -317,6 +323,12 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
       lastSig = ""; onStart(room.config); emit(); return { ok: true };
     },
     endNow() { return endMatch(); },
+    inject(kind) {
+      if (!isHost()) return { error: "Only the host can send events." };
+      if (room.phase !== "playing") return { error: "No match is running." };
+      if (!SHOCK_KINDS.includes(kind)) return { error: "Unknown event." };
+      send("inject", { kind }); onInject(kind); return { ok: true };
+    },
     kick(id) { if (isHost() && id !== me.id) send("kick", { id }); },
     // Called by the game: cheap progress ping (day and net worth only).
     reportProgress(s) {

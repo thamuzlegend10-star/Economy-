@@ -3,6 +3,8 @@ import * as D from "./data.js";
 import * as E from "./engine.js";
 import { balance, round2 } from "./ledger.js";
 import * as LOC from "./locations.js";
+import * as SCN from "./scenarios.js";
+import { debriefText, debriefCsv } from "./debrief.js";
 
 export const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const money0 = n => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString();
@@ -407,7 +409,9 @@ export function createUI(ctx) {
     const steps = objectives(s);
     const ms = D.MILESTONES.map(m => `<li class="${s.milestones.includes(m.id) ? "done" : ""}">${s.milestones.includes(m.id) ? "✓" : "○"} ${esc(m.name)}</li>`).join("");
     const mode = s.mode === "standard" ? `Standard mode: day <b>${s.day}</b> of ${s.dayLimit}. Score is shown below and finalized after day ${s.dayLimit}.` : `Infinite mode: no end date. Costs rise slowly with inflation, so keep growing.`;
-    return `<h3>Goals</h3><p>${mode}</p><div class="split"><div><h4>Getting started</h4><ul class="check">${steps.map(x => `<li class="${x.done ? "done" : ""}">${x.done ? "✓" : "○"} ${esc(x.text)}</li>`).join("")}</ul><h4>Milestones</h4><ul class="check">${ms}</ul></div>
+    const scn = SCN.getScenario(s.scenario);
+    const scnHtml = scn ? `<h4>Scenario: ${esc(scn.name)}</h4><p class="muted small">${esc(scn.brief)}</p><ul class="check">${E.evaluateGoals(s).map(x => `<li class="${x.ok ? "done" : ""}">${x.ok ? "✓" : "○"} ${esc(x.text)} <span class="muted">(now ${esc(x.value)})</span></li>`).join("")}</ul><p class="muted small">Scripted events: ${scn.shocks.map(k => `day ${k.day} ${esc(SCN.SHOCK_LABEL[k.kind].toLowerCase())}`).join(", ")}. Goals are judged after the last day.</p>` : "";
+    return `<h3>Goals</h3><p>${mode}</p>${scnHtml}<div class="split"><div><h4>Getting started</h4><ul class="check">${steps.map(x => `<li class="${x.done ? "done" : ""}">${x.done ? "✓" : "○"} ${esc(x.text)}</li>`).join("")}</ul><h4>Milestones</h4><ul class="check">${ms}</ul></div>
       <div><h4>Score preview: ${sc.total} (${sc.rating})</h4>${sc.parts.map(p => `<div class="kv"><span>${p.name} (${p.w}%)</span><b>${Math.round(p.v * 100)}%</b></div>${bar(p.v, 1)}`).join("")}
       <p class="muted small">Score rewards growth, a healthy cash cushion, low debt, happy customers, few empty shelves and expansion. No single strategy is required.</p></div></div>`;
   }
@@ -517,13 +521,20 @@ export function createUI(ctx) {
   function finalReport(s, handlers) {
     const f = s.ended, dlg = document.getElementById("finalDlg");
     const kv = (a, b) => `<div class="kv"><span>${a}</span><b>${b}</b></div>`;
+    const scn = SCN.getScenario(s.scenario), gl = Array.isArray(f.goals) ? f.goals : [];
+    const scnBlock = scn ? `<h4>Scenario: ${esc(scn.name)}</h4><ul class="check">${gl.map(x => `<li class="${x.ok ? "done" : ""}">${x.ok ? "✓" : "✗"} ${esc(x.text)} <span class="muted">(${esc(x.value)})</span></li>`).join("")}</ul><p class="muted small">${esc(scn.lesson)}</p>` : "";
+    const debrief = `<h4>Debrief</h4><div class="row gap wrap"><button class="ghost mini" type="button" id="finTxt">Download debrief (text)</button><button class="ghost mini" type="button" id="finCsv">Download daily results (CSV)</button></div>`;
     document.getElementById("finalBody").innerHTML = `<h2>${f.reason === "completed" ? "Final results" : "Bankrupt"}</h2>
       <div class="grade">${f.score.rating}<small>${f.score.total} / 100</small></div>
       <p>${f.reason === "completed" ? `You ran the shop for ${f.day} days.` : `Overdraft stayed above your limit for 3 days on day ${f.day}.`}</p>
       <div class="split"><div>${kv("Starting net worth", money(f.startNetWorth))}${kv("Ending net worth", money(f.endNetWorth))}${kv("Cash + bank", money(f.cash))}${kv("Inventory", money(f.inventory))}${kv("Debt", money(f.debt))}${kv("Total assets", money(f.assets))}${kv("Total revenue", money(f.revenue))}${kv("Total expenses", money(f.expenses))}${kv("Total profit", money(f.profit))}</div>
       <div>${f.score.parts.map(p => `${kv(p.name, Math.round(p.v * 100) + "%")}${bar(p.v, 1)}`).join("")}</div></div>
       ${f.planning ? `<h4>Planning and service</h4><div class="split"><div>${kv("Forecast accuracy", f.planning.forecastAccuracy == null ? "-" : Math.round(f.planning.forecastAccuracy * 100) + "%")}${kv("Budget days met", f.planning.budgetDays ? `${f.planning.budgetHit} of ${f.planning.budgetDays}` : "no budget set")}</div><div>${kv("Customers served by stock", f.planning.serviceRate == null ? "-" : Math.round(f.planning.serviceRate * 100) + "%")}${kv("Best day profit", money(f.planning.bestDay))}</div></div>` : ""}
-      <h4>Key decisions</h4><ul class="why">${f.decisions.map(d => `<li>${esc(d)}</li>`).join("") || "<li>None recorded.</li>"}</ul>`;
+      ${scnBlock}
+      <h4>Key decisions</h4><ul class="why">${f.decisions.map(d => `<li>${esc(d)}</li>`).join("") || "<li>None recorded.</li>"}</ul>${debrief}`;
+    const dl = (name, text, type) => { const x = document.createElement("a"); x.href = URL.createObjectURL(new Blob([text], { type })); x.download = name; x.click(); setTimeout(() => URL.revokeObjectURL(x.href), 1000); };
+    document.getElementById("finTxt").onclick = () => dl(`economy-debrief-day${s.day}.txt`, debriefText(s), "text/plain");
+    document.getElementById("finCsv").onclick = () => dl(`economy-days-day${s.day}.csv`, debriefCsv(s), "text/csv");
     document.getElementById("finalContinue").hidden = f.reason !== "completed";
     document.getElementById("finalContinue").onclick = () => { dlg.close(); handlers.cont(); };
     document.getElementById("finalAgain").onclick = () => { dlg.close(); handlers.again(); };

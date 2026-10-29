@@ -1,6 +1,7 @@
 // Pure game engine: no DOM, no network. All rules live here so they can be tested in Node.
 import * as D from "./data.js";
 import * as LOC from "./locations.js";
+import * as SCN from "./scenarios.js";
 import { newLedger, post, balance, totals, round2, OPEX, ACCOUNTS } from "./ledger.js";
 
 const { DAY_LEN } = D;
@@ -27,6 +28,8 @@ const okr = (extra = {}) => ({ ok: true, ...extra });
 
 // ---------- new game ----------
 export function newGame(opts = {}) {
+  const scn = SCN.getScenario(opts.scenario);
+  if (scn) opts = { ...opts, ...scn.setup, location: scn.setup.location, dayLimit: scn.setup.days, mode: "standard" };   // a scenario fixes the setup
   const diff = D.DIFFICULTY[opts.difficulty] || D.DIFFICULTY.normal;
   const mode = opts.mode === "infinite" ? "infinite" : "standard";
   const capital = clamp(Math.round(Number(opts.capital) || diff.capital), 300, 20000);
@@ -41,7 +44,7 @@ export function newGame(opts = {}) {
     staff: [], candidates: [], staffSeq: 0,
     upgrades: { shelves: 0, racks: 0, counter: 0, dock: 0, signage: 0 },
     campaigns: [], campSeq: 0, supIdx: { freshfarm: 1, metro: 1, quickship: 1 }, supRec: { freshfarm: { n: 0, late: 0 }, metro: { n: 0, late: 0 }, quickship: { n: 0, late: 0 } },
-    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, invoices: [], invSeq: 0, branches: [], branchSeq: 0, forecastToday: null, autoDeposit: true,
+    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, invoices: [], invSeq: 0, branches: [], branchSeq: 0, scenario: scn ? scn.id : null, pending: [], forecastToday: null, autoDeposit: true,
     loans: [], loanSeq: 0, lastBailoutDay: -99, distressDays: 0,
     customers: [], custSeq: 0, spawnAcc: 0, autoT: 0,
     rep: 50, sat: 60,
@@ -67,6 +70,7 @@ export function newGame(opts = {}) {
   s.rivals = makeRivals(s, s.rng);
   beginDay(s, true);
   logMsg(s, "info", "Welcome! Order stock from a supplier, restock your shelves, and open for customers.");
+  if (scn) logMsg(s, "info", `Scenario: ${scn.name}. ${scn.brief}`);
   updateDerived(s);
   return s;
 }
@@ -146,7 +150,9 @@ function beginDay(s, first = false) {
   s.events.todayText = [];
   // age events
   s.events.active = s.events.active.map(e => ({ ...e, daysLeft: e.daysLeft - (first ? 0 : 1) })).filter(e => e.daysLeft > 0);
-  if (!first) rollEvents(s);
+  const scn = SCN.getScenario(s.scenario);
+  if (!first && !(scn && scn.scripted)) rollEvents(s);
+  applyShocks(s, scn);
   s.campaigns = s.campaigns.filter(c => c.start + c.days > s.day);
   if (!first) stepRivals(s);
   s.noise = round3(0.92 + 0.16 * rnd(s));                // hidden day-to-day variation: forecasts cannot see it
@@ -169,6 +175,46 @@ function rollEvents(s) {
   if (rnd(s) < 0.08 * f) { const p = pickOf(s, D.PRODUCTS.filter(x => x.unlockDay <= s.day)); add({ id: "market", daysLeft: 3, pid: p.id, text: `Wholesale price of ${p.name} is +25% for 3 days.` }); }
   if (rnd(s) < 0.05 * f) add({ id: "repair", daysLeft: 1, amount: rint(s, 30, 80), text: "A fridge broke. The repair bill is charged at closing." });
 }
+// Scripted scenario shocks (by day) and facilitator injections (queued, applied at the next morning).
+function applyShock(s, k) {
+  const add = e => { s.events.active.push(e); s.today.events.push(e.id); };
+  const name = SCN.SHOCK_LABEL[k.kind];
+  if (k.kind === "rain" || k.kind === "festival") add({ id: k.kind, daysLeft: 1 });
+  else if (k.kind === "delay") { const sup = SUPPLIER[k.sup] || SUPPLIER.metro, n = k.days || 2; add({ id: "delay", daysLeft: n, sup: sup.id, text: `${sup.name} has road trouble: new orders take 60% longer to arrive for ${n} days.` }); }
+  else if (k.kind === "market") { const p = PRODUCT[k.pid] || PRODUCT.water, n = k.days || 3; add({ id: "market", daysLeft: n, pid: p.id, text: `Wholesale price of ${p.name} is +25% for ${n} days.` }); }
+  else if (k.kind === "repair") add({ id: "repair", daysLeft: 1, amount: k.amount || 50, text: "A fridge broke. The repair bill is charged at closing." });
+  else if (k.kind === "rivalpromo") { if (!s.rivals.length) return; for (const r of s.rivals) r.promo = Math.max(r.promo, 3); logMsg(s, "event", "Rivals launch a promotion: expect fewer customers for a few days."); }
+  if (k.facilitator) decide(s, `Facilitator event: ${name}`);
+}
+function applyShocks(s, scn) {
+  if (scn) for (const k of scn.shocks) if (k.day === s.day) applyShock(s, k);
+  const q = s.pending; s.pending = [];
+  for (const k of q) applyShock(s, { kind: k.kind, facilitator: true });
+}
+export function injectShock(s, { kind, cmdId } = {}) {
+  const g = guard(s); if (g) return g;
+  if (seen(s, cmdId)) return fail("Duplicate request ignored.");
+  if (!SCN.SHOCK_KINDS.includes(kind)) return fail("Unknown event.");
+  if (s.pending.length >= 5) return fail("Too many queued events.");
+  s.pending.push({ kind }); remember(s, cmdId);
+  return okr();
+}
+// Goal results for a scenario, evaluated from the books at the end.
+export function evaluateGoals(s) {
+  const scn = SCN.getScenario(s.scenario); if (!scn) return [];
+  const d = updateDerived(s), pct = v => Math.round(v * 100) + "%";
+  return scn.goals.map(g => {
+    let ok = false, value = "";
+    if (g.kind === "netWorthGain") { const v = (d.netWorth - s.startNetWorth) / s.startNetWorth; ok = v >= g.min; value = (v >= 0 ? "+" : "") + pct(v); }
+    else if (g.kind === "service") { const v = s.stats.customers ? 1 - (s.stats.stockLost || 0) / s.stats.customers : 1; ok = v >= g.min; value = pct(v); }
+    else if (g.kind === "noOverdraft") { const n = d.overdraft + overdueInvoices(s).length; ok = d.overdraft === 0 && overdueInvoices(s).length === 0; value = ok ? "clean" : n > 0 && d.overdraft ? `overdraft ${money2(d.overdraft)}` : "overdue invoice"; }
+    else if (g.kind === "rep") { ok = s.rep >= g.min; value = String(Math.round(s.rep)); }
+    else if (g.kind === "share") { const v = marketShare(s); ok = v >= g.min; value = pct(v); }
+    else if (g.kind === "customers") { ok = s.stats.customers >= g.min; value = String(s.stats.customers); }
+    return { text: g.text, ok, value };
+  });
+}
+const money2 = n => "$" + round2(n).toFixed(2);
 const eventDemand = s => s.events.active.reduce((m, e) => m * (D.EVENTS.find(x => x.id === e.id).demand || 1), 1);
 const DOW = [1.0, 0.9, 0.9, 1.0, 1.1, 1.35, 1.2];
 
@@ -661,7 +707,7 @@ function endGame(s, reason) {
   const d = updateDerived(s), sc = score(s);
   const t = totals(s.ledger);
   s.ended = { reason, day: s.day, startNetWorth: s.startNetWorth, endNetWorth: d.netWorth, cash: d.liquid, revenue: t.revenue, expenses: t.costs, profit: round2(t.revenue - t.costs),
-    inventory: d.inventory, debt: d.debt, assets: d.assets, score: sc, decisions: s.decisions.slice(-12),
+    inventory: d.inventory, debt: d.debt, assets: d.assets, score: sc, decisions: s.decisions.slice(-12), goals: evaluateGoals(s),
     planning: { forecastAccuracy: s.stats.fcDays ? round2(1 - s.stats.fcErr / s.stats.fcDays) : null, budgetDays: s.stats.budgetDays, budgetHit: s.stats.budgetHit,
       serviceRate: s.stats.customers ? round2(1 - (s.stats.stockLost || 0) / s.stats.customers) : null, customers: s.stats.customers, bestDay: s.stats.bestDay } };
 }
@@ -1151,6 +1197,7 @@ function saveShapeError(o) {
   if (!["unitsSold", "fcErr", "fcDays", "budgetDays", "budgetHit"].every(k => isNum(o.stats?.[k]))) return "statistics";
   if (!rivalsOk(o.rivals) || !isNum(o.shareLast) || !isNum(o.stockoutRate)) return "rivals";
   if (!isArr(o.invoices, 100) || !o.invoices.every(v => isObj(v) && isNum(v.id) && Number.isInteger(v.order) && typeof v.supplier === "string" && has(SUPPLIER, v.supplier) && isNum(v.amount) && v.amount > 0 && v.amount < 1e6 && Number.isInteger(v.due) && Number.isInteger(v.late) && v.late >= 0) || !isNum(o.invSeq)) return "invoices";
+  if (!(o.scenario === null || SCN.hasScenario(o.scenario)) || !isArr(o.pending, 5) || !o.pending.every(k => isObj(k) && SCN.SHOCK_KINDS.includes(k.kind))) return "scenario";
   if (!isArr(o.branches, 2) || !isNum(o.branchSeq) || !o.branches.every(b => isObj(b) && isNum(b.id) && typeof b.name === "string" && LOC.hasLocation(b.loc) && Number.isInteger(b.opened) && Number.isInteger(b.staff) && b.staff >= 1 && b.staff <= 3 && isNum(b.rep) && b.rep >= 0 && b.rep <= 100 && isNum(b.so) && isNum(b.fit) && b.fit >= 0 &&
     isObj(b.stock) && isObj(b.val) && D.PRODUCTS.every(p => Number.isInteger(b.stock[p.id]) && b.stock[p.id] >= 0 && b.stock[p.id] <= 1000 && isNum(b.val[p.id]) && b.val[p.id] >= 0) && rivalsOk(b.rivals) && (b.last == null || (isObj(b.last) && ["day", "customers", "capLost", "revenue", "cogs", "units", "so", "share", "rent", "utilities", "wages", "net"].every(k => isNum(b.last[k])))))) return "branches";
   if (!isObj(o.stats) || !isNum(o.stats.customers) || !isNum(o.stats.totalSales) || !isNum(o.stats.bestDay) || !isObj(o.stats.units) || (o.stats.stockLost != null && !isNum(o.stats.stockLost))) return "statistics";
@@ -1191,6 +1238,7 @@ export function validateSave(raw) {
   if (o.v === 5) { o.v = 6; o.shareLast = 1; o.stockoutRate = 0; o.rivals = LOC.hasLocation(o.loc) ? makeRivals(o, (Number(o.rng) | 0) ^ 0x5bd1e995) : []; }
   if (o.v === 6) { o.v = 7; o.invoices = []; o.invSeq = 0; if (isObj(o.ledger) && isObj(o.ledger.bal) && !has(o.ledger.bal, "payables")) o.ledger.bal.payables = 0; }
   if (o.v === 7) { o.v = 8; o.branches = []; o.branchSeq = 0; }
+  if (o.v === 8) { o.v = 9; o.scenario = null; o.pending = []; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, error: `This save is from an older version (v${o.v ?? "?"}). Start a new game; old shop-prototype saves cannot be migrated.` };
   const need = ["mode", "day", "clock", "ledger", "stock", "val", "prices", "orders", "staff", "upgrades", "loans", "rng"];
   for (const k of need) if (!(k in o)) return { ok: false, error: `Save is missing "${k}".` };

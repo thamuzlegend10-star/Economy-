@@ -22,7 +22,7 @@ The location is used by the real simulation: customer volume and rival pressure,
 
 Data honesty: country, region, city names and coordinates are real; **districts are simulated** and **every coefficient is a game-balancing estimate, not a statistic**. Game money stays in dollars (the currency field is informational). The globe is a schematic with coarse hand-made coastlines and works offline; there is no map service.
 
-Not built yet: street-level maps, a facilitator mode, server-authoritative multiplayer.
+Not built yet: street-level maps, server-authoritative multiplayer.
 
 ## Rivals (v6)
 Busy sites have 1 to 4 simulated rival shops (`s.rivals`): name, type (discounter, balanced, premium), price level, quality, stock availability and promotions. Your share of local demand is your attractiveness divided by yours plus all rivals', where attractiveness depends on price against the market, reputation and your stockout rate. Each morning rivals react: they match prices if you undercut them, drift back to their usual level, run 2-day promotions and sometimes run low on stock. Rivals use their own random stream, so game results stay deterministic for a seed. The day report notes share swings of 3 points or more and the likely cause; Planning lists the rivals with their price against yours; rival shops appear on the district map. Neutral start has no rivals.
@@ -36,6 +36,15 @@ FreshFarm (net 5 days, +2%) and Metro (net 7 days, +3%) let you order **On terms
 Up to 2 branches in other districts, from day 5 with $1,200 net worth (`openBranch`, `transferStock`, `setBranchStaff`, `closeBranch`). A branch has its own location coefficients, rivals, reputation, rent (80% of a full shop), utilities and 1 to 3 cashiers (45 customers a day each). It is simulated once a day in `closeDay`: demand from the same model as the main shop, limited by cashier capacity and by stock sent from the warehouse (paid transfer fee, instant). Sales, cost of goods, rent, utilities and wages post to the shared ledger; `reconcile` counts branch stock. The fit-out ($300 + $400 x the site's rent factor) is kept as equipment and written off on closing, when stock returns to the warehouse as space allows.
 
 Limits: branches are not walkable scenes (the map still shows the main district), share prices and suppliers with the main shop, have no manager, transfers are instant, and in online rooms each player's branches are their own. Saves from v7 migrate with no branches.
+
+## Scenarios and facilitator tools (v9)
+**Scenarios** (`js/scenarios.js`, pure data): four ready-made Standard-mode challenges (Grand opening, Supply crunch, Price war, Cash squeeze). A scenario fixes difficulty, capital, days and site, replaces random events with scripted shocks on set days (rain, festival, supplier delay, price rise, repair, rival promotion), and judges goals at the end (net worth growth, service rate, no overdraft or overdue invoice, reputation, market share, customers). The Goals panel shows live progress; the final report shows goals met or missed and a short discussion point.
+
+**Debrief export:** the final report offers a text debrief (setup, result, goals, scripted events, daily results, decisions, discussion point) and a CSV of daily results, both built in the browser (`js/debrief.js`).
+
+**Facilitator in online rooms:** the host can choose a scenario in the lobby (it fixes the setup for everyone, and the host checks a final save was played in that scenario) and, during a match, send an event (rain, festival, supplier delay, price rise, repair, rival promotion) to all players. It is queued and applied at the start of each player's next day. Result rows show goals met out of total.
+
+Limits: the room is still friendly play, so injected events and scenario play are not enforced or verified beyond the final-save checks (a modified client can ignore them). There is no teacher dashboard, no per-student login and no live pausing. Scenario thresholds were checked only with simple bots (idle fails, a basic stock-up bot clears most goals), not with real players. Saves from v8 migrate with no scenario.
 
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.
