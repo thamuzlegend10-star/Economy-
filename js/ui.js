@@ -2,6 +2,7 @@
 import * as D from "./data.js";
 import * as E from "./engine.js";
 import { balance, round2 } from "./ledger.js";
+import * as LOC from "./locations.js";
 
 export const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const money0 = n => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString();
@@ -21,19 +22,20 @@ const TIPS = {
   finance: ["Your books", "Every number comes from a double-entry ledger. <b>Today</b> is live, <b>History</b> shows past days. Net worth = cash + bank + inventory + equipment - debt."],
   upgrades: ["Investments", "Permanent upgrades. A <b>Checkout counter</b> adds a lane and is the usual first buy when customers leave from long queues. Shelves and racks add space. Signage is cosmetic."],
   plan: ["Planning", "Plan before you buy. The <b>forecast</b> estimates customers for the next days from your reputation, the weekday and booked campaigns. It is a range, not a promise: random events and daily variation are not in it, and the day report shows how close it was. <b>Days of cover</b> tells you how long your stock lasts at the expected demand. <b>Campaigns</b> cost money now and bring customers later. A <b>budget</b> is a daily target: the report shows where you beat it or missed it and why."],
+  branches: ["Branches", "A <b>branch</b> is a second shop in another district (up to 2, from day 5, net worth $1,200). It has its own customers, rivals, reputation, rent and cashiers. It is simulated once a day: <b>transfer goods</b> from your warehouse (a small fee), set 1 to 3 cashiers, and read its daily result. Prices and suppliers are shared with your main shop. No stock means no sales, and too few cashiers turn customers away."],
   goals: ["Milestones", "Goals show your progress. In Standard mode your final score comes from wealth growth, cash health, low debt, happiness, stock management and expansion."],
 };
 const tipState = (() => { try { return JSON.parse(localStorage.getItem("economy-tips")) || {}; } catch { return {}; } })();
 
 export const PANELS = [
   ["store", "Store"], ["procure", "Procurement"], ["inventory", "Inventory"], ["staff", "Staff"],
-  ["plan", "Planning"], ["bank", "Bank"], ["finance", "Finance"], ["upgrades", "Upgrades"], ["goals", "Goals"],
+  ["plan", "Planning"], ["branches", "Branches"], ["bank", "Bank"], ["finance", "Finance"], ["upgrades", "Upgrades"], ["goals", "Goals"],
 ];
 
 export function createUI(ctx) {
   const { getState, onChange, toast, world } = ctx;
   const root = document.getElementById("panel"), body = document.getElementById("panelBody"), tabs = document.getElementById("panelTabs");
-  const view = { panel: null, supplier: "metro", cart: {}, pay: "bank", invQ: "", invCat: "all", finTab: "today", amount: "" };
+  const view = { panel: null, supplier: "metro", cart: {}, pay: "bank", invQ: "", invCat: "all", brLoc: "", finTab: "today", amount: "" };
 
   // ---------- helpers ----------
   const S = () => getState();
@@ -72,7 +74,7 @@ export function createUI(ctx) {
     tabs.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.id === view.panel));
     const tp = TIPS[view.panel];
     const tipHtml = tp ? `<details class="tip" data-tip="${view.panel}" ${tipState[view.panel] === false ? "" : "open"}><summary>${tp[0]}: how it works</summary><p>${tp[1]}</p></details>` : "";
-    const html = tipHtml + ({ store, procure, inventory, staff, plan, bank, finance, upgrades, goals })[view.panel](s);
+    const html = tipHtml + ({ store, procure, inventory, staff, plan, branches, bank, finance, upgrades, goals })[view.panel](s);
     if (html === lastHtml && lastPanel === view.panel) return;        // nothing changed: leave the DOM and the scroll position alone
     lastHtml = html; lastPanel = view.panel;
     body.innerHTML = html;
@@ -233,6 +235,44 @@ export function createUI(ctx) {
       <p class="muted small">Leave empty for no budget. Each report shows actual against budget. Expenses include rent, wages, utilities, marketing and interest; the cost of goods is not in them.</p>`;
   }
 
+  // ---------- BRANCHES ----------
+  function branches(s) {
+    const used = new Set([s.loc, ...s.branches.map(b => b.loc)]);
+    const free = LOC.playableLocations().filter(l => !used.has(l.id));
+    if (!free.some(l => l.id === view.brLoc)) view.brLoc = free[0] ? free[0].id : "";
+    const pick = view.brLoc ? LOC.getLocation(view.brLoc) : null;
+    let why = "";
+    if (s.day < E.BRANCH_MIN_DAY) why = `Opens on day ${E.BRANCH_MIN_DAY}`;
+    else if (s.branches.length >= E.MAX_BRANCHES) why = "Branch limit reached";
+    else if (!pick) why = "No free district";
+    else if (s.derived.netWorth < E.BRANCH_MIN_NW) why = `Needs net worth ${money0(E.BRANCH_MIN_NW)}`;
+    else if (balance(s.ledger, "bank") < E.branchFee(pick.id) + 100) why = `Needs ${money0(E.branchFee(pick.id) + 100)} in the bank`;
+    const est = pick ? E.siteEstimate(pick.id, s.difficulty) : null;
+    const openBox = `<h4>Open a branch</h4>
+      <div class="row gap wrap"><label class="field">District<select data-act="brloc">${free.map(l => `<option value="${l.id}" ${l.id === view.brLoc ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select></label>
+      <button data-act="bropen" ${why ? `disabled title="${esc(why)}"` : ""}>${pick ? `Open for ${money0(E.branchFee(pick.id))}` : "Open"}</button>${why ? ` <span class="muted small">${esc(why)}</span>` : ""}</div>
+      ${est ? `<p class="muted small">Estimate for ${esc(pick.name)} (simulated): ${est.customers[0]} to ${est.customers[1]} customers a day with a full shop, fixed costs about ${money0(est.fixedPerDay)} a day. The fit-out is kept as an asset; closing the branch writes it off.</p>` : ""}`;
+    const cards = s.branches.map(b => {
+      const l = b.last, wh = D.PRODUCTS.filter(p => E.isUnlocked(s, p.id));
+      const stockRows = wh.map(p => `<tr><td>${esc(p.name)}</td><td>${b.stock[p.id]}</td><td>${s.stock[p.id].wh}</td></tr>`).join("");
+      const res = l ? `Day ${l.day}: <b>${l.customers}</b> customers, sales <b>${money(l.revenue)}</b>, net <b class="${l.net < 0 ? "neg" : "pos"}">${money(l.net)}</b>${l.capLost > 5 ? ` · <span class="neg">${l.capLost} turned away</span>` : ""}${l.so > 0.25 ? ` · <span class="neg">${Math.round(l.so * 100)}% of items out of stock</span>` : ""}` : "No trading day yet.";
+      const riv = b.rivals.length ? b.rivals.map(r => `${esc(r.name)} (${E.RIVAL_KIND[r.kind].label}${r.promo > 0 ? ", promo" : ""})`).join(", ") : "none";
+      return `<div class="upg"><b>${esc(b.name)}</b> <span class="tag info">rep ${Math.round(b.rep)}</span> <span class="tag">${E.branchUnits(b)}/${E.BRANCH_CAP} units</span>
+        <div class="muted small">Daily costs: rent ${money(E.branchRent(s, b))}, utilities ${money(E.branchUtilities(s, b))}, wages ${money(E.branchWages(s, b))}. Capacity ${E.BRANCH_PER_STAFF * b.staff} customers a day. Rivals: ${riv}.</div>
+        <p>${res}</p>
+        <div class="row gap wrap"><label class="field">Cashiers<select data-act="brstaff" data-id="${b.id}">${[1, 2, 3].map(n => `<option value="${n}" ${b.staff === n ? "selected" : ""}>${n}</option>`).join("")}</select></label></div>
+        <div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th>At branch</th><th>In warehouse</th></tr></thead><tbody>${stockRows}</tbody></table></div>
+        <div class="row gap wrap"><label class="field">Send<select id="brP${b.id}">${wh.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></label>
+        <label class="field">Units<input class="qty" id="brQ${b.id}" type="number" min="1" step="1" value="20"></label>
+        <button data-act="brsend" data-id="${b.id}">Transfer</button></div>
+        <p class="muted small">Only warehouse goods can be sent. Fee about ${money(E.transferFee(s, b, 20))} per 20 units. Goods arrive at once.</p>
+        <button class="mini bad" data-act="brclose" data-id="${b.id}">Close branch</button></div>`;
+    }).join("");
+    return `<div class="brw"><h3>Branches</h3>
+      <p>Shops: <b>${1 + s.branches.length}</b> (main shop in ${esc(E.locOf(s).name)}).</p>
+      <div class="brs">${cards || '<p class="muted">No branches yet.</p>'}</div>${openBox}</div>`;
+  }
+
   // ---------- INVENTORY ----------
   function inventory(s) {
     const q = view.invQ.toLowerCase();
@@ -346,6 +386,7 @@ export function createUI(ctx) {
         <tr><td>Closing cash + bank</td><td class="num">${money(r.closeLiquid)}</td></tr><tr class="tot"><td>Change</td><td class="num ${r.closeLiquid - r.openLiquid < 0 ? "neg" : "pos"}">${money(r.closeLiquid - r.openLiquid)}</td></tr></tbody></table></div>
       <div class="cards"><div class="stat"><small>Customers</small><b>${r.customers}</b></div><div class="stat"><small>Served</small><b>${r.served}</b></div><div class="stat"><small>Avg wait</small><b>${r.avgWait}s</b></div><div class="stat"><small>Satisfaction</small><b>${Math.round(r.sat)}</b></div></div>
       ${r.forecast ? `<div class="cards"><div class="stat"><small>Forecast</small><b>${r.forecast.expected}</b></div><div class="stat"><small>Actual</small><b>${r.forecast.actual}</b></div><div class="stat"><small>Accuracy</small><b>${Math.round(r.forecast.accuracy * 100)}%</b></div>${r.budget ? `<div class="stat"><small>Budget</small><b>${r.budget.hit ? "met" : "missed"}</b></div>` : ""}</div>` : ""}
+      ${r.branches && r.branches.length ? `<table class="tbl"><thead><tr><th>Branch</th><th>Customers</th><th>Sales</th><th>Net</th></tr></thead><tbody>${r.branches.map(b => `<tr><td>${esc(b.name)}</td><td>${b.customers}</td><td class="num">${money(b.revenue)}</td><td class="num ${b.net < 0 ? "neg" : "pos"}">${money(b.net)}</td></tr>`).join("")}</tbody></table><p class="muted small">Company revenue and profit above include the branches.</p>` : ""}
       ${r.budget ? budgetTable(r) : ""}
       <h4>Why did it change?</h4><ul class="why">${(r.notes.length ? r.notes : ["A steady day."]).map(n => `<li>${esc(n)}</li>`).join("")}</ul>
       ${chg ? "<h4>Charges at closing</h4>" + chg : ""}${unitsTable(s, r.units)}<p class="muted small">Books ${r.reconciled ? "reconciled" : "did not reconcile"}.</p>`;
@@ -420,6 +461,16 @@ export function createUI(ctx) {
         break;
       }
       case "campaign": run(E.launchCampaign(s, id, uid()), "Campaign booked."); break;
+      case "bropen": {
+        const fee = E.branchFee(view.brLoc);
+        if (!confirm(`Open a branch in ${LOC.getLocation(view.brLoc).name} for ${money0(fee)}? Rent, utilities and a cashier are charged every day.`)) break;
+        run(E.openBranch(s, { loc: view.brLoc, cmdId: uid() }), "Branch opened. Send it some stock."); break;
+      }
+      case "brsend": {
+        const pid = document.getElementById("brP" + id)?.value, qty = Math.floor(Number(document.getElementById("brQ" + id)?.value));
+        run(E.transferStock(s, { branch: Number(id), pid, qty, cmdId: uid() }), `Sent ${qty} units.`); break;
+      }
+      case "brclose": if (confirm("Close this branch? Stock goes back to your warehouse as far as space allows, the rest and the fit-out are written off.")) run(E.closeBranch(s, { branch: Number(id), cmdId: uid() }), "Branch closed."); break;
       case "tab": open(id); break;
       case "fintab": view.finTab = id; refresh(); break;
     }
@@ -435,6 +486,8 @@ export function createUI(ctx) {
       }
       case "cart": view.cart[t.dataset.id] = Math.max(0, Math.min(999, Math.floor(Number(t.value) || 0))); refresh(); break;
       case "pay": view.pay = t.value; refresh(); break;
+      case "brloc": view.brLoc = t.value; refresh(); break;
+      case "brstaff": run(E.setBranchStaff(s, { branch: Number(t.dataset.id), n: Number(t.value), cmdId: uid() }), "Cashiers updated."); break;
       case "invcat": view.invCat = t.value; refresh(); break;
       case "autodep": run(E.setAutoDeposit(s, t.checked)); break;
     }

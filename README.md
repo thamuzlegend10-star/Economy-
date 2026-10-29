@@ -22,7 +22,7 @@ The location is used by the real simulation: customer volume and rival pressure,
 
 Data honesty: country, region, city names and coordinates are real; **districts are simulated** and **every coefficient is a game-balancing estimate, not a statistic**. Game money stays in dollars (the currency field is informational). The globe is a schematic with coarse hand-made coastlines and works offline; there is no map service.
 
-Not built yet: street-level maps, multiple stores or cities in one game, a facilitator mode, server-authoritative multiplayer.
+Not built yet: street-level maps, a facilitator mode, server-authoritative multiplayer.
 
 ## Rivals (v6)
 Busy sites have 1 to 4 simulated rival shops (`s.rivals`): name, type (discounter, balanced, premium), price level, quality, stock availability and promotions. Your share of local demand is your attractiveness divided by yours plus all rivals', where attractiveness depends on price against the market, reputation and your stockout rate. Each morning rivals react: they match prices if you undercut them, drift back to their usual level, run 2-day promotions and sometimes run low on stock. Rivals use their own random stream, so game results stay deterministic for a seed. The day report notes share swings of 3 points or more and the likely cause; Planning lists the rivals with their price against yours; rival shops appear on the district map. Neutral start has no rivals.
@@ -31,6 +31,11 @@ Limits: rivals are simulated, not real businesses, and do not own money or a led
 
 ## Supplier payment terms (v7)
 FreshFarm (net 5 days, +2%) and Metro (net 7 days, +3%) let you order **On terms**: goods arrive now, the invoice sits in a `payables` liability, and cash leaves on the due day from bank then cash. Limits: a credit limit that grows with net worth; an overdue invoice takes a 2% daily late fee and blocks new credit; you can pay early from Procurement; cancelling a processing order reduces the invoice. QuickShip is cash only. The ledger stays balanced and `reconcile` checks invoices against payables. v6 saves migrate with no invoices.
+
+## Branches (v8)
+Up to 2 branches in other districts, from day 5 with $1,200 net worth (`openBranch`, `transferStock`, `setBranchStaff`, `closeBranch`). A branch has its own location coefficients, rivals, reputation, rent (80% of a full shop), utilities and 1 to 3 cashiers (45 customers a day each). It is simulated once a day in `closeDay`: demand from the same model as the main shop, limited by cashier capacity and by stock sent from the warehouse (paid transfer fee, instant). Sales, cost of goods, rent, utilities and wages post to the shared ledger; `reconcile` counts branch stock. The fit-out ($300 + $400 x the site's rent factor) is kept as equipment and written off on closing, when stock returns to the warehouse as space allows.
+
+Limits: branches are not walkable scenes (the map still shows the main district), share prices and suppliers with the main shop, have no manager, transfers are instant, and in online rooms each player's branches are their own. Saves from v7 migrate with no branches.
 
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.

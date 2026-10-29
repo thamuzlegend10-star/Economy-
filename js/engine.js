@@ -41,7 +41,7 @@ export function newGame(opts = {}) {
     staff: [], candidates: [], staffSeq: 0,
     upgrades: { shelves: 0, racks: 0, counter: 0, dock: 0, signage: 0 },
     campaigns: [], campSeq: 0, supIdx: { freshfarm: 1, metro: 1, quickship: 1 }, supRec: { freshfarm: { n: 0, late: 0 }, metro: { n: 0, late: 0 }, quickship: { n: 0, late: 0 } },
-    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, invoices: [], invSeq: 0, forecastToday: null, autoDeposit: true,
+    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, invoices: [], invSeq: 0, branches: [], branchSeq: 0, forecastToday: null, autoDeposit: true,
     loans: [], loanSeq: 0, lastBailoutDay: -99, distressDays: 0,
     customers: [], custSeq: 0, spawnAcc: 0, autoT: 0,
     rep: 50, sat: 60,
@@ -505,12 +505,14 @@ function closeDay(s) {
     const sp = payOut(s, acct, amount, label);
     rep.charges.push({ acct, label, amount: round2(amount), over: sp.over });
   };
+  branchSales(s);
   // 1. sweep cash to bank (keeps the till float at $100)
   if (s.autoDeposit) { const sweep = round2(Math.max(0, bal(s, "cash") - 100)); if (sweep > 0) post(s.ledger, day, "Auto-deposit to bank", [{ acct: "bank", dr: sweep }, { acct: "cash", cr: sweep }]); }
   // 2. operating expenses (each charged exactly once, here)
   charge("rent", "Daily rent", rent(s));
   charge("utilities", "Utilities", utilities(s));
   charge("wages", "Staff wages", wagesPerDay(s));
+  branchCosts(s, charge, rep);
   const rep_ev = s.events.active.find(e => e.id === "repair");
   if (rep_ev) charge("repairs", "Equipment repair", rep_ev.amount);
   // 3. loans: interest + scheduled principal
@@ -727,6 +729,132 @@ export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   decide(s, `Ordered ${units} units from ${sup.name} ($${total.toFixed(2)})`);
   remember(s, cmdId);
   return okr({ id, total, lead: round2(lead), delayed });
+}
+
+// ---------- branches ----------
+// A branch is a second shop in another district. It is simulated once a day (not customer by customer): its own demand, rivals,
+// reputation, staff, rent and stock. Goods move from your warehouse by a paid transfer. Prices, suppliers and the books are shared.
+export const MAX_BRANCHES = 2, BRANCH_CAP = 300, BRANCH_MIN_DAY = 5, BRANCH_MIN_NW = 1200, BRANCH_PER_STAFF = 45;
+const bLoc = b => LOC.getLocation(b.loc);
+export const branchFee = locId => Math.round(300 + 400 * LOC.getLocation(locId).rent);
+export const branchRent = (s, b) => round2(diffOf(s).rent * inflation(s) * bLoc(b).rent * 0.8);
+export const branchUtilities = (s, b) => round2(diffOf(s).utilities * inflation(s) * bLoc(b).utilities);
+export const branchWages = (s, b) => round2(b.staff * D.ROLES.cashier.base * 1.35 * bLoc(b).wage * inflation(s));
+export const branchUnits = b => Object.values(b.stock).reduce((a, x) => a + x, 0);
+export const branchValue = b => round2(Object.values(b.val).reduce((a, x) => a + x, 0));
+export const transferFee = (s, b, qty) => round2((3 + 0.1 * qty) * bLoc(b).logistics);
+const branchView = (s, b) => ({ ...s, loc: b.loc, rivals: b.rivals, stockoutRate: b.so });
+const findBranch = (s, id) => s.branches.find(b => b.id === id);
+// loose cash check: bank + till
+const liquid = s => round2(Math.max(0, bal(s, "bank")) + Math.max(0, bal(s, "cash")));
+
+function branchSales(s) {
+  const day = s.day;
+  for (const b of s.branches) {
+    const v = branchView(s, b), l = bLoc(b);
+    if (day > b.opened) stepRivals(v);
+    const want = demandBase(v, day, b.rep) * eventDemand(v) * round3(0.92 + 0.16 * rnd(v));
+    const cap = BRANCH_PER_STAFF * b.staff, customers = Math.round(Math.min(want, cap)), capLost = Math.max(0, Math.round(want - cap));
+    const avail = D.PRODUCTS.filter(p => PRODUCT[p.id].unlockDay <= day), w = avail.map(p => prodWeight(v, p)), tw = w.reduce((a, x) => a + x, 0) || 1;
+    const items = customers * itemsPerCustomer(s);
+    let revenue = 0, cogs = 0, wantU = 0, lostU = 0, units = 0;
+    avail.forEach((p, i) => {
+      const buy = Math.min(1, Math.pow(p.ref * 1.15 * l.power / s.prices[p.id], 2 * l.priceSens));
+      const dem = Math.round(items * w[i] / tw * buy), have = b.stock[p.id], sold = Math.min(dem, have);
+      wantU += dem; lostU += dem - sold;
+      if (sold > 0) {
+        const c = sold === have ? b.val[p.id] : round2(b.val[p.id] / have * sold);
+        revenue += round2(sold * s.prices[p.id]); cogs += c; units += sold;
+        b.stock[p.id] -= sold; b.val[p.id] = round2(b.val[p.id] - c);
+        s.stats.units[p.id] = (s.stats.units[p.id] || 0) + sold;
+      }
+    });
+    revenue = round2(revenue); cogs = round2(cogs);
+    if (revenue > 0) post(s.ledger, day, `Sales: ${b.name}`, [{ acct: "cash", dr: revenue }, { acct: "sales", cr: revenue }], `bsale:${b.id}:${day}`);
+    if (cogs > 0) post(s.ledger, day, `COGS: ${b.name}`, [{ acct: "cogs", dr: cogs }, { acct: "inventory", cr: cogs }], `bsale:${b.id}:${day}`);
+    s.stats.totalSales += revenue; s.stats.customers += customers; s.stats.unitsSold += units;
+    b.so = wantU ? round3(lostU / wantU) : 0;
+    const target = 88 - 45 * b.so - (customers + capLost ? 15 * capLost / (customers + capLost) : 0);
+    b.rep = round2(clamp(b.rep + (target - b.rep) * 0.1, 0, 100));
+    s.rng = v.rng;
+    b.last = { day, customers, capLost, revenue, cogs, units, so: b.so, share: round3(marketShare(v, b.rep)), rent: 0, utilities: 0, wages: 0, net: 0 };
+  }
+}
+function branchCosts(s, charge, rep) {
+  rep.branches = [];
+  for (const b of s.branches) {
+    const r = branchRent(s, b), u = branchUtilities(s, b), w = branchWages(s, b);
+    charge("rent", `Rent: ${b.name}`, r); charge("utilities", `Utilities: ${b.name}`, u); charge("wages", `Wages: ${b.name}`, w);
+    Object.assign(b.last, { rent: r, utilities: u, wages: w, net: round2(b.last.revenue - b.last.cogs - r - u - w) });
+    rep.branches.push({ id: b.id, name: b.name, ...b.last });
+    if (b.last.capLost > 5) rep.notes.push(`${b.name} turned away about ${b.last.capLost} customers: add staff there.`);
+    if (b.so > 0.25) rep.notes.push(`${b.name} ran short of stock (${Math.round(b.so * 100)}% of wanted items missed). Transfer more goods.`);
+  }
+}
+export function openBranch(s, { loc, cmdId } = {}) {
+  const g = guard(s); if (g) return g;
+  if (seen(s, cmdId)) return fail("Duplicate request ignored.");
+  if (!LOC.hasLocation(loc) || loc === "default") return fail("Unknown location.");
+  if (s.day < BRANCH_MIN_DAY) return fail(`Branches open from day ${BRANCH_MIN_DAY}.`);
+  if (s.branches.length >= MAX_BRANCHES) return fail(`You can run at most ${MAX_BRANCHES} branches.`);
+  if (loc === s.loc || s.branches.some(b => b.loc === loc)) return fail("You already have a shop in that district.");
+  if ((s.derived ? s.derived.netWorth : s.startNetWorth) < BRANCH_MIN_NW) return fail(`A branch needs a net worth of $${BRANCH_MIN_NW}.`);
+  const fee = branchFee(loc);
+  if (bal(s, "bank") < fee + 100) return fail(`Not enough bank balance: the fit-out costs $${fee} and you should keep $100 spare.`);
+  const l = LOC.getLocation(loc), id = ++s.branchSeq;
+  post(s.ledger, s.day, `Branch fit-out: ${l.name}`, [{ acct: "equipment", dr: fee }, { acct: "bank", cr: fee }], "branch:" + id);
+  const b = { id, loc, name: `${l.district}, ${l.city}`, opened: s.day, stock: {}, val: {}, staff: 1, rep: 50, so: 0, fit: fee, rivals: makeRivals({ loc }, (s.rng ^ (id * 7919)) | 0), last: null };
+  for (const p of D.PRODUCTS) { b.stock[p.id] = 0; b.val[p.id] = 0; }
+  s.branches.push(b);
+  decide(s, `Opened a branch in ${l.name} ($${fee})`);
+  logMsg(s, "info", `New branch: ${b.name}. Transfer stock from your warehouse so it can sell.`);
+  remember(s, cmdId); updateDerived(s);
+  return okr({ id, fee });
+}
+export function transferStock(s, { branch, pid, qty, cmdId } = {}) {
+  const g = guard(s); if (g) return g;
+  if (seen(s, cmdId)) return fail("Duplicate request ignored.");
+  const b = findBranch(s, branch); if (!b) return fail("Unknown branch.");
+  if (!PRODUCT[pid]) return fail("Unknown product.");
+  if (!isInt(qty, 1, 999)) return fail("Quantity must be a whole number from 1 to 999.");
+  const st = s.stock[pid];
+  if (st.wh < qty) return fail(`Only ${st.wh} ${PRODUCT[pid].name} in the warehouse (shelf goods cannot be transferred).`);
+  if (branchUnits(b) + qty > BRANCH_CAP) return fail(`${b.name} holds at most ${BRANCH_CAP} units (${BRANCH_CAP - branchUnits(b)} free).`);
+  const fee = transferFee(s, b, qty);
+  if (liquid(s) < fee) return fail(`Not enough money for the $${fee.toFixed(2)} transfer fee.`);
+  const total = unitsTotal(s, pid), v = qty === total ? s.val[pid] : round2(s.val[pid] / total * qty);
+  st.wh -= qty; s.val[pid] = round2(s.val[pid] - v);
+  b.stock[pid] += qty; b.val[pid] = round2(b.val[pid] + v);
+  payOut(s, "delivery", fee, `Transfer to ${b.name}`, false);
+  decide(s, `Moved ${qty} ${PRODUCT[pid].name} to ${b.name}`);
+  remember(s, cmdId); updateDerived(s);
+  return okr({ fee });
+}
+export function setBranchStaff(s, { branch, n, cmdId } = {}) {
+  const g = guard(s); if (g) return g;
+  if (seen(s, cmdId)) return fail("Duplicate request ignored.");
+  const b = findBranch(s, branch); if (!b) return fail("Unknown branch.");
+  if (!isInt(n, 1, 3)) return fail("A branch runs with 1 to 3 cashiers.");
+  b.staff = n; remember(s, cmdId);
+  return okr();
+}
+export function closeBranch(s, { branch, cmdId } = {}) {
+  const g = guard(s); if (g) return g;
+  if (seen(s, cmdId)) return fail("Duplicate request ignored.");
+  const b = findBranch(s, branch); if (!b) return fail("Unknown branch.");
+  let room = whCap(s) - whUsed(s) - incomingUnits(s), lost = 0;
+  for (const p of D.PRODUCTS) {
+    const n = b.stock[p.id]; if (!n) continue;
+    const back = Math.min(n, Math.max(0, room)), v = b.val[p.id], vBack = back === n ? v : round2(v / n * back);
+    s.stock[p.id].wh += back; s.val[p.id] = round2(s.val[p.id] + vBack); room -= back;
+    lost = round2(lost + (v - vBack)); b.stock[p.id] = 0; b.val[p.id] = 0;
+  }
+  if (lost > 0) post(s.ledger, s.day, `Branch closing: stock written off (${b.name})`, [{ acct: "cogs", dr: lost }, { acct: "inventory", cr: lost }], "branch:" + b.id);
+  if (b.fit > 0) post(s.ledger, s.day, `Branch closing: fit-out written off (${b.name})`, [{ acct: "fees", dr: b.fit }, { acct: "equipment", cr: b.fit }], "branch:" + b.id);
+  s.branches = s.branches.filter(x => x !== b);
+  decide(s, `Closed the branch in ${b.name}`);
+  remember(s, cmdId); updateDerived(s);
+  return okr({ writtenOff: lost });
 }
 
 // ---------- supplier payment terms ----------
@@ -948,7 +1076,7 @@ export function buyUpgrade(s, id, cmdId) {
 // ---------- reports & reconciliation ----------
 export function reconcile(s) {
   const t = totals(s.ledger);
-  const tracked = round2(Object.values(s.val).reduce((a, b) => a + b, 0));
+  const tracked = round2(Object.values(s.val).reduce((a, b) => a + b, 0) + s.branches.reduce((a, b) => a + branchValue(b), 0));
   const inLedger = bal(s, "inventory");
   const transit = round2(s.orders.reduce((a, o) => a + o.goods, 0));
   const loans = round2(s.loans.reduce((a, l) => a + l.remaining, 0));
@@ -959,6 +1087,7 @@ export function reconcile(s) {
   if (Math.abs(invoicesOwed(s) - bal(s, "payables")) > 0.05) problems.push(`Invoices ${invoicesOwed(s)} vs ledger ${bal(s, "payables")}.`);
   if (Math.abs(loans - bal(s, "loan")) > 0.05) problems.push(`Loans ${loans} vs ledger ${bal(s, "loan")}.`);
   for (const [pid, st] of Object.entries(s.stock)) if (st.wh < 0 || st.shelf < 0) problems.push("Negative stock: " + pid);
+  for (const b of s.branches) for (const pid of Object.keys(b.stock)) if (b.stock[pid] < 0 || b.val[pid] < -0.005) problems.push(`Negative branch stock: ${b.name} ${pid}`);
   return { ok: problems.length === 0, problems };
 }
 
@@ -1013,14 +1142,17 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
 // Returns a short description of the first malformed part of a save, or null. Everything the engine, the score and
 // the multiplayer verifier read later is checked here, so a crafted save is rejected instead of throwing deep in the code.
+const rivalsOk = a => isArr(a, 8) && a.every(r => isObj(r) && isNum(r.id) && typeof r.name === "string" && has(RIVAL_KINDS, r.kind) && [r.base, r.price, r.quality, r.avail].every(isNum) && r.price > 0.5 && r.price < 3 && r.avail >= 0 && r.avail <= 1 && Number.isInteger(r.promo) && r.promo >= 0 && r.promo <= 5);
 function saveShapeError(o) {
   if (typeof o.loc !== "string" || !LOC.hasLocation(o.loc)) return "location";
   if (!isArr(o.campaigns, 10) || !o.campaigns.every(c => isObj(c) && D.CAMPAIGNS.some(d => d.id === c.kind) && Number.isInteger(c.start) && Number.isInteger(c.days) && c.days >= 1 && c.days <= 30 && isNum(c.lift) && c.lift >= 0 && c.lift <= 1) || !isNum(o.campSeq)) return "campaigns";
   if (!isObj(o.supIdx) || !isObj(o.supRec) || !D.SUPPLIERS.every(x => isNum(o.supIdx[x.id]) && o.supIdx[x.id] >= 0.5 && o.supIdx[x.id] <= 2 && isObj(o.supRec[x.id]) && isNum(o.supRec[x.id].n) && isNum(o.supRec[x.id].late))) return "supplier records";
   if (!isObj(o.budget) || !isNum(o.budget.revenue) || !isNum(o.budget.expenses) || !isNum(o.noise) || o.noise < 0.5 || o.noise > 1.5) return "budget";
   if (!["unitsSold", "fcErr", "fcDays", "budgetDays", "budgetHit"].every(k => isNum(o.stats?.[k]))) return "statistics";
-  if (!isArr(o.rivals, 8) || !o.rivals.every(r => isObj(r) && isNum(r.id) && typeof r.name === "string" && has(RIVAL_KINDS, r.kind) && [r.base, r.price, r.quality, r.avail].every(isNum) && r.price > 0.5 && r.price < 3 && r.avail >= 0 && r.avail <= 1 && Number.isInteger(r.promo) && r.promo >= 0 && r.promo <= 5) || !isNum(o.shareLast) || !isNum(o.stockoutRate)) return "rivals";
+  if (!rivalsOk(o.rivals) || !isNum(o.shareLast) || !isNum(o.stockoutRate)) return "rivals";
   if (!isArr(o.invoices, 100) || !o.invoices.every(v => isObj(v) && isNum(v.id) && Number.isInteger(v.order) && typeof v.supplier === "string" && has(SUPPLIER, v.supplier) && isNum(v.amount) && v.amount > 0 && v.amount < 1e6 && Number.isInteger(v.due) && Number.isInteger(v.late) && v.late >= 0) || !isNum(o.invSeq)) return "invoices";
+  if (!isArr(o.branches, 2) || !isNum(o.branchSeq) || !o.branches.every(b => isObj(b) && isNum(b.id) && typeof b.name === "string" && LOC.hasLocation(b.loc) && Number.isInteger(b.opened) && Number.isInteger(b.staff) && b.staff >= 1 && b.staff <= 3 && isNum(b.rep) && b.rep >= 0 && b.rep <= 100 && isNum(b.so) && isNum(b.fit) && b.fit >= 0 &&
+    isObj(b.stock) && isObj(b.val) && D.PRODUCTS.every(p => Number.isInteger(b.stock[p.id]) && b.stock[p.id] >= 0 && b.stock[p.id] <= 1000 && isNum(b.val[p.id]) && b.val[p.id] >= 0) && rivalsOk(b.rivals) && (b.last == null || (isObj(b.last) && ["day", "customers", "capLost", "revenue", "cogs", "units", "so", "share", "rent", "utilities", "wages", "net"].every(k => isNum(b.last[k])))))) return "branches";
   if (!isObj(o.stats) || !isNum(o.stats.customers) || !isNum(o.stats.totalSales) || !isNum(o.stats.bestDay) || !isObj(o.stats.units) || (o.stats.stockLost != null && !isNum(o.stats.stockLost))) return "statistics";
   if (!isArr(o.history, 200) || !o.history.every(h => isObj(h) && [h.revenue, h.net, h.customers, h.liquid, h.netWorth].every(isNum))) return "history";
   if (!isObj(o.archive) || !isNum(o.archive.days) || !isNum(o.archive.revenue) || !isNum(o.archive.profit)) return "archive";
@@ -1058,6 +1190,7 @@ export function validateSave(raw) {
   if (o.v === 4) { o.v = 5; o.loc = "default"; }
   if (o.v === 5) { o.v = 6; o.shareLast = 1; o.stockoutRate = 0; o.rivals = LOC.hasLocation(o.loc) ? makeRivals(o, (Number(o.rng) | 0) ^ 0x5bd1e995) : []; }
   if (o.v === 6) { o.v = 7; o.invoices = []; o.invSeq = 0; if (isObj(o.ledger) && isObj(o.ledger.bal) && !has(o.ledger.bal, "payables")) o.ledger.bal.payables = 0; }
+  if (o.v === 7) { o.v = 8; o.branches = []; o.branchSeq = 0; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, error: `This save is from an older version (v${o.v ?? "?"}). Start a new game; old shop-prototype saves cannot be migrated.` };
   const need = ["mode", "day", "clock", "ledger", "stock", "val", "prices", "orders", "staff", "upgrades", "loans", "rng"];
   for (const k of need) if (!(k in o)) return { ok: false, error: `Save is missing "${k}".` };

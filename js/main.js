@@ -164,6 +164,7 @@ const PANEL_ICON = {
   finance: SVG('<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>'),
   upgrades: SVG('<path d="M12 21V7M6 12l6-6 6 6M5 21h14"/>'),
   plan: SVG('<path d="M3 20h18M5 16l4-5 3 3 5-7M17 7h3v3"/>'),
+  branches: SVG('<path d="M3 21V9l5-3 5 3v12M13 21V4l8 3v14M7 13h2M7 17h2M17 11h1M17 15h1"/>'),
   goals: SVG('<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0zM17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/>'),
 };
 function renderManage() {
@@ -287,6 +288,10 @@ const HELP = {
     <ul><li><b>Demand</b>: a big busy district brings more customers, but rivals take a share.</li><li><b>Costs</b>: rent, wages, utilities and delivery fees change with the place.</li><li><b>Taste and wallet</b>: each place buys different product types, and reacts differently to your prices.</li><li><b>Suppliers</b>: remote towns wait longer and some suppliers do not deliver there.</li></ul>
     <p><b>Rivals:</b> busy districts have simulated rival shops (small buildings at the map edge). Cheaper prices, good reputation and full shelves win share; rivals cut prices when you undercut them and run promos. See them in <i>Planning</i>.</p>
     <p class="help-note">Districts are simulated and all numbers are game-balancing estimates, not real statistics. The globe is a schematic and works offline.</p>`,
+  branches: `<h3>Branches</h3>
+    <p>From day 5 and $1,200 net worth you can open up to 2 <b>branches</b> in other districts (<i>Branches</i> panel). Each has its own customers, rivals, reputation, rent, utilities and 1 to 3 cashiers.</p>
+    <ul><li><b>Stock:</b> send goods from your warehouse with <i>Transfer</i> (small fee, instant). No stock, no sales.</li><li><b>Capacity:</b> a cashier serves about 45 customers a day; extra customers are turned away.</li><li><b>Books:</b> branch sales, costs and stock are part of your company accounts and day report.</li></ul>
+    <p class="help-note">Branches are simulated once a day, not customer by customer, and share your prices and suppliers.</p>`,
   loop: `<h3>One business day</h3>
     <ol class="steps">
       <li><b>Order</b> goods in <i>Procurement</i>. A truck brings them to the warehouse.</li>
