@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as E from "../js/engine.js";
 import * as D from "../js/data.js";
-import { balance } from "../js/ledger.js";
+import { balance, post } from "../js/ledger.js";
 
 const fresh = (o = {}) => E.newGame({ seed: 777, difficulty: "normal", mode: "standard", dayLimit: 8, ...o });
 const bal = (s, a) => balance(s.ledger, a);
@@ -122,4 +122,59 @@ test("end report carries planning summary", () => {
   const s = fresh({ dayLimit: 5 });
   for (let i = 0; i < 5; i++) { finishDay(s); if (!s.ended) E.nextDay(s); }
   assert.ok(s.ended.planning && s.ended.planning.forecastAccuracy != null);
+});
+
+// ---------- supplier payment terms ----------
+const termsOrder = (s, o = {}) => E.placeOrder(s, { supplier: "metro", lines: [{ pid: "water", qty: 40 }], pay: "terms", cmdId: "t" + Math.random(), ...o });
+test("terms: cash stays, a liability appears, ledger balances, price carries the markup", () => {
+  const s = fresh(), before = bal(s, "bank") + bal(s, "cash");
+  const sup = E.supplier("metro"), cash = E.placeOrder(fresh(), { supplier: "metro", lines: [{ pid: "water", qty: 40 }], pay: "bank", cmdId: "c" });
+  const r = termsOrder(s); assert.ok(r.ok, r.error);
+  assert.equal(bal(s, "bank") + bal(s, "cash"), before);
+  assert.equal(bal(s, "payables"), r.total);
+  assert.ok(r.total > cash.total);
+  assert.equal(s.invoices.length, 1); assert.equal(s.invoices[0].due, s.day + sup.terms.days);
+  clean(s);
+});
+test("terms: quickship offers none; credit limit and unknown pay are refused", () => {
+  const s = fresh();
+  assert.equal(termsOrder(s, { supplier: "quickship" }).ok, false);
+  assert.equal(termsOrder(s, { lines: [{ pid: "water", qty: 999 }] }).ok, false);
+  assert.equal(E.placeOrder(s, { supplier: "metro", lines: [{ pid: "water", qty: 40 }], pay: "x", cmdId: "z" }).ok, false);
+});
+test("terms: invoice is paid on the due day from the bank and the books still balance", () => {
+  const s = fresh(); termsOrder(s); const due = s.invoices[0].due;
+  while (s.day <= due && !s.ended) { finishDay(s); if (s.phase === "report") E.nextDay(s); }
+  assert.equal(s.invoices.length, 0); assert.equal(bal(s, "payables"), 0); clean(s);
+});
+test("terms: unpaid invoice goes overdue, takes a late fee and blocks new credit", () => {
+  const s = fresh(); termsOrder(s);
+  s.invoices[0].due = s.day;                               // due today
+  const bank = bal(s, "bank"), cash = bal(s, "cash");
+  // owner withdraws everything, so the invoice cannot be paid when due
+  post(s.ledger, s.day, "withdrawal", [{ acct: "capital", dr: bank + cash }, { acct: "bank", cr: bank }, { acct: "cash", cr: cash }]);
+  s.autoDeposit = false; for (const p of D.PRODUCTS) s.prices[p.id] = 9000;   // nobody buys, so no sales cash arrives
+  finishDay(s);
+  assert.ok(s.invoices.length === 1 && s.invoices[0].late >= 1);
+  assert.ok(s.lastReport.notes.some(n => /overdue/.test(n)));
+  assert.equal(termsOrder(s).ok, false);
+  clean(s);
+});
+test("terms: paying early works, and fails without funds", () => {
+  const s = fresh(); termsOrder(s); const id = s.invoices[0].id;
+  assert.ok(E.payInvoice(s, id, "p1").ok); assert.equal(s.invoices.length, 0); clean(s);
+  const t = fresh(); termsOrder(t); t.ledger.bal.bank = 0; t.ledger.bal.cash = 0;
+  assert.equal(E.payInvoice(t, t.invoices[0].id, "p2").ok, false);
+});
+test("terms: cancelling a processing order reduces the invoice", () => {
+  const s = fresh(); const r = termsOrder(s); const fee = E.supFee(s, E.supplier("metro"));
+  assert.ok(E.cancelOrder(s, r.id).ok);
+  assert.ok(Math.abs(bal(s, "payables") - fee) < 0.02); clean(s);
+});
+test("terms: save round trip and v6 migration", () => {
+  const s = fresh(); termsOrder(s);
+  const r = E.validateSave(JSON.stringify(s)); assert.ok(r.ok, r.error); assert.equal(r.state.invoices.length, 1);
+  const old = JSON.parse(JSON.stringify(fresh())); old.v = 6; delete old.invoices; delete old.invSeq; delete old.ledger.bal.payables;
+  const m = E.validateSave(old); assert.ok(m.ok, m.error); assert.equal(m.state.v, D.SAVE_VERSION); assert.deepEqual(m.state.invoices, []);
+  const bad = JSON.parse(JSON.stringify(s)); bad.invoices[0].amount = -1; assert.equal(E.validateSave(bad).ok, false);
 });

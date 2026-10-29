@@ -7,6 +7,7 @@ export const ACCOUNTS = {
   transit:   { type:"asset",     name:"Goods in transit" },
   loan:      { type:"liability", name:"Bank loans" },
   overdraft: { type:"liability", name:"Overdraft" },
+  payables:  { type:"liability", name:"Supplier invoices" },
   capital:   { type:"equity",    name:"Owner capital" },
   sales:     { type:"income",    name:"Sales revenue" },
   cogs:      { type:"expense",   name:"Cost of goods sold" },
@@ -58,7 +59,7 @@ export function balance(ledger, acct) {
 export function totals(ledger) {
   const b = a => balance(ledger, a);
   const assets = b("cash") + b("bank") + b("inventory") + b("equipment") + b("transit");
-  const liabilities = b("loan") + b("overdraft");
+  const liabilities = b("loan") + b("overdraft") + b("payables");
   const revenue = b("sales");
   const costs = b("cogs") + OPEX.reduce((s, a) => s + b(a), 0);
   const equity = b("capital") + revenue - costs;

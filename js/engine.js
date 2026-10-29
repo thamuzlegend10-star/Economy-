@@ -41,7 +41,7 @@ export function newGame(opts = {}) {
     staff: [], candidates: [], staffSeq: 0,
     upgrades: { shelves: 0, racks: 0, counter: 0, dock: 0, signage: 0 },
     campaigns: [], campSeq: 0, supIdx: { freshfarm: 1, metro: 1, quickship: 1 }, supRec: { freshfarm: { n: 0, late: 0 }, metro: { n: 0, late: 0 }, quickship: { n: 0, late: 0 } },
-    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, forecastToday: null, autoDeposit: true,
+    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, invoices: [], invSeq: 0, forecastToday: null, autoDeposit: true,
     loans: [], loanSeq: 0, lastBailoutDay: -99, distressDays: 0,
     customers: [], custSeq: 0, spawnAcc: 0, autoT: 0,
     rep: 50, sat: 60,
@@ -88,7 +88,7 @@ export function updateDerived(s) {
   const t = totals(s.ledger);
   const debt = round2(bal(s, "loan") + bal(s, "overdraft"));
   s.derived = {
-    cash: bal(s, "cash"), bank: bal(s, "bank"), debt, loans: bal(s, "loan"), overdraft: bal(s, "overdraft"),
+    cash: bal(s, "cash"), bank: bal(s, "bank"), debt, loans: bal(s, "loan"), overdraft: bal(s, "overdraft"), payables: bal(s, "payables"),
     inventory: bal(s, "inventory"), equipment: bal(s, "equipment"), transit: bal(s, "transit"),
     assets: t.assets, netWorth: round2(t.assets - t.liabilities), balanced: t.balanced,
     liquid: round2(bal(s, "cash") + bal(s, "bank")),
@@ -528,6 +528,18 @@ function closeDay(s) {
   }
   for (const l of s.loans) l.daysLeft = Math.max(0, (l.daysLeft || 0) - 1);
   s.loans = s.loans.filter(l => l.remaining > 0.004);
+  const lateNotes = [];
+  // 3b. supplier invoices that fall due: pay from bank then cash; any unpaid part is overdue and attracts a late fee
+  for (const iv of [...s.invoices]) {
+    if (iv.due > day) continue;
+    const owed = iv.amount, paid = settleInvoice(s, iv, owed, true);
+    if (paid > 0) rep.charges.push({ acct: "payables", label: `Supplier invoice #${iv.id} (${SUPPLIER[iv.supplier].name})`, amount: paid, principal: true });
+    if (s.invoices.includes(iv)) {
+      iv.late = (iv.late || 0) + 1;
+      charge("fees", `Late fee: invoice #${iv.id}`, round2(iv.amount * 0.02));
+      lateNotes.push(`Supplier invoice #${iv.id} is ${iv.late} day${iv.late > 1 ? "s" : ""} overdue ($${iv.amount.toFixed(2)} unpaid). A 2% late fee was charged and you cannot buy on terms until it is paid.`);
+    }
+  }
   const od = bal(s, "overdraft");
   if (od > 0) charge("interest", "Overdraft interest", round2(od * D.OVERDRAFT_RATE));
   // 4. weekly tax on the last 7 days of profit
@@ -547,6 +559,7 @@ function closeDay(s) {
 
   // 7. report
   Object.assign(rep, buildDayRecord(s));
+  rep.notes.push(...lateNotes);
   // forecast accuracy: what the planning screen promised at opening against what actually happened
   const fc = s.forecastToday;
   if (fc && fc.day === day) {
@@ -683,7 +696,8 @@ export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   if (!sup) return fail("Unknown supplier.");
   if (!supplierAvailable(s, sup)) return fail(`${sup.name} does not deliver to ${locOf(s).city}.`);
   if (!Array.isArray(lines) || !lines.length || lines.length > 12) return fail("Add at least one product.");
-  if (pay !== "bank" && pay !== "cash") return fail("Pay from bank or cash.");
+  if (pay !== "bank" && pay !== "cash" && pay !== "terms") return fail("Pay from bank, cash or on supplier terms.");
+  if (pay === "terms" && !sup.terms) return fail(`${sup.name} does not offer payment terms.`);
   const clean = [], seenP = new Set();
   let units = 0;
   for (const l of lines) {
@@ -697,11 +711,14 @@ export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   }
   if (units < sup.minUnits) return fail(`${sup.name} needs at least ${sup.minUnits} units per order.`);
   if (whUsed(s) + incomingUnits(s) + units > whCap(s)) return fail(`Warehouse is too small: ${whCap(s) - whUsed(s) - incomingUnits(s)} free slots left.`);
-  const priced = clean.map(l => { const unit = unitCost(s, sup, l.pid, units); return { ...l, unit, total: round2(unit * l.qty) }; });
+  const markup = pay === "terms" ? 1 + sup.terms.markup : 1;
+  const priced = clean.map(l => { const unit = round2(unitCost(s, sup, l.pid, units) * markup); return { ...l, unit, total: round2(unit * l.qty) }; });
   const goods = round2(priced.reduce((a, l) => a + l.total, 0)), fee = supFee(s, sup), total = round2(goods + fee);
-  if (bal(s, pay) < total) return fail(`Not enough ${pay === "bank" ? "bank balance" : "cash"}: need $${total.toFixed(2)}, have $${bal(s, pay).toFixed(2)}. Move money or take a loan.`);
+  if (pay === "terms") { const e = termsError(s, total); if (e) return fail(e); }
+  else if (bal(s, pay) < total) return fail(`Not enough ${pay === "bank" ? "bank balance" : "cash"}: need $${total.toFixed(2)}, have $${bal(s, pay).toFixed(2)}. Move money or take a loan.`);
   const id = ++s.orderSeq;
-  post(s.ledger, s.day, `Order #${id} to ${sup.name}`, [{ acct: "transit", dr: goods }, { acct: "delivery", dr: fee }, { acct: pay, cr: total }], "order:" + id);
+  post(s.ledger, s.day, `Order #${id} to ${sup.name}${pay === "terms" ? " (on terms)" : ""}`, [{ acct: "transit", dr: goods }, { acct: "delivery", dr: fee }, { acct: pay === "terms" ? "payables" : pay, cr: total }], "order:" + id);
+  if (pay === "terms") s.invoices.push({ id: ++s.invSeq, order: id, supplier: sid, amount: total, due: s.day + sup.terms.days, day: s.day, late: 0 });
   const delayEv = s.events.active.find(e => e.id === "delay" && e.sup === sid);
   let lead = supLead(s, sup) * (delayEv ? 1.6 : 1), delayed = !!delayEv;
   if (rnd(s) > clamp(sup.reliability + diffOf(s).reliability, 0.5, 0.995)) { lead *= 1.5; delayed = true; }
@@ -712,12 +729,49 @@ export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   return okr({ id, total, lead: round2(lead), delayed });
 }
 
+// ---------- supplier payment terms ----------
+// Buying on terms puts the invoice on the books as a liability and the goods arrive now; cash leaves on the due day.
+export const creditLimit_ = s => Math.round(150 + 0.35 * Math.max(0, s.derived ? s.derived.netWorth : s.startNetWorth));
+export const supplierCreditLimit = creditLimit_;
+export const invoicesOwed = s => round2(s.invoices.reduce((a, x) => a + x.amount, 0));
+export const overdueInvoices = s => s.invoices.filter(x => x.due < s.day || (x.late || 0) > 0);
+function termsError(s, total) {
+  if (overdueInvoices(s).length) return "You have an overdue supplier invoice. Pay it before buying on terms again.";
+  const room = supplierCreditLimit(s) - invoicesOwed(s);
+  if (total > room) return `Over your supplier credit limit: $${Math.max(0, room).toFixed(2)} of $${supplierCreditLimit(s)} left.`;
+  return null;
+}
+export function termsCheck(s, total) { return termsError(s, total); }
+export function payInvoice(s, id, cmdId) {
+  const g = guard(s); if (g) return g;
+  if (seen(s, cmdId)) return fail("Duplicate request ignored.");
+  const iv = s.invoices.find(x => x.id === id);
+  if (!iv) return fail("Invoice not found.");
+  const amt = iv.amount;
+  if (bal(s, "bank") + bal(s, "cash") < amt - 0.005) return fail(`Not enough money: need $${amt.toFixed(2)}, have $${(bal(s, "bank") + bal(s, "cash")).toFixed(2)}.`);
+  settleInvoice(s, iv, amt, false);
+  decide(s, `Paid supplier invoice #${iv.id} early or on time ($${amt.toFixed(2)})`);
+  remember(s, cmdId);
+  return okr({ paid: amt });
+}
+// pays up to `amt` from bank then cash (never overdraft); returns what was paid
+function settleInvoice(s, iv, amt, partial) {
+  let rest = round2(Math.min(amt, iv.amount)), paid = 0;
+  for (const acct of ["bank", "cash"]) {
+    const n = round2(Math.min(Math.max(0, bal(s, acct)), rest));
+    if (n > 0) { post(s.ledger, s.day, `Paid supplier invoice #${iv.id}`, [{ acct: "payables", dr: n }, { acct, cr: n }], "inv:" + iv.id); rest = round2(rest - n); paid = round2(paid + n); }
+  }
+  iv.amount = round2(iv.amount - paid);
+  if (iv.amount < 0.005) s.invoices = s.invoices.filter(x => x !== iv);
+  return paid;
+}
 export function cancelOrder(s, id) {
   const g = guard(s); if (g) return g;
   const o = s.orders.find(x => x.id === id);
   if (!o) return fail("Order not found.");
   if (o.status !== "processing") return fail("Only orders still being processed can be cancelled.");
-  post(s.ledger, s.day, `Order #${id} cancelled (goods refunded, delivery fee kept)`, [{ acct: o.pay, dr: o.goods }, { acct: "transit", cr: o.goods }], "order:" + id);
+  post(s.ledger, s.day, `Order #${id} cancelled (goods refunded, delivery fee kept)`, [{ acct: o.pay === "terms" ? "payables" : o.pay, dr: o.goods }, { acct: "transit", cr: o.goods }], "order:" + id);
+  if (o.pay === "terms") { const iv = s.invoices.find(x => x.order === id); if (iv) { iv.amount = round2(iv.amount - o.goods); if (iv.amount < 0.005) s.invoices = s.invoices.filter(x => x !== iv); } }
   s.orders = s.orders.filter(x => x !== o);
   return okr({ refunded: o.goods });
 }
@@ -902,6 +956,7 @@ export function reconcile(s) {
   if (!t.balanced) problems.push("Ledger does not balance.");
   if (Math.abs(tracked - inLedger) > 0.05) problems.push(`Inventory ${tracked} vs ledger ${inLedger}.`);
   if (Math.abs(transit - bal(s, "transit")) > 0.05) problems.push(`Transit ${transit} vs ledger ${bal(s, "transit")}.`);
+  if (Math.abs(invoicesOwed(s) - bal(s, "payables")) > 0.05) problems.push(`Invoices ${invoicesOwed(s)} vs ledger ${bal(s, "payables")}.`);
   if (Math.abs(loans - bal(s, "loan")) > 0.05) problems.push(`Loans ${loans} vs ledger ${bal(s, "loan")}.`);
   for (const [pid, st] of Object.entries(s.stock)) if (st.wh < 0 || st.shelf < 0) problems.push("Negative stock: " + pid);
   return { ok: problems.length === 0, problems };
@@ -965,6 +1020,7 @@ function saveShapeError(o) {
   if (!isObj(o.budget) || !isNum(o.budget.revenue) || !isNum(o.budget.expenses) || !isNum(o.noise) || o.noise < 0.5 || o.noise > 1.5) return "budget";
   if (!["unitsSold", "fcErr", "fcDays", "budgetDays", "budgetHit"].every(k => isNum(o.stats?.[k]))) return "statistics";
   if (!isArr(o.rivals, 8) || !o.rivals.every(r => isObj(r) && isNum(r.id) && typeof r.name === "string" && has(RIVAL_KINDS, r.kind) && [r.base, r.price, r.quality, r.avail].every(isNum) && r.price > 0.5 && r.price < 3 && r.avail >= 0 && r.avail <= 1 && Number.isInteger(r.promo) && r.promo >= 0 && r.promo <= 5) || !isNum(o.shareLast) || !isNum(o.stockoutRate)) return "rivals";
+  if (!isArr(o.invoices, 100) || !o.invoices.every(v => isObj(v) && isNum(v.id) && Number.isInteger(v.order) && typeof v.supplier === "string" && has(SUPPLIER, v.supplier) && isNum(v.amount) && v.amount > 0 && v.amount < 1e6 && Number.isInteger(v.due) && Number.isInteger(v.late) && v.late >= 0) || !isNum(o.invSeq)) return "invoices";
   if (!isObj(o.stats) || !isNum(o.stats.customers) || !isNum(o.stats.totalSales) || !isNum(o.stats.bestDay) || !isObj(o.stats.units) || (o.stats.stockLost != null && !isNum(o.stats.stockLost))) return "statistics";
   if (!isArr(o.history, 200) || !o.history.every(h => isObj(h) && [h.revenue, h.net, h.customers, h.liquid, h.netWorth].every(isNum))) return "history";
   if (!isObj(o.archive) || !isNum(o.archive.days) || !isNum(o.archive.revenue) || !isNum(o.archive.profit)) return "archive";
@@ -975,7 +1031,7 @@ function saveShapeError(o) {
   if (!isObj(o.val) || !D.PRODUCTS.every(p => isNum(o.val[p.id]))) return "inventory values";
   if (!isObj(o.shelfTarget) || !D.PRODUCTS.every(p => Number.isInteger(o.shelfTarget[p.id]) && o.shelfTarget[p.id] >= 0)) return "shelf targets";
   if (!isObj(o.ledger) || !isObj(o.ledger.bal) || !Object.keys(ACCOUNTS).every(k => isNum(o.ledger.bal[k])) || !isArr(o.ledger.entries, 5000) || !isNum(o.ledger.seq)) return "ledger";
-  if (!isArr(o.orders, 100) || !o.orders.every(x => isObj(x) && isNum(x.id) && isNum(x.goods) && x.goods >= 0 && Number.isInteger(x.units) && typeof x.status === "string" && isNum(x.t) && isNum(x.lead) && typeof x.supplier === "string" && has(SUPPLIER, x.supplier) && (x.pay === "bank" || x.pay === "cash") &&
+  if (!isArr(o.orders, 100) || !o.orders.every(x => isObj(x) && isNum(x.id) && isNum(x.goods) && x.goods >= 0 && Number.isInteger(x.units) && typeof x.status === "string" && isNum(x.t) && isNum(x.lead) && typeof x.supplier === "string" && has(SUPPLIER, x.supplier) && (x.pay === "bank" || x.pay === "cash" || x.pay === "terms") &&
     isArr(x.lines, 20) && x.lines.every(l => isObj(l) && typeof l.pid === "string" && has(PRODUCT, l.pid) && Number.isInteger(l.qty) && l.qty >= 0 && isNum(l.total)))) return "orders";
   if (!isArr(o.tasks, 100) || !o.tasks.every(t => isObj(t) && typeof t.pid === "string" && has(PRODUCT, t.pid) && Number.isInteger(t.qty) && Number.isInteger(t.done))) return "restock tasks";
   if (!isObj(o.events) || !isArr(o.events.active, 50) || !o.events.active.every(e => isObj(e) && D.EVENTS.some(x => x.id === e.id) && isNum(e.daysLeft)) || !isArr(o.events.todayText, 50)) return "events";
@@ -1001,6 +1057,7 @@ export function validateSave(raw) {
   if (o.v === 3) migrateV3(o);
   if (o.v === 4) { o.v = 5; o.loc = "default"; }
   if (o.v === 5) { o.v = 6; o.shareLast = 1; o.stockoutRate = 0; o.rivals = LOC.hasLocation(o.loc) ? makeRivals(o, (Number(o.rng) | 0) ^ 0x5bd1e995) : []; }
+  if (o.v === 6) { o.v = 7; o.invoices = []; o.invSeq = 0; if (isObj(o.ledger) && isObj(o.ledger.bal) && !has(o.ledger.bal, "payables")) o.ledger.bal.payables = 0; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, error: `This save is from an older version (v${o.v ?? "?"}). Start a new game; old shop-prototype saves cannot be migrated.` };
   const need = ["mode", "day", "clock", "ledger", "stock", "val", "prices", "orders", "staff", "upgrades", "loans", "rng"];
   for (const k of need) if (!(k in o)) return { ok: false, error: `Save is missing "${k}".` };

@@ -14,7 +14,7 @@ const bar = (v, max, cls = "") => `<div class="bar ${cls}"><i style="width:${Mat
 // Short "how this works" boxes shown at the top of each panel (collapsible, remembered).
 const TIPS = {
   store: ["Your shop floor", "Only goods on <b>shelves</b> can be sold. Press <b>Restock</b> to move goods from the warehouse, or set an <b>Auto target</b> so stockers refill shelves when they drop below half. Customers expect a fair price: a little above is fine, far above and they skip the item."],
-  procure: ["Buying stock", "Pick a supplier, type quantities, then <b>Place order</b>. A truck brings the goods to your warehouse. You pay goods plus a delivery fee now. Cheap suppliers are slow, QuickShip is fast but pricey, and big orders earn a bulk discount. Mind your warehouse space."],
+  procure: ["Buying stock", "Pick a supplier, type quantities, then <b>Place order</b>. A truck brings the goods to your warehouse. You pay goods plus a delivery fee now, or choose <b>On terms</b> to pay the invoice a few days later for a small markup (limited by a credit limit; late invoices cost 2% a day and block more credit). Cheap suppliers are slow, QuickShip is fast but pricey, and big orders earn a bulk discount. Mind your warehouse space."],
   inventory: ["Your goods", "See what you own in the warehouse and on shelves, what is on the way, and what it is worth. <b>Out</b> and <b>Low shelf</b> mean lost sales, <b>Overstock</b> means cash tied up in goods."],
   staff: ["Your team", "Hire to remove bottlenecks: <b>cashiers</b> speed up checkout, <b>stockers</b> fill shelves, <b>warehouse workers</b> unload trucks, <b>managers</b> raise happiness. Wages are charged every closing, so hire only when profit can carry them."],
   bank: ["Banking", "Sales land in the till as cash. Bills are paid from the bank first, then cash, then an <b>overdraft</b> (1% a day). <b>Loans</b> give cash now and are repaid daily with interest. Borrow to grow, not to survive."],
@@ -122,7 +122,8 @@ export function createUI(ctx) {
     const sup = E.supplier(view.supplier);
     const lines = Object.entries(view.cart).filter(([, q]) => q > 0).map(([pid, qty]) => ({ pid, qty }));
     const units = lines.reduce((a, l) => a + l.qty, 0);
-    const priced = lines.map(l => ({ ...l, unit: E.unitCost(s, sup, l.pid, units) }));
+    const mk = view.pay === "terms" && sup.terms ? 1 + sup.terms.markup : 1;
+    const priced = lines.map(l => ({ ...l, unit: round2(E.unitCost(s, sup, l.pid, units) * mk) }));
     const goods = round2(priced.reduce((a, l) => a + l.unit * l.qty, 0));
     return { sup, lines, units, goods, fee: lines.length ? E.supFee(s, sup) : 0, total: round2(goods + (lines.length ? E.supFee(s, sup) : 0)) };
   }
@@ -142,10 +143,10 @@ export function createUI(ctx) {
     const c = cartSummary(s), sup = c.sup;
     const cards = D.SUPPLIERS.map(x => `<button class="sup ${x.id === sup.id ? "on" : ""}" data-act="supplier" data-id="${x.id}">
         <b>${esc(x.name)}</b><span>${esc(x.desc)}</span>
-        <small>Delivery ~${Math.round(E.supLead(s, x))}s · fee ${money0(E.supFee(s, x))} · ${Math.round(x.reliability * 100)}% on time · cost ×${x.mult}${x.bulkOff ? ` · ${Math.round(x.bulkOff * 100)}% off at ${x.bulkAt}+` : ""}</small>
+        <small>${x.terms ? `Terms: net ${x.terms.days} days, +${Math.round(x.terms.markup * 100)}% · ` : "Cash only · "}Delivery ~${Math.round(E.supLead(s, x))}s · fee ${money0(E.supFee(s, x))} · ${Math.round(x.reliability * 100)}% on time · cost ×${x.mult}${x.bulkOff ? ` · ${Math.round(x.bulkOff * 100)}% off at ${x.bulkAt}+` : ""}</small>
         ${priceTag(s, x)}${E.supplierAvailable(s, x) ? "" : `<small><span class="tag bad">Does not deliver to ${esc(E.locOf(s).city)}</span></small>`}</button>`).join("");
     const items = D.PRODUCTS.filter(p => sup.cats.includes(p.cat)).map(p => {
-      const un = E.isUnlocked(s, p.id), unit = E.unitCost(s, sup, p.id, c.units), q = view.cart[p.id] || 0;
+      const un = E.isUnlocked(s, p.id), unit = round2(E.unitCost(s, sup, p.id, c.units) * (view.pay === "terms" && sup.terms ? 1 + sup.terms.markup : 1)), q = view.cart[p.id] || 0;
       const ev = s.events.active.find(e => e.id === "market" && e.pid === p.id);
       return `<tr class="${un ? "" : "locked"}"><td><b>${esc(p.name)}</b> ${ev ? '<span class="tag warn">+25% market</span>' : ""}</td><td>${money(unit)}</td><td>${s.stock[p.id].wh + s.stock[p.id].shelf}</td><td>${E.incomingOf(s, p.id)}</td><td>${cover(s, p.id, un)}</td>
         <td>${un ? `<input class="qty" type="number" min="0" max="999" step="1" value="${q}" data-act="cart" data-id="${p.id}" aria-label="Quantity of ${esc(p.name)}">` : `<span class="muted">day ${p.unlockDay}</span>`}</td></tr>`;
@@ -157,6 +158,7 @@ export function createUI(ctx) {
       if (!E.supplierAvailable(s, sup)) block = `${sup.name} does not deliver to ${E.locOf(s).city}.`;
       else if (c.units < sup.minUnits) block = `${sup.name} needs at least ${sup.minUnits} units.`;
       else if (c.units > free) block = `Warehouse has only ${free} free slots.`;
+      else if (view.pay === "terms") block = !sup.terms ? `${sup.name} does not offer payment terms.` : E.termsCheck(s, c.total) || "";
       else if (balance(s.ledger, view.pay) < c.total) block = `Not enough ${view.pay === "bank" ? "bank balance" : "cash"} (${money(balance(s.ledger, view.pay))}).`;
     } else block = "Add products to your order.";
     const orders = s.orders.map(o => {
@@ -165,6 +167,11 @@ export function createUI(ctx) {
         <div class="muted">${o.status === "dock-wait" ? "waiting for a free dock" : o.status}</div>${bar(f, 1)}
         ${o.status === "processing" ? `<button class="mini" data-act="cancel" data-id="${o.id}">Cancel (fee not refunded)</button>` : ""}</div>`;
     }).join("") || `<p class="muted">No orders on the way.</p>`;
+    const inv = s.invoices.map(v => {
+      const left = v.due - s.day, late = v.late > 0 || left < 0;
+      return `<div class="order"><div><b>Invoice #${v.id}</b> ${esc(E.supplier(v.supplier).name)} · ${money(v.amount)} ${late ? '<span class="tag bad">overdue</span>' : `<span class="tag info">due in ${left} day${left === 1 ? "" : "s"}</span>`}</div>
+        <button class="mini" data-act="payinv" data-id="${v.id}">Pay now</button></div>`;
+    }).join("");
     const done = s.doneOrders.slice(-4).reverse().map(o => `<div class="muted">#${o.id} ${esc(E.supplier(o.supplier).name)}: ${o.units} units received on day ${o.day}</div>`).join("");
     return `<h3>Procurement</h3>
       <div class="sups">${cards}</div>
@@ -173,9 +180,10 @@ export function createUI(ctx) {
         <div class="kv"><span>Units</span><b>${c.units}</b></div><div class="kv"><span>Goods</span><b>${money(c.goods)}</b></div>
         <div class="kv"><span>Delivery fee</span><b>${money(c.fee)}</b></div><div class="kv tot"><span>Total</span><b>${money(c.total)}</b></div>
         <div class="kv"><span>Estimated arrival</span><b>${eta}</b></div>
-        <label class="field">Pay from<select data-act="pay"><option value="bank" ${view.pay === "bank" ? "selected" : ""}>Bank (${money(s.derived.bank)})</option><option value="cash" ${view.pay === "cash" ? "selected" : ""}>Cash (${money(s.derived.cash)})</option></select></label>
+        <label class="field">Pay from<select data-act="pay"><option value="bank" ${view.pay === "bank" ? "selected" : ""}>Bank (${money(s.derived.bank)})</option><option value="cash" ${view.pay === "cash" ? "selected" : ""}>Cash (${money(s.derived.cash)})</option>${sup.terms ? `<option value="terms" ${view.pay === "terms" ? "selected" : ""}>On terms: pay in ${sup.terms.days} days (+${Math.round(sup.terms.markup * 100)}%)</option>` : ""}</select></label>
         <button class="primary" data-act="order" ${block ? `disabled title="${esc(block)}"` : ""}>Place order</button>${block ? `<div class="muted small">${esc(block)}</div>` : ""}
         <button class="ghost" data-act="clearcart">Clear</button></div></div>
+      ${inv ? `<h4>Supplier invoices (owed ${money(E.invoicesOwed(s))} of ${money0(E.supplierCreditLimit(s))} limit)</h4>${inv}` : ""}
       <h4>Orders in progress</h4>${orders}${done ? "<h4>Recently received</h4>" + done : ""}`;
   }
 
@@ -287,7 +295,7 @@ export function createUI(ctx) {
   }
 
   // ---------- FINANCE ----------
-  const ACCT_ORDER = ["cash", "bank", "inventory", "transit", "equipment", "loan", "overdraft", "capital", "sales", "cogs", "rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs"];
+  const ACCT_ORDER = ["cash", "bank", "inventory", "transit", "equipment", "loan", "overdraft", "payables", "capital", "sales", "cogs", "rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs"];
   function finance(s) {
     const tabsHtml = [["today", "Today"], ["last", "Last day report"], ["sheet", "Balance sheet"], ["ledger", "Ledger audit"], ["history", "History"], ["upcoming", "Upcoming charges"]]
       .map(([id, n]) => `<button class="tab small ${view.finTab === id ? "on" : ""}" data-act="fintab" data-id="${id}">${n}</button>`).join("");
@@ -302,7 +310,7 @@ export function createUI(ctx) {
       const d = s.derived;
       const row = (n, v, c = "") => `<tr class="${c}"><td>${n}</td><td class="num">${money(v)}</td></tr>`;
       inner = `<div class="split"><table class="tbl"><thead><tr><th colspan="2">Assets</th></tr></thead><tbody>${row("Cash on hand", d.cash)}${row("Bank balance", d.bank)}${row("Inventory (at cost)", d.inventory)}${row("Goods in transit", d.transit)}${row("Equipment & upgrades", d.equipment)}${row("Total assets", d.assets, "tot")}</tbody></table>
-        <table class="tbl"><thead><tr><th colspan="2">Liabilities and equity</th></tr></thead><tbody>${row("Bank loans", d.loans)}${row("Overdraft", d.overdraft)}${row("Net worth (equity)", d.netWorth, "tot")}${row("Liabilities + equity", d.debt + d.netWorth, "tot")}</tbody></table></div>
+        <table class="tbl"><thead><tr><th colspan="2">Liabilities and equity</th></tr></thead><tbody>${row("Bank loans", d.loans)}${row("Overdraft", d.overdraft)}${row("Supplier invoices", d.payables)}${row("Net worth (equity)", d.netWorth, "tot")}${row("Liabilities + equity", d.debt + d.payables + d.netWorth, "tot")}</tbody></table></div>
         <p class="muted">Upgrades are kept at cost (no depreciation). Net worth = assets minus debt. Starting net worth was ${money(s.startNetWorth)}.</p>`;
     } else if (view.finTab === "ledger") {
       const rows = s.ledger.entries.slice(-40).reverse().map(e => `<tr><td>${e.id}</td><td>${e.day}</td><td>${esc(e.memo)}</td><td>${e.lines.map(l => `${l.dr ? "Dr" : "Cr"} ${E.product ? "" : ""}${esc(ACCT_NAME(l.acct))} ${money(l.dr || l.cr)}`).join("<br>")}</td></tr>`).join("");
@@ -319,7 +327,7 @@ export function createUI(ctx) {
     }
     return `<h3>Finance</h3><div class="row gap wrap">${tabsHtml}<span class="tag ${rec.ok ? "ok" : "bad"}" title="${esc(rec.problems.join(" "))}">Books ${rec.ok ? "reconciled" : "MISMATCH"}</span></div>${inner}`;
   }
-  const ACCT_NAME = a => ({ cash: "Cash", bank: "Bank", inventory: "Inventory", transit: "In transit", equipment: "Equipment", loan: "Loans", overdraft: "Overdraft", capital: "Capital", sales: "Sales", cogs: "COGS", rent: "Rent", utilities: "Utilities", wages: "Wages", interest: "Interest", tax: "Tax", marketing: "Marketing", delivery: "Delivery fees", fees: "Bank fees", repairs: "Repairs" }[a] || a);
+  const ACCT_NAME = a => ({ cash: "Cash", bank: "Bank", inventory: "Inventory", transit: "In transit", equipment: "Equipment", loan: "Loans", overdraft: "Overdraft", payables: "Supplier invoices", capital: "Capital", sales: "Sales", cogs: "COGS", rent: "Rent", utilities: "Utilities", wages: "Wages", interest: "Interest", tax: "Tax", marketing: "Marketing", delivery: "Delivery fees", fees: "Bank fees", repairs: "Repairs" }[a] || a);
   function unitsTable(s, units) {
     const rows = Object.entries(units).sort((a, b) => b[1] - a[1]).map(([pid, n]) => `<tr><td>${esc(pName(pid))}</td><td>${n}</td><td>${money(n * s.prices[pid])}</td></tr>`).join("");
     return rows ? `<h4>Sales by product</h4><table class="tbl"><thead><tr><th>Product</th><th>Units</th><th>Revenue</th></tr></thead><tbody>${rows}</tbody></table>` : "";
@@ -381,7 +389,7 @@ export function createUI(ctx) {
     const s = S(), id = t.dataset.id;
     switch (t.dataset.act) {
       case "restock": run(E.restock(s, id, Number(t.dataset.n))); break;
-      case "supplier": view.supplier = id; view.cart = {}; refresh(); break;
+      case "supplier": view.supplier = id; view.cart = {}; if (view.pay === "terms" && !E.supplier(id).terms) view.pay = "bank"; refresh(); break;
       case "clearcart": view.cart = {}; refresh(); break;
       case "order": {
         const c = cartSummary(s);
@@ -402,6 +410,7 @@ export function createUI(ctx) {
         break;
       }
       case "repay": { const v = Number(document.getElementById("rep" + id)?.value); run(E.repayLoan(s, Number(id), v, uid()), "Repayment made."); break; }
+      case "payinv": run(E.payInvoice(s, Number(id), uid()), "Invoice paid."); break;
       case "repayall": { const l = s.loans.find(x => x.id === Number(id)); if (l) run(E.repayLoan(s, l.id, l.remaining, uid()), "Loan repaid."); break; }
       case "restructure": if (confirm("Convert your overdraft into a 40-day rescue loan at 0.8%/day? Reputation drops by 8.")) run(E.restructureDebt(s, uid()), "Debt restructured."); break;
       case "upgrade": {

@@ -1,5 +1,5 @@
 // Static game data. Everything tunable lives here.
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 export const DAY_LEN = 120;          // sim-seconds per business day (at 1x speed)
 export const OPEN_HOUR = 8, CLOSE_HOUR = 20;
 
@@ -29,9 +29,9 @@ export const PRODUCTS = [
 
 export const SUPPLIERS = [
   { id:"freshfarm", name:"FreshFarm Co-op",   desc:"Cheapest for food and drinks. Slow trucks.",
-    cats:["food","drinks"], mult:0.92, lead:30, fee:6,  reliability:0.97, minUnits:10, bulkAt:50,  bulkOff:0.05 },
+    cats:["food","drinks"], mult:0.92, terms:{ days:5, markup:0.02 }, lead:30, fee:6,  reliability:0.97, minUnits:10, bulkAt:50,  bulkOff:0.05 },
   { id:"metro",     name:"Metro Wholesale",   desc:"Full catalog. Fair price, normal speed.",
-    cats:["food","drinks","household","stationery","electronics"], mult:1.0, lead:20, fee:10, reliability:0.94, minUnits:1, bulkAt:100, bulkOff:0.08 },
+    cats:["food","drinks","household","stationery","electronics"], mult:1.0, terms:{ days:7, markup:0.03 }, lead:20, fee:10, reliability:0.94, minUnits:1, bulkAt:100, bulkOff:0.08 },
   { id:"quickship", name:"QuickShip Express", desc:"Everything in 5 seconds. Premium price and fee.",
     cats:["food","drinks","household","stationery","electronics"], mult:1.18, lead:5, fee:18, reliability:0.99, minUnits:1, bulkAt:9999, bulkOff:0 },
 ];
