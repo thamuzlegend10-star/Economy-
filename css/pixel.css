@@ -137,3 +137,12 @@ dialog.po .po-head h2 { margin:0; color:var(--brass-ink); font:700 1.05rem/1.2 v
 .fld { display:grid; gap:4px; } .fld span { font:600 .72rem/1 var(--font); letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
 .fld select, .fld input { width:100%; min-width:0; }
 .po-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; } .po-actions button { min-width:0; }
+
+/* Store table (unit sold, sales, COGS, unit remain, price) */
+.shophead { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:6px; } .shophead small { text-align:right; }
+.tbl.fixed { table-layout:fixed; font-size:.78rem; } .tbl.fixed th, .tbl.fixed td { padding:6px 2px; white-space:nowrap; }
+.tbl.fixed thead th { font-size:.52rem; letter-spacing:0; vertical-align:bottom; white-space:normal; overflow-wrap:normal; }
+.tbl.fixed th:first-child { width:22%; text-align:left; } .tbl.fixed tbody th { font:600 .78rem/1.2 var(--font); text-align:left; color:var(--fg); text-transform:none; letter-spacing:0; background:transparent; position:static; }
+.tbl.fixed .dot { width:8px; height:8px; margin-right:4px; }
+#spOpen { margin-top:8px; width:100%; }
+.shophead b { white-space:nowrap; } .shophead small { min-width:0; }

@@ -109,3 +109,15 @@ test("save round trip works; old saves are refused with a clear message", () => 
   assert.equal(E.validateSave("{").ok, false);
   const bad = JSON.parse(E.serialize(s)); bad.ledger.bal.cash += 5; assert.equal(E.validateSave(JSON.stringify(bad)).ok, false);
 });
+
+test("renting more space adds capacity, raises rent and traffic, and respects the limit", () => {
+  const s = mk({ area: 100 }), cap0 = E.capacityOf(s.area), rent0 = E.dailyRent(s.location, s.area), dem0 = E.expectedDemand(s, "noodles");
+  const q = E.spaceQuote(s, 50); assert.ok(q.ok); assert.equal(q.newArea, 150);
+  assert.ok(E.rentMoreSpace(s, 50).ok);
+  assert.equal(s.area, 150); assert.equal(E.capacityOf(s.area) - cap0, 5000);
+  assert.ok(E.dailyRent(s.location, s.area) > rent0); assert.ok(E.expectedDemand(s, "noodles") > dem0);
+  const d0 = s.day; while (!s.ended && s.day === d0) E.tick(s, 0.5);
+  assert.equal(s.lastReport.rent, E.dailyRent(s.location, 150)); assert.ok(E.reconcile(s).ok);
+  assert.equal(E.rentMoreSpace(s, 0).ok, false); assert.equal(E.rentMoreSpace(s, D.AREA.max).ok, false);
+  assert.equal(E.rentMoreSpace(s, 1.4).ok, true);
+});

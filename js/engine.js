@@ -161,6 +161,27 @@ export function setPrice(s, pid, price) {
 export const adjustPrice = (s, pid, dir) => setPrice(s, pid, s.prices[pid] + dir * PRODUCT[pid].step);
 export const margin = (s, pid) => { const q = s.qty[pid], avg = q ? s.val[pid] / q : PRODUCT[pid].cost; return { avgCost: c(avg), unit: c(s.prices[pid] - avg), pct: s.prices[pid] ? (s.prices[pid] - avg) / s.prices[pid] : 0 }; };
 
+// ---------- renting more space ----------
+export function spaceQuote(s, extra) {
+  extra = Math.round(Number(extra));
+  if (!Number.isFinite(extra) || extra < 1) return err("Choose how many m² to add.");
+  const room = D.AREA.max - s.area;
+  const q = { extra, newArea: s.area + extra, rate: rentPerM2(s.location), errors: [] };
+  q.extraRent = dailyRent(s.location, extra); q.newRent = dailyRent(s.location, q.newArea); q.newCapacity = capacityOf(q.newArea); q.addedCapacity = capacityOf(q.newArea) - capacityOf(s.area);
+  if (extra > room) q.errors.push(room > 0 ? `The most you can add is ${room} m² (shops are at most ${D.AREA.max} m²).` : `Your shop is already at the ${D.AREA.max} m² limit.`);
+  q.ok = !q.errors.length; return q;
+}
+export function rentMoreSpace(s, extra) {
+  if (s.ended) return err("The game is over.");
+  const q = spaceQuote(s, extra);
+  if (q.error) return err(q.error);
+  if (!q.ok) return err(q.errors[0]);
+  s.area = q.newArea;
+  for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
+  log(s, `Rented ${q.extra} m² more. The shop is now ${s.area} m². Rent is $${q.newRent.toFixed(2)} per day.`);
+  return ok({ area: s.area, rent: q.newRent });
+}
+
 // ---------- simulation ----------
 function flush(s) {
   if (!s.pend) return;
