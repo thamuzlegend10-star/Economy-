@@ -1,3 +1,0 @@
-# Only the function settings; project link is done with `supabase link`.
-[functions.verify-match]
-verify_jwt = false

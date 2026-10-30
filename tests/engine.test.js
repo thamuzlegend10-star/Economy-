@@ -2,143 +2,110 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as E from "../js/engine.js";
 import * as D from "../js/data.js";
-import { totals, balance } from "../js/ledger.js";
 
-const fresh = (o = {}) => E.newGame({ seed: 12345, difficulty: "normal", mode: "standard", dayLimit: 5, ...o });
-const bal = (s, a) => balance(s.ledger, a);
-const run = (s, secs) => { for (let i = 0; i < secs * 4; i++) E.tick(s, 0.25); };
-const clean = s => assert.deepEqual(E.reconcile(s), { ok: true, problems: [] });
+const mk = (o = {}) => E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 10, capital: 40000, seed: 7, ...o });
+const runDay = s => { const d = s.day; while (!s.ended && s.day === d) E.tick(s, 0.5); };
+const order = (s, o) => E.placeOrder(s, o);
 
-test("new game balances and reconciles", () => { const s = fresh(); clean(s); assert.ok(totals(s.ledger).balanced); });
-
-test("ordering reduces cash, creates order, receives goods exactly once", () => {
-  const s = fresh(); const before = bal(s, "bank"), wh0 = s.stock.apple.wh;
-  const r = E.placeOrder(s, { supplier: "quickship", lines: [{ pid: "apple", qty: 10 }], pay: "bank", cmdId: "o1" });
-  assert.ok(r.ok, r.error);
-  assert.ok(bal(s, "bank") < before);
-  assert.equal(s.orders.length, 1); assert.equal(s.stock.apple.wh, wh0);   // not sellable until received
-  clean(s);
-  run(s, 12);
-  assert.equal(s.stock.apple.wh, wh0 + 10); assert.equal(s.orders.length, 0);
-  run(s, 5); assert.equal(s.stock.apple.wh, wh0 + 10);                      // no double receive
-  clean(s);
+test("setup is clamped and rent is per m2", () => {
+  const c = E.cleanSetup({ area: 1, secPerDay: 1, days: 999, capital: 5, location: "nope" });
+  assert.equal(c.area, D.AREA.min); assert.equal(c.secPerDay, D.SECONDS_PER_DAY.min); assert.equal(c.days, D.DAYS.max); assert.equal(c.capital, D.CAPITAL.min); assert.equal(c.location, "id-medan-central");
+  assert.equal(E.dailyRent("id-medan-central", 100), E.rentPerM2("id-medan-central") * 100);
+  assert.equal(E.capacityOf(300), 30000);
 });
 
-test("duplicate cmdId cannot repeat a purchase, deposit or loan", () => {
-  const s = fresh();
-  assert.ok(E.placeOrder(s, { supplier: "metro", lines: [{ pid: "apple", qty: 5 }], cmdId: "x" }).ok);
-  assert.equal(E.placeOrder(s, { supplier: "metro", lines: [{ pid: "apple", qty: 5 }], cmdId: "x" }).ok, false);
-  assert.equal(s.orders.length, 1);
-  const b = bal(s, "bank");
-  assert.ok(E.takeLoan(s, "small", "l1").ok); assert.equal(E.takeLoan(s, "small", "l1").ok, false);
-  assert.equal(s.loans.length, 1); assert.ok(bal(s, "bank") > b);
+test("only three products exist and the game starts balanced with opening stock", () => {
+  assert.equal(D.PRODUCTS.length, 3);
+  const s = mk(); assert.ok(E.reconcile(s).ok);
+  assert.deepEqual(Object.keys(s.qty).sort(), ["earbuds", "milk", "noodles"]);
+  assert.equal(s.qty.noodles, D.START_STOCK.noodles);
+  assert.equal(E.dashboard(s).netWorth, s.startNetWorth);
 });
 
-test("invalid inputs are rejected", () => {
-  const s = fresh();
-  for (const qty of [0, -3, 1.5, 1e9, NaN]) assert.equal(E.placeOrder(s, { supplier: "metro", lines: [{ pid: "apple", qty }] }).ok, false);
-  assert.equal(E.placeOrder(s, { supplier: "nope", lines: [{ pid: "apple", qty: 1 }] }).ok, false);
-  assert.equal(E.placeOrder(s, { supplier: "metro", lines: [{ pid: "earbuds", qty: 1 }] }).ok, false);       // locked
-  assert.equal(E.placeOrder(s, { supplier: "freshfarm", lines: [{ pid: "soap", qty: 20 }] }).ok, false);    // wrong category
-  assert.equal(E.setPrice(s, "apple", -1).ok, false); assert.equal(E.setPrice(s, "apple", 1e9).ok, false);
-  assert.equal(E.deposit(s, -5).ok, false); assert.equal(E.deposit(s, 1e9).ok, false); assert.equal(E.withdraw(s, 1e9).ok, false);
-  assert.equal(E.placeOrder(s, { supplier: "metro", lines: [{ pid: "apple", qty: 999 }] }).ok, false);        // warehouse too small
-  clean(s);
+test("timer: a day lasts exactly secPerDay seconds whatever the frame size", () => {
+  const a = mk(), b = mk();
+  for (let i = 0; i < 200; i++) E.tick(a, 0.05);
+  for (let i = 0; i < 10; i++) E.tick(b, 1);
+  assert.equal(a.day, 2); assert.equal(b.day, 2);
+  assert.equal(a.rng, b.rng); assert.equal(JSON.stringify(a.ledger.bal), JSON.stringify(b.ledger.bal));
+  assert.ok(E.timeLeft(a) > 9.9);
 });
 
-test("restock moves goods between locations without creating inventory", () => {
-  const s = fresh(); const total = () => s.stock.apple.wh + s.stock.apple.shelf; const t0 = total();
-  assert.ok(E.restock(s, "apple", 10).ok);
-  run(s, 20);
-  // customers may buy apples meanwhile, so only sales can lower the total, and never create stock
-  assert.ok(total() <= t0 && t0 - total() <= (s.stats.units.apple || 0) + 4); assert.ok(s.stock.apple.shelf > 5);
-  assert.equal(E.restock(s, "apple", 500).ok, false);
-  clean(s);
+test("sales reduce stock, create revenue, and stop when stock is gone", () => {
+  const s = mk(); const before = s.qty.noodles; runDay(s);
+  assert.ok(s.stats.units > 0); assert.ok(s.qty.noodles >= 0 && s.qty.noodles < before);
+  assert.ok(E.dashboard(s).revenue > 0); assert.ok(E.reconcile(s).ok);
+  const t = mk({ seed: 3 }); const v = t.val.earbuds; t.qty.earbuds = 0; t.val.earbuds = 0;   // direct edit, only to test the stop rule
+  t.ledger.bal.inventory = Math.round((t.ledger.bal.inventory - v) * 100) / 100; t.ledger.bal.capital = Math.round((t.ledger.bal.capital + v) * 100) / 100;
+  runDay(t); assert.equal(t.stats.prod.earbuds.units, 0); assert.ok(t.stats.prod.earbuds.lost > 0);
 });
 
-test("sales never exceed stock, record revenue, COGS and keep books balanced", () => {
-  const s = fresh(); E.restock(s, "apple", 12); E.setPrice(s, "apple", 2.5);
-  const rev0 = balance(s.ledger, "sales");
-  run(s, 100);
-  assert.ok(balance(s.ledger, "sales") > rev0, "should have sold something");
-  assert.ok(balance(s.ledger, "cogs") > 0);
-  for (const st of Object.values(s.stock)) { assert.ok(st.shelf >= 0 && st.wh >= 0); }
-  clean(s);
+test("purchase quote shows total, bulk discount, eta; limits are enforced", () => {
+  const s = mk();
+  const q = E.quote(s, "metro", "noodles", 10000); assert.ok(q.ok); assert.equal(q.discount, 0.03); assert.ok(q.days >= 1); assert.ok(q.ship > 0);
+  assert.ok(E.quote(s, "metro", "noodles", 3000).unit > q.unit);
+  assert.match(E.quote(s, "metro", "noodles", 150000).errors.join(" "), /cash/);
+  const big = mk({ capital: 200000, area: 200 }); assert.match(E.quote(big, "pacific", "milk", 30000).errors.join(" "), /storage/);
+  assert.match(E.quote(big, "local", "noodles", 100000).errors.join(" "), /in stock/);
+  assert.ok(E.quote(mk(), "metro", "noodles", 0).error); assert.ok(E.quote(mk(), "metro", "noodles", 150001).error);
+  for (const sup of D.SUPPLIERS) assert.ok(E.quote(s, sup.id, "milk", 1000).days >= 1);
 });
 
-test("closing charges rent/utilities exactly once and produces a report", () => {
-  const s = fresh(); const rent0 = balance(s.ledger, "rent");
-  run(s, D.DAY_LEN + 1);
-  assert.equal(s.phase, "report");
-  assert.equal(balance(s.ledger, "rent") - rent0, E.rent(s));
-  const rentAfter = balance(s.ledger, "rent");
-  E.tick(s, 5); assert.equal(balance(s.ledger, "rent"), rentAfter);          // no ticking while at the report
-  assert.ok(s.lastReport.revenue >= 0 && s.lastReport.reconciled);
-  clean(s);
+test("order: cash leaves now, goods arrive on the eta day, books stay balanced", () => {
+  const s = mk({ seed: 11 }); const cash0 = E.dashboard(s).cash, q = E.quote(s, "local", "noodles", 5000);
+  assert.ok(order(s, { supplier: "local", pid: "noodles", qty: 5000 }).ok);
+  assert.ok(Math.abs(E.dashboard(s).cash - (cash0 - q.total)) < 0.01); assert.equal(s.orders.length, 1); assert.ok(E.reconcile(s).ok);
+  const eta = s.orders[0].eta;
+  while (!s.ended && s.day < eta) runDay(s);
+  assert.equal(s.orders.length, 0); assert.ok(E.reconcile(s).ok); assert.ok(s.qty.noodles > 3000); assert.ok(E.dashboard(s).expenses > 0);
 });
 
-test("loan proceeds, interest and repayment update debt and cash correctly", () => {
-  const s = fresh(); const t = E.loanTerms(D.LOANS[0]);
-  const bank0 = bal(s, "bank"); assert.ok(E.takeLoan(s, "small").ok);
-  assert.equal(bal(s, "bank"), Math.round((bank0 + 1000 - t.fee) * 100) / 100); assert.equal(bal(s, "loan"), 1000);
-  run(s, D.DAY_LEN + 1);
-  assert.equal(bal(s, "loan"), 1000 - t.installment); assert.ok(bal(s, "interest") > 0);
-  const id = s.loans[0].id; assert.ok(E.repayLoan(s, id, 100000).ok);
-  assert.equal(s.loans.length, 0); assert.equal(bal(s, "loan"), 0); clean(s);
+test("shipments reserve storage so a delivery can never overflow", () => {
+  const s = mk({ capital: 200000, area: 150 });
+  assert.ok(order(s, { supplier: "pacific", pid: "noodles", qty: 5000 }).ok);
+  assert.equal(order(s, { supplier: "pacific", pid: "noodles", qty: 9000 }).ok, false);
+  for (let i = 0; i < 12; i++) runDay(s);
+  assert.ok(E.spaceUsed(s) <= E.capacityOf(s.area));
 });
 
-test("overdraft covers bills, never negative bank, and can be restructured", () => {
-  const s = fresh({ capital: 300 });
-  E.withdraw(s, bal(s, "bank")); E.deposit(s, 0.01); // drain
-  // spend everything
-  for (const a of ["cash", "bank"]) { const v = bal(s, a); if (v > 0) { s.ledger.bal[a] = 0; s.ledger.bal.capital += v; } }  // test-only reset of liquidity
-  s.staff.push({ id: 99, name: "Test", role: "cashier", skill: 1, wage: 900 });   // bills far above any sales
-  run(s, D.DAY_LEN + 1);
-  assert.ok(bal(s, "overdraft") > 0); assert.ok(bal(s, "bank") >= 0 && bal(s, "cash") >= 0);
-  assert.ok(E.restructureDebt(s).ok); assert.equal(bal(s, "overdraft"), 0); assert.ok(bal(s, "loan") > 0);
-  assert.equal(E.restructureDebt(s).ok, false);
+test("price controls change demand and margin and respect bounds", () => {
+  const s = mk(); const base = E.expectedDemand(s, "noodles"), p0 = s.prices.noodles;
+  E.adjustPrice(s, "noodles", 1); assert.ok(s.prices.noodles > p0); assert.ok(E.expectedDemand(s, "noodles") < base);
+  const hi = s.prices.noodles; E.adjustPrice(s, "noodles", -1); E.adjustPrice(s, "noodles", -1); assert.ok(s.prices.noodles < hi); assert.ok(E.expectedDemand(s, "noodles") > base);
+  for (let i = 0; i < 200; i++) E.adjustPrice(s, "earbuds", -1);
+  assert.equal(s.prices.earbuds, E.priceBounds(D.PRODUCTS[2]).min);
+  assert.ok(E.margin(s, "milk").pct > 0);
 });
 
-test("Standard ends at the day limit with a final report; Infinite goes on", () => {
-  const s = fresh({ dayLimit: 5 });
-  for (let d = 0; d < 5; d++) { run(s, D.DAY_LEN + 1); if (s.ended) break; E.nextDay(s); }
-  assert.ok(s.ended && s.ended.reason === "completed" && s.ended.day === 5 && s.ended.score.total >= 0);
-  const i = E.newGame({ seed: 1, mode: "infinite" });
-  for (let d = 0; d < 8; d++) { run(i, D.DAY_LEN + 1); assert.equal(i.ended, null); E.nextDay(i); }
-  assert.ok(i.day >= 9); clean(i);
+test("locations differ and runs are deterministic", () => {
+  const a = mk({ location: "id-jakarta-central" }), b = mk({ location: "id-siantar-town" }), c = mk({ location: "id-jakarta-central" });
+  runDay(a); runDay(b); runDay(c);
+  assert.ok(a.stats.units > b.stats.units); assert.equal(JSON.stringify(a.ledger.bal), JSON.stringify(c.ledger.bal));
+  assert.ok(E.dailyRent("id-jakarta-central", 300) > E.dailyRent("id-siantar-town", 300));
 });
 
-test("same seed and commands give the same results", () => {
-  const a = fresh(), b = fresh(); run(a, 90); run(b, 90);
-  assert.equal(JSON.stringify(a.ledger.bal), JSON.stringify(b.ledger.bal));
-});
-
-test("save/load preserves state; corrupt and old saves fail gracefully", () => {
-  const s = fresh(); E.takeLoan(s, "small"); E.buyUpgrade(s, "counter"); E.hire(s, s.candidates[0].id); run(s, 30);
-  const r = E.validateSave(E.serialize(s)); assert.ok(r.ok, r.error);
-  assert.equal(r.state.mode, s.mode); assert.equal(r.state.loans.length, 1); assert.equal(r.state.upgrades.counter, 1);
-  assert.equal(r.state.staff.length, 1); 
-  // items held in customers' baskets are saved back on the shelf (customers themselves are not saved)
-  for (const pid of Object.keys(s.stock)) {
-    const held = s.customers.reduce((a, c) => a + c.basket.filter(x => x === pid).length, 0);
-    assert.deepEqual(r.state.stock[pid], { wh: s.stock[pid].wh, shelf: s.stock[pid].shelf + held });
+test("a full game reaches a final report with the best product and reconciles", () => {
+  const s = mk({ days: 8, seed: 5 });
+  let n = 0; while (!s.ended && n++ < 200) {
+    for (const p of D.PRODUCTS) if (s.qty[p.id] < 2500) order(s, { supplier: "local", pid: p.id, qty: p.id === "earbuds" ? 1000 : 3000 });
+    runDay(s);
   }
-  assert.deepEqual(r.state.ledger.bal, s.ledger.bal);
-  assert.equal(E.validateSave("{not json").ok, false);
-  assert.equal(E.validateSave(JSON.stringify({ v: 2 })).ok, false);
-  const bad = JSON.parse(E.serialize(s)); bad.ledger.bal.cash += 50;
-  assert.equal(E.validateSave(bad).ok, false);
+  assert.equal(s.ended.reason, "completed"); assert.equal(s.history.length, 8);
+  const r = E.finalReport(s); assert.ok(r.revenue > 0 && r.expenses > 0); assert.ok(r.best && r.best.profit > 0); assert.equal(r.rows.length, 3);
+  assert.ok(Math.abs(r.netProfit - (r.revenue - r.expenses)) < 0.01); assert.ok(E.reconcile(s).ok);
 });
 
-test("upgrades raise capacity and can't exceed max", () => {
-  const s = fresh(); const c0 = E.shelfCap(s);
-  assert.ok(E.buyUpgrade(s, "shelves").ok); assert.equal(E.shelfCap(s), c0 + D.SHELF_PER_LVL);
-  E.buyUpgrade(s, "dock"); assert.equal(E.buyUpgrade(s, "dock").ok, false); clean(s);
+test("unpaid rent makes an overdraft, and three days of it ends the game", () => {
+  const s = mk({ capital: 10000, area: 2000, days: 40 });
+  s.qty = { noodles: 0, milk: 0, earbuds: 0 }; s.val = { noodles: 0, milk: 0, earbuds: 0 };
+  s.ledger.bal.inventory = 0; s.ledger.bal.cash = 0; s.ledger.bal.capital = 0;                  // direct edit to force a cash crisis, books stay balanced
+  let n = 0; while (!s.ended && n++ < 20) runDay(s);
+  assert.equal(s.ended.reason, "bankrupt");
 });
 
-test("order cancel refunds goods but not the delivery fee", () => {
-  const s = fresh(); const b = bal(s, "bank");
-  const r = E.placeOrder(s, { supplier: "metro", lines: [{ pid: "apple", qty: 10 }] });
-  assert.ok(E.cancelOrder(s, r.id).ok);
-  assert.equal(Math.round((b - bal(s, "bank")) * 100) / 100, 10); clean(s);
+test("save round trip works; old saves are refused with a clear message", () => {
+  const s = mk(); runDay(s); const v = E.validateSave(E.serialize(s)); assert.ok(v.ok); assert.equal(v.state.day, s.day);
+  const old = JSON.parse(E.serialize(s)); old.v = 10; const r = E.validateSave(JSON.stringify(old)); assert.equal(r.ok, false); assert.equal(r.old, true);
+  assert.equal(E.validateSave("{").ok, false);
+  const bad = JSON.parse(E.serialize(s)); bad.ledger.bal.cash += 5; assert.equal(E.validateSave(JSON.stringify(bad)).ok, false);
 });
