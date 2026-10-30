@@ -70,35 +70,39 @@ export function spaceForm(s, extra) {
 
 export function buy(s, ui) {
   const open = s.orders.length;
-  return `<div class="card"><b>Buy stock</b><p class="muted">Fill in a purchase order: where to ship, which supplier, which product and how many. You see the total and the delivery day before you submit.</p>
+  return `<div class="card"><b>Procurement</b><p class="muted">Raise a purchase order: pick a supplier, then a quantity for each of the three products. All items in one order ship together and pay one shipping fee. You see the total and the delivery day before you submit.</p>
     <button class="big" id="poOpen">New purchase order</button>
     <small class="note">${open ? `${open} shipment${open > 1 ? "s" : ""} on the way. See Deliveries.` : "No shipments on the way."}</small></div>`;
 }
 
-// The purchase order form shown in the order dialog. Selects first, the quote updates as they change.
+// The purchase order form shown in the order dialog: one supplier, one quantity list per product, a live quote, Submit.
 export function orderForm(s, b) {
-  const sp = E.SUPPLIER[b.sup], p = E.PRODUCT[b.pid], q = E.quote(s, b.sup, b.pid, b.qty);
+  const sp = E.SUPPLIER[b.sup];
   const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
   const sups = D.SUPPLIERS.map(x => { const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)); return opt(x.id, `${x.name} · ${num(km)} km · ${dayWord(days)}`, b.sup); }).join("");
-  const prods = D.PRODUCTS.map(x => opt(x.id, `${x.name} · ${money2(E.unitCost(s, sp, x.id))} each`, b.pid)).join("");
-  const custom = !D.QTY_CHOICES.includes(b.qty);
-  const qtys = D.QTY_CHOICES.map(n => opt(n, num(n) + " units", custom ? "custom" : b.qty)).join("") + opt("custom", "Custom amount...", custom ? "custom" : "");
-  const lines = q.error ? `<div class="err">${esc(q.error)}</div>` : `<div class="quote">
-      <div class="ln"><span>Unit price${q.discount ? ` (bulk −${Math.round(q.discount * 100)}%)` : ""}</span><b>${money2(q.unit)}</b></div>
+  const lines = D.PRODUCTS.map(p => ({ pid: p.id, qty: b.qty[p.id] || 0 }));
+  const q = E.quoteMulti(s, b.sup, lines);
+  const rows = D.PRODUCTS.map(p => {
+    const n = b.qty[p.id] || 0, custom = n > 0 && !D.QTY_CHOICES.includes(n);
+    const cur = custom ? "custom" : n;
+    const list = opt(0, "None", cur) + D.QTY_CHOICES.map(v => opt(v, num(v) + " units", cur)).join("") + opt("custom", "Custom amount...", cur);
+    return `<div class="poline"><div class="poname"><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</b><small>${money2(E.unitCost(s, sp, p.id))} each · supplier stock ${num(s.supStock[b.sup][p.id])}</small></div>
+      <select id="poQty-${p.id}" data-pid="${p.id}" aria-label="Quantity of ${esc(p.name)}">${list}</select>
+      ${custom ? `<input id="poCustom-${p.id}" data-pid="${p.id}" type="number" min="1" max="${D.MAX_QTY}" step="1" inputmode="numeric" value="${n}" aria-label="Custom quantity of ${esc(p.name)}">` : ""}</div>`;
+  }).join("");
+  const sum = q.error ? `<div class="muted small">${esc(q.error)}</div>` : `<div class="quote">
+      ${q.lines.map(l => `<div class="ln"><span>${esc(E.PRODUCT[l.pid].name)} ${num(l.qty)} × ${money2(l.unit)}${l.discount ? ` (bulk −${Math.round(l.discount * 100)}%)` : ""}</span><b>${money2(l.goods)}</b></div>`).join("")}
       <div class="ln"><span>Goods</span><b>${money2(q.goods)}</b></div>
-      <div class="ln"><span>Shipping (${num(q.km)} km)</span><b>${money2(q.ship)}</b></div>
+      <div class="ln"><span>Shipping (${num(q.km)} km, one fee)</span><b>${money2(q.ship)}</b></div>
       <div class="ln tot"><span>Total, paid now</span><b>${money2(q.total)}</b></div>
       <div class="ln"><span>Estimated delivery</span><b>${dayWord(q.days)}, day ${q.eta}</b></div>
-      <div class="ln"><span>Supplier stock</span><b>${num(q.stock)}</b></div>
       <div class="ln"><span>Storage needed</span><b>${num(q.space)} of ${num(Math.max(0, E.spaceFree(s)))} free</b></div></div>
     ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}
-    <small class="note">Bulk discounts: 10,000+ units −3%, 30,000+ −6%, 75,000+ −10%, 125,000+ −13%.${sp.reliability < 1 ? ` ${esc(sp.name)} is late about ${Math.round((1 - sp.reliability) * 100)}% of the time.` : ""}</small>`;
+    <small class="note">Bulk discounts per product: 10,000+ units −3%, 30,000+ −6%, 75,000+ −10%, 125,000+ −13%.${sp.reliability < 1 ? ` ${esc(sp.name)} is late about ${Math.round((1 - sp.reliability) * 100)}% of the time.` : ""}</small>`;
   return `<label class="fld"><span>Ship to</span><select id="poShip" disabled><option>My shop · ${esc(E.siteLabel(s.location))} · ${num(s.area)} m²</option></select></label>
     <label class="fld"><span>Supplier</span><select id="poSup">${sups}</select></label>
-    <label class="fld"><span>Product</span><select id="poPid">${prods}</select></label>
-    <label class="fld"><span>Quantity</span><select id="poQty">${qtys}</select></label>
-    ${custom ? `<label class="fld"><span>Custom amount</span><input id="poCustom" type="number" min="1" max="${D.MAX_QTY}" step="1" inputmode="numeric" value="${b.qty}" aria-label="Custom quantity"></label>` : ""}
-    ${lines}
+    <div class="fld"><span>Items and quantity</span>${rows}</div>
+    ${sum}
     <div class="po-actions"><button class="ghost" id="poCancel" type="button">Cancel</button><button id="poSubmit" type="button" ${q.ok ? "" : "disabled"}>Submit${q.total ? " · " + money2(q.total) : ""}</button></div>`;
 }
 
@@ -141,7 +145,7 @@ export function finalReport(s) {
 export const HELP = `<h4>The goal</h4><p>Rent a shop, buy stock, set prices, and finish the chosen number of days with the most profit.</p>
 <h4>Location and size</h4><p>Pick a place on the map. Each place has its own customers, rent per m² and competition. The m² you rent sets how much stock you can hold, and you pay rent every day.</p>
 <h4>Three products</h4><ul><li>Instant noodles: many sales, small margin.</li><li>Fresh milk: steady sales, takes twice the space.</li><li>Earbuds: few sales, big margin, little space.</li></ul>
-<h4>Buying</h4><p>In Buy, pick a supplier, a product and a quantity. You see the total, the bulk discount and the delivery time before you confirm. Suppliers differ in price, stock, distance, shipping and reliability. The fastest delivery is one day.</p>
+<h4>Buying</h4><p>In Procurement, raise a purchase order: pick a supplier, then a quantity for each of the three products from the list. You see the total, the bulk discounts and the delivery time before you submit. Suppliers differ in price, stock, distance, shipping and reliability. The fastest delivery is one day.</p>
 <h4>Deliveries and sales</h4><p>Trucks bring goods on their arrival day, and the goods go into inventory by themselves. Customers buy automatically while stock lasts. There is no shelf work and there are no staff.</p>
 <h4>Prices</h4><p>In Store, use - and + to change each price. Too high and fewer people buy. Too low and you earn little per unit.</p>
 <h4>Time</h4><p>One day lasts the number of real seconds you chose. The timer runs by itself. Use Pause if you need a break. If rent cannot be paid from cash, it becomes an overdraft, and three days of overdraft ends the game.</p>`;

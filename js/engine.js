@@ -135,6 +135,50 @@ export function quote(s, supId, pid, qty) {
   q.ok = !q.errors.length; return q;
 }
 
+// A purchase order can carry several products from one supplier. It is all-or-nothing: one quote, one payment, one shipping fee,
+// and one shipment record per product (so each product's delivery shows on its own line).
+export function quoteMulti(s, supId, lines) {
+  const sp = SUPPLIER[supId];
+  if (!sp) return err("Unknown supplier.");
+  const seen = new Set(), items = [];
+  for (const l of Array.isArray(lines) ? lines : []) {
+    const qty = Math.round(Number(l && l.qty));
+    if (!l || !PRODUCT[l.pid] || seen.has(l.pid) || !Number.isFinite(qty) || qty < 1) continue;
+    seen.add(l.pid); items.push({ pid: l.pid, qty });
+  }
+  if (!items.length) return err("Choose a quantity for at least one product.");
+  for (const l of items) if (l.qty > D.MAX_QTY) return err(`The most you can order of one product is ${D.MAX_QTY.toLocaleString("en-US")}.`);
+  const km = distanceKm(s.location, sp), L = getLocation(s.location), days = Math.max(1, Math.ceil(km / sp.speed + sp.prep));
+  const errors = [];
+  const out = items.map(l => {
+    const p = PRODUCT[l.pid], disc = discountFor(l.qty), baseUnit = unitCost(s, sp, l.pid), unit = c(baseUnit * (1 - disc)), goods = c(unit * l.qty);
+    const ship = c(sp.rate * km * l.qty * p.space * L.logistics), stock = s.supStock[supId][l.pid];
+    if (l.qty > stock) errors.push(`${sp.name} has only ${stock.toLocaleString("en-US")} ${p.name} in stock.`);
+    return { pid: l.pid, qty: l.qty, discount: disc, baseUnit, unit, goods, ship, space: l.qty * p.space, stock };
+  });
+  const fee = c(sp.fee * L.logistics), goods = c(out.reduce((a, l) => a + l.goods, 0)), ship = c(fee + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship);
+  const space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = spaceFree(s);
+  if (total > cash + 0.004) errors.push(`Not enough cash: need $${total.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
+  if (space > free) errors.push(`Not enough storage: this needs ${Math.round(space).toLocaleString("en-US")} space, ${Math.max(0, Math.floor(free)).toLocaleString("en-US")} free (stock and shipments on the way count). Rent more space or order less.`);
+  return { supplier: supId, km, days, eta: s.day + days, lines: out, fee, goods, ship, total, space, reliability: sp.reliability, errors, ok: !errors.length };
+}
+
+export function placeOrders(s, { supplier, lines } = {}) {
+  if (s.ended) return err("The game is over.");
+  const q = quoteMulti(s, supplier, lines);
+  if (q.error) return err(q.error);
+  if (!q.ok) return err(q.errors[0]);
+  const late = rnd(s) > SUPPLIER[supplier].reliability ? 1 : 0, made = [];
+  q.lines.forEach((l, i) => {
+    const o = { id: ++s.orderSeq, sup: supplier, pid: l.pid, qty: l.qty, unit: l.unit, goods: l.goods, ship: c(l.ship + (i === 0 ? q.fee : 0)), placed: s.day, eta: q.eta + late, delayed: late === 1, km: q.km };
+    s.supStock[supplier][l.pid] -= l.qty; s.orders.push(o); s.stats.orders++; s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
+  });
+  post(s.ledger, s.day, `Purchase order ${made.map(o => "#" + o.id).join(", ")} from ${SUPPLIER[supplier].name}`, [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, { acct: "cash", cr: q.total }], "order:" + made[0].id);
+  s.today.ship = c(s.today.ship + q.ship);
+  log(s, `Ordered ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} for $${q.total.toFixed(2)}. Arrives day ${q.eta + late}${late ? " (delayed a day)" : ""}.`);
+  return ok({ orders: made, order: made[0], total: q.total, eta: q.eta + late });
+}
+
 export function placeOrder(s, { supplier, pid, qty } = {}) {
   if (s.ended) return err("The game is over.");
   const q = quote(s, supplier, pid, qty);

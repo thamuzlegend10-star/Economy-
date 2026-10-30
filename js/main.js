@@ -12,7 +12,7 @@ const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }, del: k => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } } };
 
 let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central", lastSave = 0, lastView = 0, lastDay = 0;
-const ui = { tab: "dash", buy: { sup: "local", pid: "noodles", qty: 10000 } };
+const ui = { tab: "dash", buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } } };
 
 // ---------- small helpers ----------
 function toast(text, kind = "") {
@@ -80,10 +80,10 @@ $("spDlg").addEventListener("click", e => {
 function openPo() { const d = $("poDlg"); renderPo(); if (!d.open) d.showModal(); }
 function renderPo() { if (s) $("poBody").innerHTML = UI.orderForm(s, ui.buy); }
 $("poDlg").addEventListener("change", e => {
-  const t = e.target;
-  if (t.id === "poSup") ui.buy.sup = t.value; else if (t.id === "poPid") ui.buy.pid = t.value;
-  else if (t.id === "poQty") { if (t.value === "custom") ui.buy.qty = D.QTY_CHOICES.includes(ui.buy.qty) ? 500 : ui.buy.qty; else ui.buy.qty = Number(t.value); }
-  else if (t.id === "poCustom") { const v = Math.round(Number(t.value)); ui.buy.qty = v >= 1 ? Math.min(D.MAX_QTY, v) : 1; }
+  const t = e.target, pid = t.dataset && t.dataset.pid;
+  if (t.id === "poSup") ui.buy.sup = t.value;
+  else if (pid && t.id.startsWith("poQty-")) { if (t.value === "custom") { const n = ui.buy.qty[pid]; ui.buy.qty[pid] = n > 0 && !D.QTY_CHOICES.includes(n) ? n : 500; } else ui.buy.qty[pid] = Number(t.value); }
+  else if (pid && t.id.startsWith("poCustom-")) { const v = Math.round(Number(t.value)); ui.buy.qty[pid] = v >= 1 ? Math.min(D.MAX_QTY, v) : 0; }
   else return;
   renderPo();
 });
@@ -91,9 +91,9 @@ $("poDlg").addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || !s) return;
   if (t.id === "poX" || t.id === "poCancel") $("poDlg").close();
   else if (t.id === "poSubmit") {
-    const r = E.placeOrder(s, { supplier: ui.buy.sup, pid: ui.buy.pid, qty: ui.buy.qty });
+    const r = E.placeOrders(s, { supplier: ui.buy.sup, lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: ui.buy.qty[p.id] || 0 })) });
     if (!r.ok) { toast(r.error, "err"); renderPo(); return; }
-    $("poDlg").close(); toast(`Ordered. Arrives day ${r.order.eta}.`, "ok"); save(); ui.tab = "ship"; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "ship")); renderAll(true);
+    $("poDlg").close(); toast(`Ordered ${r.orders.length} item${r.orders.length > 1 ? "s" : ""}. Arrives day ${r.eta}.`, "ok"); save(); ui.tab = "ship"; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "ship")); renderAll(true);
   }
 });
 
@@ -150,11 +150,11 @@ $("areaChips").onclick = e => { const b = e.target.closest("[data-area]"); if (b
 for (const id of ["sSec", "sDays", "sCap"]) $(id).oninput = readSetup;
 $("sStart").onclick = () => {
   const c = setupValues(); $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay; $("sDays").value = c.days;
-  adopt(E.newGame(c)); closeMenu(); toast("Shop open. Order stock in the Buy tab.", "ok");
+  adopt(E.newGame(c)); closeMenu(); toast("Shop open. Order stock in the Procurement tab.", "ok");
 };
 
 function adopt(state) {
-  s = state; paused = false; finalShown = !!s.ended; lastDay = s.day; ui.tab = "dash"; ui.buy = { sup: "local", pid: "noodles", qty: 10000 };
+  s = state; paused = false; finalShown = !!s.ended; lastDay = s.day; ui.tab = "dash"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } };
   document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "dash"));
   scene.reset(); save(); renderAll(true);
 }

@@ -121,3 +121,19 @@ test("renting more space adds capacity, raises rent and traffic, and respects th
   assert.equal(E.rentMoreSpace(s, 0).ok, false); assert.equal(E.rentMoreSpace(s, D.AREA.max).ok, false);
   assert.equal(E.rentMoreSpace(s, 1.4).ok, true);
 });
+
+test("one purchase order can carry all three products, pays one shipping fee and is all-or-nothing", () => {
+  const s = mk({ capital: 200000, area: 400 }), cash0 = E.dashboard(s).cash;
+  const lines = [{ pid: "noodles", qty: 10000 }, { pid: "milk", qty: 3000 }, { pid: "earbuds", qty: 1000 }];
+  const q = E.quoteMulti(s, "local", lines); assert.ok(q.ok); assert.equal(q.lines.length, 3);
+  const sep = lines.reduce((a, l) => a + E.quote(s, "local", l.pid, l.qty).total, 0);
+  assert.ok(q.total < sep, "one fee instead of three");
+  const r = E.placeOrders(s, { supplier: "local", lines }); assert.ok(r.ok); assert.equal(s.orders.length, 3);
+  assert.ok(Math.abs(E.dashboard(s).cash - (cash0 - q.total)) < 0.01); assert.ok(E.reconcile(s).ok);
+  const before = JSON.stringify(s.orders), cash1 = E.dashboard(s).cash;
+  assert.equal(E.placeOrders(s, { supplier: "local", lines: [{ pid: "milk", qty: 100 }, { pid: "noodles", qty: 9e9 }] }).ok, false);
+  assert.equal(JSON.stringify(s.orders), before); assert.equal(E.dashboard(s).cash, cash1);
+  assert.equal(E.placeOrders(s, { supplier: "local", lines: [{ pid: "milk", qty: 0 }] }).ok, false);
+  while (!s.ended && s.orders.length) E.tick(s, 0.5);
+  assert.ok(E.reconcile(s).ok);
+});
