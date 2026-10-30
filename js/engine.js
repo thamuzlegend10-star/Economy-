@@ -35,10 +35,10 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, supStock: {}, overdraftDays: 0,
+    ledger: newLedger(), qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
-  for (const sp of D.SUPPLIERS) { s.supIdx[sp.id] = 1; s.supStock[sp.id] = { ...sp.stock }; }
+  for (const sp of D.SUPPLIERS) { s.supIdx[sp.id] = 1; }
   post(s.ledger, 1, "Owner capital", [{ acct: "cash", dr: o.capital }, { acct: "capital", cr: o.capital }], "open");
   let gift = 0;
   for (const p of D.PRODUCTS) { const v = c(p.cost * D.START_STOCK[p.id]); s.qty[p.id] = D.START_STOCK[p.id]; s.val[p.id] = v; gift = c(gift + v); }
@@ -81,9 +81,8 @@ function beginDay(s) {
   s.today = { day: s.day, rev: 0, cogs: 0, ship: 0, rent: 0, units: {}, lost: {}, arrivals: [] };
   for (const p of D.PRODUCTS) { s.today.units[p.id] = 0; s.today.lost[p.id] = 0; }
   s.noise = 0.9 + 0.2 * rnd(s);
-  for (const sp of D.SUPPLIERS) {                                       // supplier prices drift, stock refills
+  for (const sp of D.SUPPLIERS) {                                       // supplier prices drift (supplier stock is unlimited)
     const i = s.supIdx[sp.id]; s.supIdx[sp.id] = Math.round(clamp(i + (rnd(s) - 0.5) * 0.05 + (1 - i) * 0.08, 0.9, 1.15) * 1000) / 1000;
-    for (const p of D.PRODUCTS) s.supStock[sp.id][p.id] = Math.min(sp.stock[p.id], s.supStock[sp.id][p.id] + Math.ceil(sp.stock[p.id] * 0.25));
   }
   arrivals(s);
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
@@ -126,8 +125,7 @@ export function quote(s, supId, pid, qty) {
   const disc = discountFor(qty), base = unitCost(s, sp, pid), unit = c(base * (1 - disc));
   const goods = c(unit * qty), ship = c((sp.fee + sp.rate * km * qty * p.space) * L.logistics), total = c(goods + ship);
   const q = { supplier: supId, pid, qty, km, days, eta: s.day + days, baseUnit: base, discount: disc, unit, goods, ship, total, space: qty * p.space,
-    stock: s.supStock[supId][pid], reliability: sp.reliability, errors: [] };
-  if (qty > q.stock) q.errors.push(`${sp.name} has only ${q.stock.toLocaleString("en-US")} ${p.name} in stock.`);
+    reliability: sp.reliability, errors: [] };
   const cash = balance(s.ledger, "cash");
   if (total > cash + 0.004) q.errors.push(`Not enough cash: need $${total.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
   const free = spaceFree(s);
@@ -152,9 +150,8 @@ export function quoteMulti(s, supId, lines) {
   const errors = [];
   const out = items.map(l => {
     const p = PRODUCT[l.pid], disc = discountFor(l.qty), baseUnit = unitCost(s, sp, l.pid), unit = c(baseUnit * (1 - disc)), goods = c(unit * l.qty);
-    const ship = c(sp.rate * km * l.qty * p.space * L.logistics), stock = s.supStock[supId][l.pid];
-    if (l.qty > stock) errors.push(`${sp.name} has only ${stock.toLocaleString("en-US")} ${p.name} in stock.`);
-    return { pid: l.pid, qty: l.qty, discount: disc, baseUnit, unit, goods, ship, space: l.qty * p.space, stock };
+    const ship = c(sp.rate * km * l.qty * p.space * L.logistics);
+    return { pid: l.pid, qty: l.qty, discount: disc, baseUnit, unit, goods, ship, space: l.qty * p.space };
   });
   const fee = c(sp.fee * L.logistics), goods = c(out.reduce((a, l) => a + l.goods, 0)), ship = c(fee + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship);
   const space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = spaceFree(s);
@@ -171,7 +168,7 @@ export function placeOrders(s, { supplier, lines } = {}) {
   const late = rnd(s) > SUPPLIER[supplier].reliability ? 1 : 0, made = [];
   q.lines.forEach((l, i) => {
     const o = { id: ++s.orderSeq, sup: supplier, pid: l.pid, qty: l.qty, unit: l.unit, goods: l.goods, ship: c(l.ship + (i === 0 ? q.fee : 0)), placed: s.day, eta: q.eta + late, delayed: late === 1, km: q.km };
-    s.supStock[supplier][l.pid] -= l.qty; s.orders.push(o); s.stats.orders++; s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
+    s.orders.push(o); s.stats.orders++; s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
   });
   post(s.ledger, s.day, `Purchase order ${made.map(o => "#" + o.id).join(", ")} from ${SUPPLIER[supplier].name}`, [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, { acct: "cash", cr: q.total }], "order:" + made[0].id);
   s.today.ship = c(s.today.ship + q.ship);
@@ -187,7 +184,7 @@ export function placeOrder(s, { supplier, pid, qty } = {}) {
   const late = rnd(s) > SUPPLIER[supplier].reliability ? 1 : 0;
   const o = { id: ++s.orderSeq, sup: supplier, pid, qty: q.qty, unit: q.unit, goods: q.goods, ship: q.ship, placed: s.day, eta: q.eta + late, delayed: late === 1, km: q.km };
   post(s.ledger, s.day, `Order #${o.id}: ${o.qty} ${PRODUCT[pid].name} from ${SUPPLIER[supplier].name}`, [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, { acct: "cash", cr: q.total }], "order:" + o.id);
-  s.supStock[supplier][pid] -= o.qty; s.orders.push(o); s.stats.orders++; s.today.ship = c(s.today.ship + q.ship); s.stats.prod[pid].ship = c(s.stats.prod[pid].ship + q.ship);
+  s.orders.push(o); s.stats.orders++; s.today.ship = c(s.today.ship + q.ship); s.stats.prod[pid].ship = c(s.stats.prod[pid].ship + q.ship);
   log(s, `Ordered ${o.qty.toLocaleString("en-US")} ${PRODUCT[pid].name} for $${q.total.toFixed(2)}. Arrives day ${o.eta}${late ? " (delayed a day)" : ""}.`);
   return ok({ order: o, total: q.total });
 }

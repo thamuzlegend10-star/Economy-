@@ -86,7 +86,7 @@ export function orderForm(s, b) {
     const n = b.qty[p.id] || 0, custom = n > 0 && !D.QTY_CHOICES.includes(n);
     const cur = custom ? "custom" : n;
     const list = opt(0, "None", cur) + D.QTY_CHOICES.map(v => opt(v, num(v) + " units", cur)).join("") + opt("custom", "Custom amount...", cur);
-    return `<div class="poline"><div class="poname"><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</b><small>${money2(E.unitCost(s, sp, p.id))} each · supplier stock ${num(s.supStock[b.sup][p.id])}</small></div>
+    return `<div class="poline"><div class="poname"><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</b><small>${money2(E.unitCost(s, sp, p.id))} each</small></div>
       <select id="poQty-${p.id}" data-pid="${p.id}" aria-label="Quantity of ${esc(p.name)}">${list}</select>
       ${custom ? `<input id="poCustom-${p.id}" data-pid="${p.id}" type="number" min="1" max="${D.MAX_QTY}" step="1" inputmode="numeric" value="${n}" aria-label="Custom quantity of ${esc(p.name)}">` : ""}</div>`;
   }).join("");
@@ -145,7 +145,7 @@ export function finalReport(s) {
 export const HELP = `<h4>The goal</h4><p>Rent a shop, buy stock, set prices, and finish the chosen number of days with the most profit.</p>
 <h4>Location and size</h4><p>Pick a place on the map. Each place has its own customers, rent per m² and competition. The m² you rent sets how much stock you can hold, and you pay rent every day.</p>
 <h4>Three products</h4><ul><li>Instant noodles: many sales, small margin.</li><li>Fresh milk: steady sales, takes twice the space.</li><li>Earbuds: few sales, big margin, little space.</li></ul>
-<h4>Buying</h4><p>In Procurement, raise a purchase order: pick a supplier, then a quantity for each of the three products from the list. You see the total, the bulk discounts and the delivery time before you submit. Suppliers differ in price, stock, distance, shipping and reliability. The fastest delivery is one day.</p>
+<h4>Buying</h4><p>In Procurement, raise a purchase order: pick a supplier, then a quantity for each of the three products from the list. You see the total, the bulk discounts and the delivery time before you submit. Suppliers never run out. They differ in price, distance, shipping and reliability. The fastest delivery is one day.</p>
 <h4>Deliveries and sales</h4><p>Trucks bring goods on their arrival day, and the goods go into inventory by themselves. Customers buy automatically while stock lasts. There is no shelf work and there are no staff.</p>
 <h4>Prices</h4><p>In Store, use - and + to change each price. Too high and fewer people buy. Too low and you earn little per unit.</p>
 <h4>Time</h4><p>One day lasts the number of real seconds you chose. The timer runs by itself. Use Pause if you need a break. If rent cannot be paid from cash, it becomes an overdraft, and three days of overdraft ends the game.</p>`;

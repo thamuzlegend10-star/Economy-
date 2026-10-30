@@ -13,11 +13,11 @@ export const PRODUCTS = [
 // A hub with local:true is always 30 km away. speed is km per day. rate is shipping cost per space-unit per km.
 export const SUPPLIERS = [
   { id: "metro",   name: "Metro Wholesale",   desc: "Fair price, three hubs.",           price: 1.00, reliability: 0.95, fee: 40, rate: 0.00004, speed: 900, prep: 0.5,
-    hubs: [{ n: "Jakarta", lat: -6.2, lon: 106.8 }, { n: "Tokyo", lat: 35.7, lon: 139.8 }, { n: "New York", lat: 40.7, lon: -74 }], stock: { noodles: 120000, milk: 60000, earbuds: 9000 } },
+    hubs: [{ n: "Jakarta", lat: -6.2, lon: 106.8 }, { n: "Tokyo", lat: 35.7, lon: 139.8 }, { n: "New York", lat: 40.7, lon: -74 }] },
   { id: "pacific", name: "Pacific Trade Co.", desc: "Cheapest, but less reliable.",      price: 0.93, reliability: 0.88, fee: 60, rate: 0.00003, speed: 800, prep: 0.8,
-    hubs: [{ n: "Singapore", lat: 1.35, lon: 103.8 }, { n: "Kuala Lumpur", lat: 3.14, lon: 101.7 }, { n: "Tokyo", lat: 35.7, lon: 139.8 }], stock: { noodles: 160000, milk: 80000, earbuds: 12000 } },
-  { id: "local",   name: "Local Co-op",       desc: "Next door. Dearer, small stock.",   price: 1.12, reliability: 0.98, fee: 15, rate: 0.00002, speed: 600, prep: 0.2,
-    hubs: [{ local: true, n: "Your district" }], stock: { noodles: 30000, milk: 15000, earbuds: 2500 } },
+    hubs: [{ n: "Singapore", lat: 1.35, lon: 103.8 }, { n: "Kuala Lumpur", lat: 3.14, lon: 101.7 }, { n: "Tokyo", lat: 35.7, lon: 139.8 }] },
+  { id: "local",   name: "Local Co-op",       desc: "Next door. Dearer, but next door.",   price: 1.12, reliability: 0.98, fee: 15, rate: 0.00002, speed: 600, prep: 0.2,
+    hubs: [{ local: true, n: "Your district" }] },
 ];
 
 export const QTY_CHOICES = [1000, 3000, 5000, 10000, 15000, 20000, 30000, 50000, 75000, 100000, 125000, 150000];
