@@ -12,7 +12,7 @@ const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }, del: k => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } } };
 
 let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central", lastSave = 0, lastView = 0, lastDay = 0;
-const ui = { tab: "dash", buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } } };
+const ui = { tab: "dash", shipTab: "co", buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } } };
 
 // ---------- small helpers ----------
 function toast(text, kind = "") {
@@ -40,7 +40,7 @@ function renderView(force) {
   const a = document.activeElement;
   if (!force && a && a.closest && a.closest("#view") && /INPUT|SELECT/.test(a.tagName)) return;      // never rebuild while someone types
   const y = window.scrollY;
-  $("view").innerHTML = { dash: UI.dashboard, store: UI.store, buy: x => UI.buy(x, ui), ship: UI.ship, rep: UI.reports }[ui.tab](s);
+  $("view").innerHTML = { dash: UI.dashboard, store: UI.store, buy: x => UI.buy(x, ui), ship: x => UI.ship(x, ui), rep: UI.reports }[ui.tab](s);
   window.scrollTo(0, y);
 }
 function renderAll(force) { renderHud(); renderView(force); lastView = performance.now(); }
@@ -67,6 +67,8 @@ $("tabs").addEventListener("click", e => {
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
+  else if (t.dataset.shiptab) { ui.shipTab = t.dataset.shiptab; renderAll(true); }
+  else if (t.dataset.posup) { ui.buy.sup = t.dataset.posup; openPo(); }
   else if (t.id === "poOpen") openPo();
   else if (t.id === "spOpen") { ui.space = D.SPACE_STEPS.find(n => n <= D.AREA.max - s.area) || 10; renderSp(); $("spDlg").showModal(); }
 });
@@ -93,7 +95,7 @@ $("poDlg").addEventListener("click", e => {
   else if (t.id === "poSubmit") {
     const r = E.placeOrders(s, { supplier: ui.buy.sup, lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: ui.buy.qty[p.id] || 0 })) });
     if (!r.ok) { toast(r.error, "err"); renderPo(); return; }
-    $("poDlg").close(); toast(`Ordered ${r.orders.length} item${r.orders.length > 1 ? "s" : ""}. Arrives day ${r.eta}.`, "ok"); save(); ui.tab = "ship"; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "ship")); renderAll(true);
+    $("poDlg").close(); toast(`Ordered ${r.orders.length} item${r.orders.length > 1 ? "s" : ""}. Arrives day ${r.eta}.`, "ok"); save(); ui.tab = "ship"; ui.shipTab = "tx"; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "ship")); renderAll(true);
   }
 });
 

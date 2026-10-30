@@ -149,3 +149,12 @@ dialog.po .po-head h2 { margin:0; color:var(--brass-ink); font:700 1.05rem/1.2 v
 .poline { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px 8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
 .poname { display:grid; gap:2px; min-width:0; } .poname b { display:flex; align-items:center; gap:6px; } .poname small { color:var(--muted); font-size:.72rem; }
 .poline input { grid-column:2; width:100%; }
+
+/* Shipping tab: sub-tabs and transport company cards */
+.tcos { display:grid; gap:10px; grid-template-columns:1fr; }
+.tco { display:grid; gap:6px; padding:0 0 10px; overflow:hidden; } .tco > :not(.tco-head) { margin-left:10px; margin-right:10px; }
+.tco-head { background:var(--green, #2f8f5b); color:#fff; font:700 .9rem/1.2 var(--font); letter-spacing:.06em; text-transform:uppercase; padding:8px 10px; }
+.kv1 { display:grid; gap:4px; } .kv1 div { display:flex; justify-content:space-between; gap:8px; border-bottom:1px dotted var(--line); padding:3px 0; } .kv1 span { color:var(--muted); } .kv1 b { text-align:right; }
+.tco button { width:calc(100% - 20px); }
+@media (min-width:760px) { .tcos { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+.subtabs { display:flex; gap:6px; margin-bottom:10px; } .subtabs button { flex:1; min-width:0; background:var(--surface-2); color:var(--fg); border-color:var(--px-hi); } .subtabs button.on { background:var(--brass); color:var(--brass-ink); border-color:var(--px-edge); }
