@@ -46,7 +46,7 @@ test("purchase quote shows total, bulk discount, eta; limits are enforced", () =
   assert.ok(E.quote(s, "metro", "noodles", 3000).unit > q.unit);
   assert.match(E.quote(s, "metro", "noodles", 150000).errors.join(" "), /cash/);
   const big = mk({ capital: 200000, area: 200 }); assert.match(E.quote(big, "pacific", "milk", 30000).errors.join(" "), /storage/);
-  assert.match(E.quote(big, "local", "noodles", 100000).errors.join(" "), /in stock/);
+  const huge = mk({ capital: 20000, area: 2000 }); const hq = E.quote(huge, "local", "earbuds", 100000); assert.ok(!/in stock/.test(hq.errors.join(" ")), "supplier stock is unlimited"); assert.ok(E.quoteMulti(huge, "local", [{ pid: "noodles", qty: 150000 }]).goods > 0); assert.equal(s.supStock, undefined);
   assert.ok(E.quote(mk(), "metro", "noodles", 0).error); assert.ok(E.quote(mk(), "metro", "noodles", 150001).error);
   for (const sup of D.SUPPLIERS) assert.ok(E.quote(s, sup.id, "milk", 1000).days >= 1);
 });
