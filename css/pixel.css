@@ -127,3 +127,13 @@ dialog h2 { font:700 1.4rem/1.2 var(--font); letter-spacing:0; text-transform:no
 @media (max-width:400px) { .logo:not(.big) { display:none; } h1 { font-size:1.25rem; } .ctrl button { padding:6px 7px; } }
 @media (max-width:360px) { body { font-size:14px; } .pill b { font-size:1.05rem; } .k-time b { font-size:1.25rem; } .price output { font-size:1.5rem; } }
 @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+
+/* Purchase order dialog: coloured title band with a close button, stacked labelled selects, one submit button. */
+dialog.po { padding:0; width:min(480px,96vw); overflow:hidden; }
+.po-head { display:flex; align-items:center; justify-content:space-between; gap:8px; background:var(--brass); color:var(--brass-ink); padding:10px 12px; }
+dialog.po .po-head h2 { margin:0; color:var(--brass-ink); font:700 1.05rem/1.2 var(--font); letter-spacing:.1em; text-transform:uppercase; }
+.po-x { background:transparent; border:0; box-shadow:none; color:var(--brass-ink); font-size:1.6rem; line-height:1; padding:0 8px; min-height:36px; }
+.po-body { display:grid; gap:10px; padding:14px 12px; max-height:calc(92dvh - 56px); overflow:auto; }
+.fld { display:grid; gap:4px; } .fld span { font:600 .72rem/1 var(--font); letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+.fld select, .fld input { width:100%; min-width:0; }
+.po-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; } .po-actions button { min-width:0; }

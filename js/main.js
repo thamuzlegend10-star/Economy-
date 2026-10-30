@@ -67,17 +67,27 @@ $("tabs").addEventListener("click", e => {
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
-  else if (t.dataset.sup) { ui.buy.sup = t.dataset.sup; renderAll(true); }
-  else if (t.dataset.pid) { ui.buy.pid = t.dataset.pid; renderAll(true); }
-  else if (t.dataset.qty) { ui.buy.qty = Number(t.dataset.qty); renderAll(true); }
-  else if (t.id === "qSet") { const v = Math.round(Number($("qCustom").value)); if (!(v >= 1)) { toast("Enter a quantity of at least 1.", "err"); return; } ui.buy.qty = Math.min(D.MAX_QTY, v); renderAll(true); }
-  else if (t.id === "bConfirm") {
+  else if (t.id === "poOpen") openPo();
+});
+function openPo() { const d = $("poDlg"); renderPo(); if (!d.open) d.showModal(); }
+function renderPo() { if (s) $("poBody").innerHTML = UI.orderForm(s, ui.buy); }
+$("poDlg").addEventListener("change", e => {
+  const t = e.target;
+  if (t.id === "poSup") ui.buy.sup = t.value; else if (t.id === "poPid") ui.buy.pid = t.value;
+  else if (t.id === "poQty") { if (t.value === "custom") ui.buy.qty = D.QTY_CHOICES.includes(ui.buy.qty) ? 500 : ui.buy.qty; else ui.buy.qty = Number(t.value); }
+  else if (t.id === "poCustom") { const v = Math.round(Number(t.value)); ui.buy.qty = v >= 1 ? Math.min(D.MAX_QTY, v) : 1; }
+  else return;
+  renderPo();
+});
+$("poDlg").addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t || !s) return;
+  if (t.id === "poX" || t.id === "poCancel") $("poDlg").close();
+  else if (t.id === "poSubmit") {
     const r = E.placeOrder(s, { supplier: ui.buy.sup, pid: ui.buy.pid, qty: ui.buy.qty });
-    if (!r.ok) { toast(r.error, "err"); renderAll(true); return; }
-    toast(`Ordered. Arrives day ${r.order.eta}.`, "ok"); save(); ui.tab = "ship"; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "ship")); renderAll(true);
+    if (!r.ok) { toast(r.error, "err"); renderPo(); return; }
+    $("poDlg").close(); toast(`Ordered. Arrives day ${r.order.eta}.`, "ok"); save(); ui.tab = "ship"; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "ship")); renderAll(true);
   }
 });
-$("view").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "qCustom") $("qSet").click(); });
 
 // ---------- header buttons ----------
 $("bPause").onclick = () => { if (!s || s.ended) return; paused = !paused; renderHud(); };
