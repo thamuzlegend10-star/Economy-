@@ -146,3 +146,6 @@ dialog.po .po-head h2 { margin:0; color:var(--brass-ink); font:700 1.05rem/1.2 v
 .tbl.fixed .dot { width:8px; height:8px; margin-right:4px; }
 #spOpen { margin-top:8px; width:100%; }
 .shophead b { white-space:nowrap; } .shophead small { min-width:0; }
+.poline { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px 8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+.poname { display:grid; gap:2px; min-width:0; } .poname b { display:flex; align-items:center; gap:6px; } .poname small { color:var(--muted); font-size:.72rem; }
+.poline input { grid-column:2; width:100%; }

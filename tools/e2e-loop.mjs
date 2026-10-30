@@ -11,7 +11,7 @@ for (const [w, h] of sizes) {
   for (const t of ["dash", "store", "buy", "ship", "rep"]) {
     if (t === "dash") { await p.click("#spOpen"); await p.screenshot({path:`/tmp/sp-${w}.png`}); await p.click("#spSubmit"); }
     await p.click(`[data-tab="${t}"]`);
-    if (t === "buy") { await p.click("#poOpen"); await p.selectOption("#poQty","10000"); await p.screenshot({path:`/tmp/po-${w}.png`}); await p.click("#poSubmit"); await p.click('[data-tab="buy"]'); }
+    if (t === "buy") { await p.click("#poOpen"); await p.selectOption("#poQty-noodles","10000"); await p.selectOption("#poQty-milk","3000"); await p.selectOption("#poQty-earbuds","1000"); await p.screenshot({path:`/tmp/po-${w}.png`}); await p.click("#poSubmit"); await p.click('[data-tab="buy"]'); }
     await p.waitForTimeout(150);
     const r = await p.evaluate(() => {
       const out = [], vw = document.documentElement.clientWidth;
