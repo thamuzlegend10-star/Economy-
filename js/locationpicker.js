@@ -1,8 +1,8 @@
-// Location picker: globe + hierarchy (Earth > Country > Region > City > District) + search + market summary + comparison.
+// Location picker: 2D world map + hierarchy (Earth > Country > Region > City > District) + search + market summary + comparison.
 // Reads the location catalog and the engine's estimate functions; changes no game state by itself.
 import * as LOC from "./locations.js";
 import * as E from "./engine.js";
-import { createGlobe } from "./globe.js";
+import { createMap } from "./globe.js";
 
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money0 = n => "$" + Math.round(n).toLocaleString();
@@ -82,7 +82,7 @@ export function createLocationPicker({ root, getArea = () => 250, onPick }) {
     const keep = body.querySelector("#gq"), had = document.activeElement === keep, pos = keep ? keep.selectionStart : 0;
     body.innerHTML = `<label class="field">Search a place<input id="gq" type="search" placeholder="Medan, Tokyo, Indonesia…" value="${esc(st.q)}" autocomplete="off"></label>
       <div class="gcrumb">${crumb}</div><div class="glist" data-level="${lv}">${listHtml}</div>
-      ${st.sel ? detail(st.sel) : `<p class="muted small">Pick a country, then a region, city and district. Or tap a marker on the globe. The globe is a schematic with simplified coastlines.</p>`}
+      ${st.sel ? detail(st.sel) : `<p class="muted small">Pick a country, then a region, city and district. Or tap a marker on the map. The map is a schematic with simplified coastlines.</p>`}
       ${compareTable()}
       ${current !== "default" ? `<p class="muted small">Current: ${esc(LOC.getLocation(current).name)}</p>` : ""}`;
     const q = body.querySelector("#gq"); if (had && q) { q.focus(); q.setSelectionRange(pos, pos); }
@@ -99,14 +99,14 @@ export function createLocationPicker({ root, getArea = () => 250, onPick }) {
     else if (a === "use") { onPick(t.dataset.id); close(); }
   });
   function open(cur = "default") {
-    current = cur; root.hidden = false; document.body.classList.add("modal-open");
-    if (!globe) globe = createGlobe(canvasHost, { markers: all(), onPick: id => selectSite(id) });
+    current = cur; if (!root.open) root.showModal();
+    if (!globe) globe = createMap(canvasHost, { markers: all(), onPick: id => selectSite(id) });
     globe.start(); if (cur !== "default") { const l = LOC.getLocation(cur); st.sel = cur; st.country = l.country; st.region = l.region; st.city = l.city; globe.select(cur); globe.focus(l.lat, l.lon, 2.4); } else globe.reset();
-    render(); root.querySelector("[data-gclose]").focus();
+    render(); const q = root.querySelector("#gq"); (q || root.querySelector("[data-gclose]")).focus();
   }
-  function close() { root.hidden = true; document.body.classList.remove("modal-open"); globe && globe.stop(); }
+  function close() { if (root.open) root.close(); globe && globe.stop(); }
   root.querySelectorAll("[data-gclose]").forEach(b => b.addEventListener("click", close));
-  root.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+  root.addEventListener("close", () => { globe && globe.stop(); });
   root.addEventListener("click", e => { if (e.target === root) close(); });
   root.querySelector("#gZoomIn").onclick = () => globe && globe.zoomBy(1.25);
   root.querySelector("#gZoomOut").onclick = () => globe && globe.zoomBy(0.8);

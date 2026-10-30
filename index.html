@@ -84,19 +84,19 @@
 <dialog id="finalDlg"><form method="dialog" onsubmit="return false"><div id="finalBody"></div><div class="dlg-actions"><button id="finalNew" class="primary">New game</button><button id="finalClose" class="ghost">Close</button></div></form></dialog>
 
   <!-- location picker -->
-<div id="globeDlg" class="overlay" hidden>
+<dialog id="globeDlg" class="overlay">
   <div class="sheet globe-sheet" role="dialog" aria-modal="true" aria-label="Choose a location">
     <div class="sheet-head"><h3 style="margin:0">Choose a location</h3><button class="ghost" data-gclose>Close</button></div>
     <div class="globe-wrap">
       <div class="globe-stage">
-        <canvas id="globeCv" aria-label="Interactive globe. Drag to rotate, scroll or pinch to zoom, arrow keys also rotate."></canvas>
+        <canvas id="globeCv" aria-label="World map. Drag to move, scroll or pinch to zoom, arrow keys also move."></canvas>
         <div class="globe-ctl"><button class="ghost mini" id="gZoomIn" aria-label="Zoom in">+</button><button class="ghost mini" id="gZoomOut" aria-label="Zoom out">-</button><button class="ghost mini" id="gReset">Reset</button></div>
-        <p class="muted small">Schematic globe with simplified coastlines. Works offline. Drag to rotate, scroll or pinch to zoom, tap a marker.</p>
+        <p class="muted small">Schematic world map with simplified coastlines. Works offline. Drag to move, scroll or pinch to zoom, tap a marker.</p>
       </div>
       <div class="globe-side sheet-body" id="globeBody"></div>
     </div>
   </div>
-</div>
+</dialog>
 
 <input type="file" id="fileIn" accept="application/json,.json" hidden>
 <script type="module" src="js/main.js"></script>
