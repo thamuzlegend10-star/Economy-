@@ -45,31 +45,37 @@ export function store(s) {
 }
 
 export function buy(s, ui) {
-  const b = ui.buy, sp = E.SUPPLIER[b.sup], p = E.PRODUCT[b.pid], q = E.quote(s, b.sup, b.pid, b.qty);
-  const sups = D.SUPPLIERS.map(x => {
-    const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep));
-    return `<button class="sup ${x.id === b.sup ? "on" : ""}" data-sup="${x.id}"><b>${esc(x.name)}</b><small>${esc(x.desc)}</small><small>${num(km)} km · delivery ${dayWord(days)} · reliability ${pct(x.reliability)}</small><small>Price ×${(x.price * s.supIdx[x.id]).toFixed(2)} · shipping from ${money2(x.fee)}</small></button>`;
-  }).join("");
-  const prods = D.PRODUCTS.map(x => `<button class="pbtn ${x.id === b.pid ? "on" : ""}" data-pid="${x.id}"><b>${esc(x.name)}</b><small>${money2(E.unitCost(s, sp, x.id))} each</small><small>stock ${num(s.supStock[b.sup][x.id])}</small></button>`).join("");
-  const qty = D.QTY_CHOICES.map(n => `<button class="ghost ${n === b.qty ? "on" : ""}" data-qty="${n}">${num(n)}</button>`).join("");
-  let quote;
-  if (q.error) quote = `<div class="err">${esc(q.error)}</div>`;
-  else quote = `<div class="quote">
-      <div class="ln"><span>Quantity</span><b>${num(q.qty)} ${esc(p.name)}</b></div>
+  const open = s.orders.length;
+  return `<div class="card"><b>Buy stock</b><p class="muted">Fill in a purchase order: where to ship, which supplier, which product and how many. You see the total and the delivery day before you submit.</p>
+    <button class="big" id="poOpen">New purchase order</button>
+    <small class="note">${open ? `${open} shipment${open > 1 ? "s" : ""} on the way. See Deliveries.` : "No shipments on the way."}</small></div>`;
+}
+
+// The purchase order form shown in the order dialog. Selects first, the quote updates as they change.
+export function orderForm(s, b) {
+  const sp = E.SUPPLIER[b.sup], p = E.PRODUCT[b.pid], q = E.quote(s, b.sup, b.pid, b.qty);
+  const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
+  const sups = D.SUPPLIERS.map(x => { const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)); return opt(x.id, `${x.name} · ${num(km)} km · ${dayWord(days)}`, b.sup); }).join("");
+  const prods = D.PRODUCTS.map(x => opt(x.id, `${x.name} · ${money2(E.unitCost(s, sp, x.id))} each`, b.pid)).join("");
+  const custom = !D.QTY_CHOICES.includes(b.qty);
+  const qtys = D.QTY_CHOICES.map(n => opt(n, num(n) + " units", custom ? "custom" : b.qty)).join("") + opt("custom", "Custom amount...", custom ? "custom" : "");
+  const lines = q.error ? `<div class="err">${esc(q.error)}</div>` : `<div class="quote">
       <div class="ln"><span>Unit price${q.discount ? ` (bulk −${Math.round(q.discount * 100)}%)` : ""}</span><b>${money2(q.unit)}</b></div>
       <div class="ln"><span>Goods</span><b>${money2(q.goods)}</b></div>
       <div class="ln"><span>Shipping (${num(q.km)} km)</span><b>${money2(q.ship)}</b></div>
-      <div class="ln tot"><span>Total</span><b>${money2(q.total)}</b></div>
-      <div class="ln"><span>Estimated delivery</span><b>${dayWord(q.days)} → day ${q.eta}</b></div>
-      <div class="ln"><span>Storage this needs</span><b>${num(q.space)} of ${num(Math.max(0, E.spaceFree(s)))} free</b></div>
-      <div class="ln"><span>Supplier stock</span><b>${num(q.stock)}</b></div></div>
+      <div class="ln tot"><span>Total, paid now</span><b>${money2(q.total)}</b></div>
+      <div class="ln"><span>Estimated delivery</span><b>${dayWord(q.days)}, day ${q.eta}</b></div>
+      <div class="ln"><span>Supplier stock</span><b>${num(q.stock)}</b></div>
+      <div class="ln"><span>Storage needed</span><b>${num(q.space)} of ${num(Math.max(0, E.spaceFree(s)))} free</b></div></div>
     ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}
-    ${q.ok ? `<small class="note">Bulk discounts: 10,000+ units −3%, 30,000+ −6%, 75,000+ −10%, 125,000+ −13%. ${sp.reliability < 1 ? `${sp.name} is late about ${Math.round((1 - sp.reliability) * 100)}% of the time.` : ""}</small>` : ""}`;
-  return `<div class="card"><b>1. Supplier</b><div class="sups">${sups}</div></div>
-    <div class="card"><b>2. Product</b><div class="pbtns">${prods}</div></div>
-    <div class="card"><b>3. Quantity</b><div class="qty">${qty}</div>
-      <div class="row"><input id="qCustom" type="number" min="1" max="${D.MAX_QTY}" step="1" inputmode="numeric" placeholder="Custom amount" value="${D.QTY_CHOICES.includes(b.qty) ? "" : b.qty}" aria-label="Custom quantity"><button class="ghost" id="qSet">Use amount</button></div></div>
-    <div class="card"><b>4. Check and confirm</b>${quote}<button class="big" id="bConfirm" ${q.ok ? "" : "disabled"}>Confirm order${q.total ? " · " + money2(q.total) : ""}</button></div>`;
+    <small class="note">Bulk discounts: 10,000+ units −3%, 30,000+ −6%, 75,000+ −10%, 125,000+ −13%.${sp.reliability < 1 ? ` ${esc(sp.name)} is late about ${Math.round((1 - sp.reliability) * 100)}% of the time.` : ""}</small>`;
+  return `<label class="fld"><span>Ship to</span><select id="poShip" disabled><option>My shop · ${esc(E.siteLabel(s.location))} · ${num(s.area)} m²</option></select></label>
+    <label class="fld"><span>Supplier</span><select id="poSup">${sups}</select></label>
+    <label class="fld"><span>Product</span><select id="poPid">${prods}</select></label>
+    <label class="fld"><span>Quantity</span><select id="poQty">${qtys}</select></label>
+    ${custom ? `<label class="fld"><span>Custom amount</span><input id="poCustom" type="number" min="1" max="${D.MAX_QTY}" step="1" inputmode="numeric" value="${b.qty}" aria-label="Custom quantity"></label>` : ""}
+    ${lines}
+    <div class="po-actions"><button class="ghost" id="poCancel" type="button">Cancel</button><button id="poSubmit" type="button" ${q.ok ? "" : "disabled"}>Submit${q.total ? " · " + money2(q.total) : ""}</button></div>`;
 }
 
 export function ship(s) {

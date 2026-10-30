@@ -10,7 +10,7 @@ for (const [w, h] of sizes) {
   await p.click("#mNew"); await p.fill("#sSec", "10"); await p.fill("#sDays", "5"); await p.click("#sStart"); await p.waitForTimeout(200);
   for (const t of ["dash", "store", "buy", "ship", "rep"]) {
     await p.click(`[data-tab="${t}"]`);
-    if (t === "buy") { await p.click('[data-qty="10000"]'); await p.click("#bConfirm"); await p.click('[data-tab="buy"]'); }
+    if (t === "buy") { await p.click("#poOpen"); await p.selectOption("#poQty","10000"); await p.screenshot({path:`/tmp/po-${w}.png`}); await p.click("#poSubmit"); await p.click('[data-tab="buy"]'); }
     await p.waitForTimeout(150);
     const r = await p.evaluate(() => {
       const out = [], vw = document.documentElement.clientWidth;
