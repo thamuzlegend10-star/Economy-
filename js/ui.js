@@ -26,22 +26,46 @@ export function dashboard(s) {
     ${stat("Rent per day", money2(E.dailyRent(s.location, s.area)), `${s.area} m² at ${money2(E.rentPerM2(s.location))}`)}
   </div>
   <div class="card"><b>Storage: ${pct(d.utilization)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, d.utilization * 100)}%"></i></div>
-    <small>${num(d.used)} of ${num(d.capacity)} space used. ${num(d.incoming)} more is reserved for deliveries on the way. Free to order: ${num(Math.max(0, E.spaceFree(s)))}.</small></div>
+    <small>${num(d.used)} of ${num(d.capacity)} space used. ${num(d.incoming)} more is reserved for deliveries on the way. Free to order: ${num(Math.max(0, E.spaceFree(s)))}.</small>
+    <button class="ghost" id="spOpen">Rent more space</button></div>
   <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In stock</th><th>Value</th><th>Sold</th></tr></thead><tbody>${prods}</tbody></table></div>
   ${lr ? `<div class="card"><b>Last day (day ${lr.day})</b><div class="kv"><div><span>Revenue</span><b>${money2(lr.revenue)}</b></div><div><span>Net</span><b class="${signCls(lr.net)}">${money2(lr.net)}</b></div>
     <div><span>Units sold</span><b>${num(Object.values(lr.units).reduce((a, b) => a + b, 0))}</b></div><div><span>Missed (no stock)</span><b>${num(Object.values(lr.lost).reduce((a, b) => a + b, 0))}</b></div></div></div>` : ""}`;
 }
 
+const kfmt = n => { const a = Math.abs(n); return (n < 0 ? "-" : "") + (a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + "M" : a >= 1e3 ? (a / 1e3).toFixed(a >= 1e5 ? 0 : 1) + "k" : Math.round(a).toLocaleString("en-US")); };
 export function store(s) {
-  return `<div class="prod">${D.PRODUCTS.map(p => {
-    const m = E.margin(s, p.id), b = E.priceBounds(p), st = s.stats.prod[p.id], out = s.qty[p.id] < 1;
-    return `<div class="card"><h4><span class="dot" style="background:${p.color}"></span>${esc(p.name)} ${out ? '<span class="tag bad">out of stock</span>' : ""}</h4><small>${esc(p.note)}</small>
+  const rows = D.PRODUCTS.map(p => { const st = s.stats.prod[p.id];
+    return `<tr><th scope="row"><span class="dot" style="background:${p.color}"></span>${esc(p.name.split(" ")[0])}</th><td>${kfmt(st.units)}</td><td>${kfmt(st.rev)}</td><td>${kfmt(st.cogs)}</td><td class="${s.qty[p.id] < 1 ? "neg" : ""}">${kfmt(s.qty[p.id])}</td><td><b>${s.prices[p.id].toFixed(2)}</b></td></tr>`; }).join("");
+  const ctl = D.PRODUCTS.map(p => {
+    const m = E.margin(s, p.id), b = E.priceBounds(p), out = s.qty[p.id] < 1;
+    return `<div class="card"><h4><span class="dot" style="background:${p.color}"></span>${esc(p.name)} ${out ? '<span class="tag bad">out of stock</span>' : ""}</h4>
       <div class="price"><button data-price="${p.id}" data-dir="-1" aria-label="Lower ${esc(p.name)} price" ${s.prices[p.id] <= b.min ? "disabled" : ""}>-</button><output>${money2(s.prices[p.id])}</output><button data-price="${p.id}" data-dir="1" aria-label="Raise ${esc(p.name)} price" ${s.prices[p.id] >= b.max ? "disabled" : ""}>+</button></div>
-      <small class="center">Each press changes the price by ${money2(p.step)}. Allowed: ${money2(b.min)} to ${money2(b.max)}.</small>
-      <div class="kv"><div><span>Purchase cost (avg)</span><b>${money2(m.avgCost)}</b></div><div><span>Profit per unit</span><b class="${signCls(m.unit)}">${money2(m.unit)} (${pct(m.pct)})</b></div>
-        <div><span>In stock</span><b>${num(s.qty[p.id])}</b></div><div><span>Units sold</span><b>${num(st.units)}</b></div>
-        <div><span>Demand today (est.)</span><b>${num(E.expectedDemand(s, p.id))}</b></div><div><span>Missed sales</span><b>${num(st.lost)}</b></div></div></div>`;
-  }).join("")}</div><small class="muted">Higher prices earn more per unit but fewer customers buy. Lower prices bring more buyers for less profit each. Sales only happen while there is stock.</small>`;
+      <small class="center">Each press: ${money2(p.step)}. Allowed ${money2(b.min)} to ${money2(b.max)}.</small>
+      <div class="kv"><div><span>Cost (avg)</span><b>${money2(m.avgCost)}</b></div><div><span>Profit per unit</span><b class="${signCls(m.unit)}">${money2(m.unit)} (${pct(m.pct)})</b></div>
+        <div><span>Demand today (est.)</span><b>${num(E.expectedDemand(s, p.id))}</b></div><div><span>Missed sales</span><b>${num(s.stats.prod[p.id].lost)}</b></div></div></div>`;
+  }).join("");
+  return `<div class="card shoptbl"><div class="shophead"><b>My shop</b><small>${esc(E.siteLabel(s.location))} · ${num(s.area)} m²</small></div>
+    <table class="tbl fixed"><thead><tr><th></th><th>Unit sold</th><th>Sales ($)</th><th>COGS ($)</th><th>Unit remain</th><th>Price ($)</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <h2>Set prices</h2><div class="prod">${ctl}</div>
+    <small class="muted">Higher prices earn more per unit but fewer customers buy. Lower prices bring more buyers for less profit each. Sales only happen while there is stock.</small>`;
+}
+
+// Rent more space dialog body.
+export function spaceForm(s, extra) {
+  const q = E.spaceQuote(s, extra), room = D.AREA.max - s.area;
+  const opts = D.SPACE_STEPS.filter(n => n <= room).map(n => `<option value="${n}" ${n === extra ? "selected" : ""}>+${n} m²</option>`).join("");
+  if (!opts) return `<div class="err">Your shop is already at the ${D.AREA.max} m² limit.</div><div class="po-actions"><button class="ghost" id="spCancel" type="button">Close</button></div>`;
+  return `<label class="fld"><span>Add space</span><select id="spExtra">${opts}</select></label>
+    <div class="quote">
+      <div class="ln"><span>Now</span><b>${num(s.area)} m² · ${money2(E.dailyRent(s.location, s.area))} / day</b></div>
+      <div class="ln"><span>Price</span><b>${money2(q.rate)} / m² / day</b></div>
+      <div class="ln tot"><span>After</span><b>${num(q.newArea)} m²</b></div>
+      <div class="ln"><span>Rent per day</span><b>${money2(q.newRent)} (+${money2(q.extraRent)})</b></div>
+      <div class="ln"><span>Storage</span><b>${num(q.newCapacity)} (+${num(q.addedCapacity)})</b></div></div>
+    ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}
+    <small class="note">The new space is yours right away. Rent for it is charged at the end of every day from now on, and a bigger shop attracts more customers.</small>
+    <div class="po-actions"><button class="ghost" id="spCancel" type="button">Cancel</button><button id="spSubmit" type="button" ${q.ok ? "" : "disabled"}>Rent +${q.extra} m²</button></div>`;
 }
 
 export function buy(s, ui) {

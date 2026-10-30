@@ -31,3 +31,6 @@ export const SECONDS_PER_DAY = { min: 10, max: 120, def: 30 };
 export const DAYS = { min: 5, max: 60, def: 30 };
 export const CAPITAL = { min: 10000, max: 200000, def: 40000 };
 export const START_STOCK = { noodles: 3000, milk: 1200, earbuds: 120 };
+
+// Extra space the player can rent later, in m2. Rent and traffic follow the new total area.
+export const SPACE_STEPS = [10, 25, 50, 100, 250, 500];

@@ -68,6 +68,14 @@ $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
   else if (t.id === "poOpen") openPo();
+  else if (t.id === "spOpen") { ui.space = D.SPACE_STEPS.find(n => n <= D.AREA.max - s.area) || 10; renderSp(); $("spDlg").showModal(); }
+});
+function renderSp() { if (s) $("spBody").innerHTML = UI.spaceForm(s, ui.space); }
+$("spDlg").addEventListener("change", e => { if (e.target.id === "spExtra") { ui.space = Number(e.target.value); renderSp(); } });
+$("spDlg").addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t || !s) return;
+  if (t.id === "spX" || t.id === "spCancel") $("spDlg").close();
+  else if (t.id === "spSubmit") { const r = E.rentMoreSpace(s, ui.space); if (!r.ok) { toast(r.error, "err"); renderSp(); return; } $("spDlg").close(); toast(`Shop is now ${r.area} m². Rent ${UI.money2(r.rent)} per day.`, "ok"); save(); renderAll(true); }
 });
 function openPo() { const d = $("poDlg"); renderPo(); if (!d.open) d.showModal(); }
 function renderPo() { if (s) $("poBody").innerHTML = UI.orderForm(s, ui.buy); }

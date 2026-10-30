@@ -9,6 +9,7 @@ for (const [w, h] of sizes) {
   await p.goto("http://localhost:8765/index.html"); await p.waitForTimeout(300);
   await p.click("#mNew"); await p.fill("#sSec", "10"); await p.fill("#sDays", "5"); await p.click("#sStart"); await p.waitForTimeout(200);
   for (const t of ["dash", "store", "buy", "ship", "rep"]) {
+    if (t === "dash") { await p.click("#spOpen"); await p.screenshot({path:`/tmp/sp-${w}.png`}); await p.click("#spSubmit"); }
     await p.click(`[data-tab="${t}"]`);
     if (t === "buy") { await p.click("#poOpen"); await p.selectOption("#poQty","10000"); await p.screenshot({path:`/tmp/po-${w}.png`}); await p.click("#poSubmit"); await p.click('[data-tab="buy"]'); }
     await p.waitForTimeout(150);
