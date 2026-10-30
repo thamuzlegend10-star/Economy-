@@ -9,22 +9,14 @@
 // server-authoritative play needs a backend that runs the rules (see README, "Multiplayer limits").
 import * as E from "./engine.js";
 import { hasLocation } from "./locations.js";
+import { sanitizeConfig } from "./matchconfig.js";
 import { getScenario, SHOCK_KINDS } from "./scenarios.js";
-import { verifyAgainstReplay } from "./replay.js";
+import { verifyFinalSave } from "./replay.js";
 
 export const CODE_RE = /^\d{6}$/;
 const JOIN_LIMIT = 5, JOIN_WINDOW_MS = 60000, GRACE_MS = 90000;
 
-export function sanitizeConfig(c = {}) {
-  const days = Math.max(5, Math.min(60, Math.round(Number(c.days) || 15)));
-  const difficulty = ["easy", "normal", "hard"].includes(c.difficulty) ? c.difficulty : "normal";
-  const capital = Math.max(300, Math.min(20000, Math.round(Number(c.capital) || 1000)));
-  const seed = Number.isInteger(c.seed) ? c.seed : 0;
-  const location = typeof c.location === "string" && hasLocation(c.location) ? c.location : "default";
-  const scn = typeof c.scenario === "string" ? getScenario(c.scenario) : null;
-  if (scn) return { days: scn.setup.days, difficulty: scn.setup.difficulty, capital: scn.setup.capital, seed, location: scn.setup.location, scenario: scn.id };   // a scenario fixes the setup for everyone
-  return { days, difficulty, capital, seed, location, scenario: "" };
-}
+export { sanitizeConfig };
 
 const rid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
 export function genCode() {
@@ -254,26 +246,10 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
 
   // ----- host: verify final saves, end the match -----
   function verifySave(raw, id) {
-    try {
-      if (typeof raw !== "string" || raw.length > 3e6) return { ok: false, reason: "Save missing or too large." };
-      const v = E.validateSave(raw);
-      if (!v.ok) return { ok: false, reason: cleanText(v.error, 80) };
-      const s = v.state, c = room.config;
-      if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital || s.loc !== c.location || (s.scenario || "") !== (c.scenario || "")) return { ok: false, reason: "Save does not match the room settings." };
-      const bankrupt = !!s.ended && s.ended.reason === "bankrupt" && s.day <= c.days;
-      if (!bankrupt && (!s.ended || s.day !== c.days)) return { ok: false, reason: "Save is not a finished match." };
-      // Server-style check: the host re-plays the player's command log from the shared seed and requires the exact same final state.
-      // The official score comes from the REPLAYED game, never from the numbers the player sent.
-      const rp = verifyAgainstReplay(s, c);
-      if (!rp.ok) return { ok: false, reason: cleanText(rp.reason, 80) };
-      Object.assign(s, rp.state);
-      const rec = E.reconcile(s);
-      if (!rec.ok) return { ok: false, reason: "Books do not reconcile: " + cleanText(rec.problems[0], 50) };
-      const d = E.updateDerived(s), revenue = s.history.reduce((a, h) => a + h.revenue, 0) + s.archive.revenue;
-      if (bankrupt) return { ok: true, score: 0, rating: "-", netWorth: d.netWorth, revenue, bankrupt: true };   // finished, but with nothing left to score
-      const sc = E.score(s), goals = E.evaluateGoals(s);
-      return { ok: true, score: sc.total, rating: sc.rating, netWorth: d.netWorth, revenue, goalsMet: goals.filter(x => x.ok).length, goalsTotal: goals.length };
-    } catch { return { ok: false, reason: "Save could not be checked." }; }
+    const r = verifyFinalSave(raw, room.config);
+    if (!r.ok) return { ok: false, reason: cleanText(r.reason, 80) };
+    const { state, ...verdict } = r;
+    return verdict;
   }
   function verify(id, raw) {
     if (!own(room.roster, id) || (room.progress[id] && room.progress[id].verdict && room.progress[id].verdict.ok)) return;

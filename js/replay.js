@@ -37,3 +37,26 @@ export function verifyAgainstReplay(claimed, config) {
     return { ok: false, reason: "Save does not match its own command log (edited or from a different game)." };
   return { ok: true, state: s };
 }
+
+// The single official check for a finished match, used by the host's browser, the command line and the server function.
+// Returns { ok:false, reason } or { ok:true, score, rating, netWorth, revenue, bankrupt?, goalsMet, goalsTotal, state }.
+export function verifyFinalSave(raw, c) {
+  try {
+    if (typeof raw !== "string" || raw.length > 3e6) return { ok: false, reason: "Save missing or too large." };
+    const v = E.validateSave(raw);
+    if (!v.ok) return { ok: false, reason: String(v.error).slice(0, 80) };
+    const s = v.state;
+    if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital || s.loc !== c.location || (s.scenario || "") !== (c.scenario || "")) return { ok: false, reason: "Save does not match the room settings." };
+    const bankrupt = !!s.ended && s.ended.reason === "bankrupt" && s.day <= c.days;
+    if (!bankrupt && (!s.ended || s.day !== c.days)) return { ok: false, reason: "Save is not a finished match." };
+    // Re-play the command log from the shared seed and require the exact same final state. The score comes from the REPLAYED game.
+    const rp = verifyAgainstReplay(s, c);
+    if (!rp.ok) return { ok: false, reason: String(rp.reason).slice(0, 80) };
+    const g = rp.state, rec = E.reconcile(g);
+    if (!rec.ok) return { ok: false, reason: "Books do not reconcile: " + String(rec.problems[0]).slice(0, 50) };
+    const d = E.updateDerived(g), revenue = g.history.reduce((a, h) => a + h.revenue, 0) + g.archive.revenue;
+    if (bankrupt) return { ok: true, score: 0, rating: "-", netWorth: d.netWorth, revenue, bankrupt: true, goalsMet: 0, goalsTotal: 0, state: g };
+    const sc = E.score(g), goals = E.evaluateGoals(g);
+    return { ok: true, score: sc.total, rating: sc.rating, netWorth: d.netWorth, revenue, goalsMet: goals.filter(x => x.ok).length, goalsTotal: goals.length, state: g };
+  } catch { return { ok: false, reason: "Save could not be checked." }; }
+}
