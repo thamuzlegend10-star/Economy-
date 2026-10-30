@@ -12,6 +12,7 @@ for (const [w, h] of sizes) {
     if (t === "dash") { await p.click("#spOpen"); await p.screenshot({path:`/tmp/sp-${w}.png`}); await p.click("#spSubmit"); }
     await p.click(`[data-tab="${t}"]`);
     if (t === "buy") { await p.click("#poOpen"); await p.selectOption("#poQty-noodles","10000"); await p.selectOption("#poQty-milk","3000"); await p.selectOption("#poQty-earbuds","1000"); await p.screenshot({path:`/tmp/po-${w}.png`}); await p.click("#poSubmit"); await p.click('[data-tab="buy"]'); }
+    if (t === "ship") { await p.screenshot({path:`/tmp/ship-${w}.png`}); await p.click('[data-shiptab="tx"]'); }
     await p.waitForTimeout(150);
     const r = await p.evaluate(() => {
       const out = [], vw = document.documentElement.clientWidth;

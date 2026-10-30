@@ -1,6 +1,7 @@
 // HTML builders for each tab. Pure functions of the engine state: no game rules live here.
 import * as E from "./engine.js";
 import * as D from "./data.js";
+import { getLocation } from "./locations.js";
 
 export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -106,13 +107,26 @@ export function orderForm(s, b) {
     <div class="po-actions"><button class="ghost" id="poCancel" type="button">Cancel</button><button id="poSubmit" type="button" ${q.ok ? "" : "disabled"}>Submit${q.total ? " · " + money2(q.total) : ""}</button></div>`;
 }
 
-export function ship(s) {
+export function ship(s, ui = {}) {
+  const tab = ui.shipTab === "tx" ? "tx" : "co";
+  const sub = `<div class="subtabs" role="tablist"><button class="${tab === "co" ? "on" : ""}" data-shiptab="co" role="tab">Transport Company</button><button class="${tab === "tx" ? "on" : ""}" data-shiptab="tx" role="tab">Transactions</button></div>`;
+  if (tab === "co") {
+    const cards = D.SUPPLIERS.map(x => {
+      const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)), fee = x.fee * getLocation(s.location).logistics, rate = x.rate * getLocation(s.location).logistics;
+      return `<div class="card tco"><div class="tco-head">Transport Company</div><h4>${esc(x.name)}</h4><small class="muted">${esc(x.desc)}</small>
+        <div class="kv1"><div><span>Trip fee</span><b>${money2(fee)} / trip</b></div><div><span>Shipping fee</span><b>${money2(rate * 1000)} / km / 1,000 space</b></div>
+        <div><span>Distance travel</span><b>${num(x.speed)} km / day</b></div><div><span>Distance to my shop</span><b>${num(km)} km</b></div>
+        <div><span>Delivery time</span><b>${dayWord(days)}</b></div><div><span>Reliability</span><b>${pct(x.reliability)} on time</b></div></div>
+        <button data-posup="${x.id}">Order from here</button></div>`;
+    }).join("");
+    return sub + `<div class="tcos">${cards}</div><small class="muted">Each supplier delivers with its own trucks. Cost of an order = one trip fee + shipping fee × distance × space the goods take. The fastest delivery is one day.</small>`;
+  }
   const rows = [...s.orders].sort((a, b) => a.eta - b.eta).map(o => {
     const st = E.orderStatus(s, o), cls = st === "Delayed" ? "warn" : st === "Arriving today" ? "ok" : "info";
     return `<tr><td>#${o.id}</td><td>${esc(E.PRODUCT[o.pid].name)}</td><td>${num(o.qty)}</td><td>${esc(E.SUPPLIER[o.sup].name)}</td><td><span class="tag ${cls}">${st}</span></td><td>Day ${o.eta} (${o.eta <= s.day ? "today" : "in " + dayWord(o.eta - s.day)})</td><td>${money2(o.goods + o.ship)}</td></tr>`;
   }).join("");
   const recent = s.log.filter(l => /^Delivery/.test(l.text)).slice(-6).reverse().map(l => `<div><small>Day ${l.day}</small> ${esc(l.text)}</div>`).join("");
-  return `<div class="card scroll">${rows ? `<table class="tbl"><thead><tr><th>Order</th><th>Product</th><th>Units</th><th>Supplier</th><th>Status</th><th>Arrives</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="muted">No shipments on the way. Open the Buy tab to order stock. The fastest delivery takes one day.</p>`}</div>
+  return sub + `<div class="card scroll">${rows ? `<table class="tbl"><thead><tr><th>Order</th><th>Product</th><th>Units</th><th>Supplier</th><th>Status</th><th>Arrives</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="muted">No shipments on the way. Open Procurement to order stock. The fastest delivery takes 1 day.</p>`}</div>
     <div class="card"><b>Delivered recently</b>${recent || '<small class="muted">Nothing has arrived yet.</small>'}<small class="muted">Deliveries go straight into inventory and are for sale at once.</small></div>`;
 }
 
