@@ -383,6 +383,7 @@ const sbClient = cloud.client && cloud.client();
 const net = sbClient ? createSupabaseNet(sbClient) : createLocalNet();
 const mp = createMultiplayer({
   net, storage: sessionStorage,
+  server: sbClient && window.SUPABASE_URL ? { url: window.SUPABASE_URL + "/functions/v1/verify-match", key: window.SUPABASE_ANON_KEY } : null,
   onChange: v => renderMp(v),
   onStart: cfg => startMatch(cfg),
   onResume: cfg => resumeMatch(cfg),

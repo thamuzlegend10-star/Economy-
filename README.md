@@ -59,7 +59,7 @@ Online matches are now checked by **deterministic replay** instead of trusting t
 What this does and does not give you:
 - It stops edited saves, fake balances, skipped costs and invented commands. A replay takes tens of milliseconds.
 - It does not stop a player using a script or another tool to play well, or taking as long as they like in a paused game. Rules are enforced; the person is not.
-- The host's browser still does the replay in the app. A deployable server check now exists (below); the app does not call it yet, so a malicious host can still lie until that is wired in.
+- The host's browser still does the replay in the app, and when Supabase is configured the host also sends the room and each valid final save to the server function (below). Result rows then say "Server verified"; if the server is unreachable they say "Replay verified". The stored results in `match_results` come only from the server replay, but the in-game ranking is still shown by the host, so a malicious host can still show a false ranking on screen.
 - Facilitator events are part of the log but the host does not require that every event was applied.
 - Saves from v9 or earlier carry no log, so they cannot be verified (new matches always start with one).
 
@@ -73,7 +73,7 @@ supabase functions deploy verify-match --no-verify-jwt
 ```
 The CLI bundles `supabase/functions/verify-match/index.ts` and the engine files it imports. Smoke test: finish a short match, POST the save, then read `match_results`. `node tools/verify-match.mjs config.json save.json` runs the same check locally.
 
-Limits: tested here against a fake database and a Deno shim, not a live Supabase project. A room code can be registered first by anyone (squatting). Scripts are not stopped. The game client does not call the function yet.
+Limits: tested here against a fake database and a Deno shim, not a live Supabase project. A room code can be registered first by anyone (squatting). Scripts are not stopped. The function is only called by the host's client; a player who is not the host does not call it directly.
 
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.

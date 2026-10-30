@@ -112,3 +112,21 @@ test("progress pings update the scoreboard and host leaving promotes someone els
   a.mp.leave(); await tick(40);
   assert.equal(b.mp.view().isHost, true);
 });
+
+test("host sends the room and valid finals to the server and marks them Server verified; a dead server falls back", async () => {
+  for (const alive of [true, false]) {
+    const calls = [];
+    const fake = async (url, init) => { const body = JSON.parse(init.body); calls.push(body.action); if (!alive) throw new Error("offline"); return { json: async () => ({ ok: true }) }; };
+    const bus = createMemoryBus(), a = mk(bus, { server: { url: "https://x.test/f", key: "pk", fetch: fake } }), b = mk(bus);
+    const { code } = await a.mp.create("A"); await b.mp.join(code, "B");
+    a.mp.setConfig({ days: 5, difficulty: "normal", capital: 1000 }); b.mp.setReady(true); await tick();
+    a.mp.start(); await tick();
+    const good = playMatch(a.log.starts[0]);
+    a.mp.submitFinal(good); b.mp.submitFinal(good); await tick(60);
+    const rows = a.mp.view().results;
+    assert.equal(a.mp.view().phase, "finished");
+    assert.equal(calls[0], "register");
+    if (alive) { assert.equal(calls.filter(c => c === "submit").length, 2); assert.match(rows[0].note, /Server verified/); }
+    else assert.match(rows[0].note, /Replay verified/);
+  }
+});
