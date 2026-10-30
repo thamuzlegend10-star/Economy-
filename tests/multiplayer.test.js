@@ -14,7 +14,7 @@ function mk(bus, extra = {}) {
 }
 // Play a full standard match with a simple bot and return the serialized save.
 function playMatch(config, tamper) {
-  const s = E.newGame({ mode: "standard", difficulty: config.difficulty, capital: config.capital, dayLimit: config.days, seed: config.seed });
+  const s = E.newGame({ mode: "standard", difficulty: config.difficulty, capital: config.capital, dayLimit: config.days, seed: config.seed, record: true });
   let n = 0;
   while (!s.ended && n++ < 400000) {
     if (s.phase === "report") { E.nextDay(s); continue; }

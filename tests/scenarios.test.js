@@ -111,8 +111,8 @@ test("room: scenario match, host injects for everyone, verdict carries goals, wr
   assert.ok(a.mp.inject("festival").ok); await tick();
   assert.deepEqual(a.log.injects, ["festival"]); assert.deepEqual(b.log.injects, ["festival"]);
   const cfg = a.log.starts[0];
-  const mine = play(E.newGame({ seed: cfg.seed, scenario: cfg.scenario }));
-  const wrong = play(E.newGame({ seed: cfg.seed, mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, location: cfg.location }));
+  const mine = play(E.newGame({ seed: cfg.seed, scenario: cfg.scenario, record: true }));
+  const wrong = play(E.newGame({ seed: cfg.seed, mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, location: cfg.location, record: true }));
   b.mp.submitFinal(E.serialize(wrong)); a.mp.submitFinal(E.serialize(mine)); await tick(80);
   const v = a.mp.view();
   const host = v.players.find(p => p.isMe), guest = v.players.find(p => !p.isMe);

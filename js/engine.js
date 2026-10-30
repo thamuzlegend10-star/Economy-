@@ -44,7 +44,7 @@ export function newGame(opts = {}) {
     staff: [], candidates: [], staffSeq: 0,
     upgrades: { shelves: 0, racks: 0, counter: 0, dock: 0, signage: 0 },
     campaigns: [], campSeq: 0, supIdx: { freshfarm: 1, metro: 1, quickship: 1 }, supRec: { freshfarm: { n: 0, late: 0 }, metro: { n: 0, late: 0 }, quickship: { n: 0, late: 0 } },
-    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, invoices: [], invSeq: 0, branches: [], branchSeq: 0, scenario: scn ? scn.id : null, pending: [], forecastToday: null, autoDeposit: true,
+    budget: { revenue: 0, expenses: 0 }, noise: 1, rivals: [], shareLast: 1, stockoutRate: 0, invoices: [], invSeq: 0, branches: [], branchSeq: 0, scenario: scn ? scn.id : null, pending: [], steps: 0, acc: 0, cmdlog: opts.record ? [] : null, logFull: false, forecastToday: null, autoDeposit: true,
     loans: [], loanSeq: 0, lastBailoutDay: -99, distressDays: 0,
     customers: [], custSeq: 0, spawnAcc: 0, autoT: 0,
     rep: 50, sat: 60,
@@ -192,7 +192,7 @@ function applyShocks(s, scn) {
   const q = s.pending; s.pending = [];
   for (const k of q) applyShock(s, { kind: k.kind, facilitator: true });
 }
-export function injectShock(s, { kind, cmdId } = {}) {
+function injectShock_(s, { kind, cmdId } = {}) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   if (!SCN.SHOCK_KINDS.includes(kind)) return fail("Unknown event.");
@@ -341,10 +341,18 @@ export function refreshCandidates(s) {
 }
 
 // ---------- simulation tick ----------
+// Fixed-size simulation steps: the same number of steps always gives the same result, however the browser chops up the frames.
+export const STEP = 0.05;
 export function tick(s, dtIn) {
   if (s.phase !== "open" || s.ended) return;
-  let dt = Math.min(dtIn, 0.5);
-  while (dt > 0) { const h = Math.min(dt, 0.25); step(s, h); dt -= h; if (s.phase !== "open") break; }
+  s.acc = (s.acc || 0) + Math.min(dtIn, 0.5);
+  while (s.acc >= STEP - 1e-9 && s.phase === "open" && !s.ended) { s.acc -= STEP; step(s, STEP); s.steps++; }
+  if (s.phase !== "open") s.acc = 0;
+}
+// Replay helper: run whole steps until step number n (or until the day closes / the game ends).
+export function advanceTo(s, n) {
+  while (s.steps < n && s.phase === "open" && !s.ended) { step(s, STEP); s.steps++; }
+  s.acc = 0;
 }
 
 const cashierSpeeds = s => {
@@ -744,7 +752,7 @@ function endGame(s, reason) {
 }
 
 // Start the next day after the player has read the report.
-export function nextDay(s) {
+function nextDay_(s) {
   if (s.phase !== "report" || s.ended) return fail("Not at a day report.");
   s.day++;
   if ((s.day - 1) % 3 === 0) refreshCandidates(s);
@@ -768,7 +776,7 @@ const isInt = (n, a, b) => Number.isInteger(n) && n >= a && n <= b;
 const isMoney = (n, max = 1e7) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= max;
 const guard = s => (s.ended ? fail("The game has ended.") : null);
 
-export function placeOrder(s, { supplier: sid, lines, pay = "bank", cmdId }) {
+function placeOrder_(s, { supplier: sid, lines, pay = "bank", cmdId }) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const sup = SUPPLIER[sid];
@@ -868,7 +876,7 @@ function branchCosts(s, charge, rep) {
     if (b.so > 0.25) rep.notes.push(`${b.name} ran short of stock (${Math.round(b.so * 100)}% of wanted items missed). Transfer more goods.`);
   }
 }
-export function openBranch(s, { loc, cmdId } = {}) {
+function openBranch_(s, { loc, cmdId } = {}) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   if (!LOC.hasLocation(loc) || loc === "default") return fail("Unknown location.");
@@ -888,7 +896,7 @@ export function openBranch(s, { loc, cmdId } = {}) {
   remember(s, cmdId); updateDerived(s);
   return okr({ id, fee });
 }
-export function transferStock(s, { branch, pid, qty, cmdId } = {}) {
+function transferStock_(s, { branch, pid, qty, cmdId } = {}) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const b = findBranch(s, branch); if (!b) return fail("Unknown branch.");
@@ -907,7 +915,7 @@ export function transferStock(s, { branch, pid, qty, cmdId } = {}) {
   remember(s, cmdId); updateDerived(s);
   return okr({ fee });
 }
-export function setBranchStaff(s, { branch, n, cmdId } = {}) {
+function setBranchStaff_(s, { branch, n, cmdId } = {}) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const b = findBranch(s, branch); if (!b) return fail("Unknown branch.");
@@ -915,7 +923,7 @@ export function setBranchStaff(s, { branch, n, cmdId } = {}) {
   b.staff = n; remember(s, cmdId);
   return okr();
 }
-export function closeBranch(s, { branch, cmdId } = {}) {
+function closeBranch_(s, { branch, cmdId } = {}) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const b = findBranch(s, branch); if (!b) return fail("Unknown branch.");
@@ -947,7 +955,7 @@ function termsError(s, total) {
   return null;
 }
 export function termsCheck(s, total) { return termsError(s, total); }
-export function payInvoice(s, id, cmdId) {
+function payInvoice_(s, id, cmdId) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const iv = s.invoices.find(x => x.id === id);
@@ -970,7 +978,7 @@ function settleInvoice(s, iv, amt, partial) {
   if (iv.amount < 0.005) s.invoices = s.invoices.filter(x => x !== iv);
   return paid;
 }
-export function cancelOrder(s, id) {
+function cancelOrder_(s, id) {
   const g = guard(s); if (g) return g;
   const o = s.orders.find(x => x.id === id);
   if (!o) return fail("Order not found.");
@@ -981,7 +989,7 @@ export function cancelOrder(s, id) {
   return okr({ refunded: o.goods });
 }
 
-export function restock(s, pid, qty) {
+function restock_(s, pid, qty) {
   const g = guard(s); if (g) return g;
   if (!PRODUCT[pid]) return fail("Unknown product.");
   if (!isInt(qty, 1, 999)) return fail("Quantity must be a whole number.");
@@ -993,7 +1001,7 @@ export function restock(s, pid, qty) {
   return okr();
 }
 
-export function setPrice(s, pid, price) {
+function setPrice_(s, pid, price) {
   if (!PRODUCT[pid]) return fail("Unknown product.");
   if (typeof price !== "number" || !Number.isFinite(price)) return fail("Enter a price.");
   const p = PRODUCT[pid];
@@ -1001,12 +1009,12 @@ export function setPrice(s, pid, price) {
   s.prices[pid] = round2(price);
   return okr();
 }
-export function setShelfTarget(s, pid, n) {
+function setShelfTarget_(s, pid, n) {
   if (!PRODUCT[pid]) return fail("Unknown product.");
   if (!isInt(n, 0, 200)) return fail("Target must be 0 to 200.");
   s.shelfTarget[pid] = n; return okr();
 }
-export function launchCampaign(s, cid, cmdId) {
+function launchCampaign_(s, cid, cmdId) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const def = D.CAMPAIGNS.find(c => c.id === cid);
@@ -1023,16 +1031,16 @@ export function launchCampaign(s, cid, cmdId) {
   return okr({ start });
 }
 
-export function setBudget(s, { revenue = 0, expenses = 0 } = {}) {
+function setBudget_(s, { revenue = 0, expenses = 0 } = {}) {
   const ok = n => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1e5;
   if (!ok(revenue) || !ok(expenses)) return fail("Budgets must be numbers from 0 to 100000. Use 0 for no budget.");
   s.budget = { revenue: round2(revenue), expenses: round2(expenses) };
   return okr();
 }
 
-export function setAutoDeposit(s, on) { s.autoDeposit = !!on; return okr(); }
+function setAutoDeposit_(s, on) { s.autoDeposit = !!on; return okr(); }
 
-export function hire(s, candId) {
+function hire_(s, candId) {
   const g = guard(s); if (g) return g;
   const c = s.candidates.find(x => x.id === candId);
   if (!c) return fail("That candidate is no longer available.");
@@ -1042,7 +1050,7 @@ export function hire(s, candId) {
   decide(s, `Hired ${c.name} as ${D.ROLES[c.role].name}`);
   return okr();
 }
-export function fire(s, staffId) {
+function fire_(s, staffId) {
   const g = guard(s); if (g) return g;
   const x = s.staff.find(q => q.id === staffId);
   if (!x) return fail("Staff member not found.");
@@ -1052,7 +1060,7 @@ export function fire(s, staffId) {
 }
 
 // ----- bank -----
-export function deposit(s, amount, cmdId) {
+function deposit_(s, amount, cmdId) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   amount = round2(amount);
@@ -1062,7 +1070,7 @@ export function deposit(s, amount, cmdId) {
   remember(s, cmdId);
   return okr();
 }
-export function withdraw(s, amount, cmdId) {
+function withdraw_(s, amount, cmdId) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   amount = round2(amount);
@@ -1087,7 +1095,7 @@ export function loanEligibility(s, def) {
   if (s.loans.length >= 2) return "Maximum 2 active loans";
   return null;
 }
-export function takeLoan(s, loanId, cmdId) {
+function takeLoan_(s, loanId, cmdId) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const def = D.LOANS.find(l => l.id === loanId);
@@ -1102,7 +1110,7 @@ export function takeLoan(s, loanId, cmdId) {
   remember(s, cmdId);
   return okr({ terms: t });
 }
-export function repayLoan(s, loanDbId, amount, cmdId) {
+function repayLoan_(s, loanDbId, amount, cmdId) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const l = s.loans.find(x => x.id === loanDbId);
@@ -1118,7 +1126,7 @@ export function repayLoan(s, loanDbId, amount, cmdId) {
   return okr({ paid: amount });
 }
 // Distress option: turn overdraft into a long, expensive rescue loan. Costs reputation. Once per 10 days.
-export function restructureDebt(s, cmdId) {
+function restructureDebt_(s, cmdId) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const od = bal(s, "overdraft");
@@ -1132,7 +1140,7 @@ export function restructureDebt(s, cmdId) {
   return okr({ amount: od });
 }
 
-export function buyUpgrade(s, id, cmdId) {
+function buyUpgrade_(s, id, cmdId) {
   const g = guard(s); if (g) return g;
   if (seen(s, cmdId)) return fail("Duplicate request ignored.");
   const u = D.UPGRADES.find(x => x.id === id);
@@ -1228,6 +1236,7 @@ function saveShapeError(o) {
   if (!["unitsSold", "fcErr", "fcDays", "budgetDays", "budgetHit"].every(k => isNum(o.stats?.[k]))) return "statistics";
   if (!rivalsOk(o.rivals) || !isNum(o.shareLast) || !isNum(o.stockoutRate)) return "rivals";
   if (!isArr(o.invoices, 100) || !o.invoices.every(v => isObj(v) && isNum(v.id) && Number.isInteger(v.order) && typeof v.supplier === "string" && has(SUPPLIER, v.supplier) && isNum(v.amount) && v.amount > 0 && v.amount < 1e6 && Number.isInteger(v.due) && Number.isInteger(v.late) && v.late >= 0) || !isNum(o.invSeq)) return "invoices";
+  if (!Number.isInteger(o.steps) || o.steps < 0 || !isNum(o.acc) || (o.cmdlog !== null && !(isArr(o.cmdlog, MAX_LOG) && o.cmdlog.every(e => isObj(e) && Number.isInteger(e.n) && e.n >= 0 && has(COMMANDS, e.c) && Array.isArray(e.a) && e.a.length <= 4 && JSON.stringify(e.a).length < 4000)))) return "command log";
   if (!(o.scenario === null || SCN.hasScenario(o.scenario)) || !isArr(o.pending, 5) || !o.pending.every(k => isObj(k) && SCN.SHOCK_KINDS.includes(k.kind))) return "scenario";
   if (!isArr(o.branches, 2) || !isNum(o.branchSeq) || !o.branches.every(b => isObj(b) && isNum(b.id) && typeof b.name === "string" && LOC.hasLocation(b.loc) && Number.isInteger(b.opened) && Number.isInteger(b.staff) && b.staff >= 1 && b.staff <= 3 && isNum(b.rep) && b.rep >= 0 && b.rep <= 100 && isNum(b.so) && isNum(b.fit) && b.fit >= 0 &&
     isObj(b.stock) && isObj(b.val) && D.PRODUCTS.every(p => Number.isInteger(b.stock[p.id]) && b.stock[p.id] >= 0 && b.stock[p.id] <= 1000 && isNum(b.val[p.id]) && b.val[p.id] >= 0) && rivalsOk(b.rivals) && (b.last == null || (isObj(b.last) && ["day", "customers", "capLost", "revenue", "cogs", "units", "so", "share", "rent", "utilities", "wages", "net"].every(k => isNum(b.last[k])))))) return "branches";
@@ -1270,6 +1279,7 @@ export function validateSave(raw) {
   if (o.v === 6) { o.v = 7; o.invoices = []; o.invSeq = 0; if (isObj(o.ledger) && isObj(o.ledger.bal) && !has(o.ledger.bal, "payables")) o.ledger.bal.payables = 0; }
   if (o.v === 7) { o.v = 8; o.branches = []; o.branchSeq = 0; }
   if (o.v === 8) { o.v = 9; o.scenario = null; o.pending = []; }
+  if (o.v === 9) { o.v = 10; o.steps = 0; o.acc = 0; o.cmdlog = null; o.logFull = false; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, error: `This save is from an older version (v${o.v ?? "?"}). Start a new game; old shop-prototype saves cannot be migrated.` };
   const need = ["mode", "day", "clock", "ledger", "stock", "val", "prices", "orders", "staff", "upgrades", "loans", "rng"];
   for (const k of need) if (!(k in o)) return { ok: false, error: `Save is missing "${k}".` };
@@ -1288,3 +1298,41 @@ export function validateSave(raw) {
   } catch { return { ok: false, error: "Save has an invalid structure." }; }
   return { ok: true, state: o };
 }
+
+// ---------- command log (for verified replay) ----------
+// When a game is created with { record: true }, every successful player command is logged with the simulation step it happened at.
+// The simulation is a pure function of (setup, seed, steps, commands), so anyone can replay the log and get the same final state.
+export const MAX_LOG = 8000;
+let depth = 0;
+const cmd = (name, fn) => function (s, ...a) {
+  depth++; let r;
+  try { r = fn(s, ...a); } finally { depth--; }
+  if (depth === 0 && r && r.ok && Array.isArray(s.cmdlog)) {
+    if (s.cmdlog.length < MAX_LOG) s.cmdlog.push({ n: s.steps, c: name, a: JSON.parse(JSON.stringify(a)) }); else s.logFull = true;
+  }
+  return r;
+};
+export const placeOrder = cmd("placeOrder", placeOrder_);
+export const openBranch = cmd("openBranch", openBranch_);
+export const transferStock = cmd("transferStock", transferStock_);
+export const setBranchStaff = cmd("setBranchStaff", setBranchStaff_);
+export const closeBranch = cmd("closeBranch", closeBranch_);
+export const payInvoice = cmd("payInvoice", payInvoice_);
+export const cancelOrder = cmd("cancelOrder", cancelOrder_);
+export const restock = cmd("restock", restock_);
+export const setPrice = cmd("setPrice", setPrice_);
+export const setShelfTarget = cmd("setShelfTarget", setShelfTarget_);
+export const launchCampaign = cmd("launchCampaign", launchCampaign_);
+export const setBudget = cmd("setBudget", setBudget_);
+export const setAutoDeposit = cmd("setAutoDeposit", setAutoDeposit_);
+export const hire = cmd("hire", hire_);
+export const fire = cmd("fire", fire_);
+export const deposit = cmd("deposit", deposit_);
+export const withdraw = cmd("withdraw", withdraw_);
+export const takeLoan = cmd("takeLoan", takeLoan_);
+export const repayLoan = cmd("repayLoan", repayLoan_);
+export const restructureDebt = cmd("restructureDebt", restructureDebt_);
+export const buyUpgrade = cmd("buyUpgrade", buyUpgrade_);
+export const injectShock = cmd("injectShock", injectShock_);
+export const nextDay = cmd("nextDay", nextDay_);
+export const COMMANDS = { placeOrder, openBranch, transferStock, setBranchStaff, closeBranch, payInvoice, cancelOrder, restock, setPrice, setShelfTarget, launchCampaign, setBudget, setAutoDeposit, hire, fire, deposit, withdraw, takeLoan, repayLoan, restructureDebt, buyUpgrade, injectShock, nextDay };

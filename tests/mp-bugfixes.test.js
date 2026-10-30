@@ -21,7 +21,7 @@ const lossy = (inner, st) => ({ kind: inner.kind, join(code, id, meta, h) { cons
 const forge = (bus, code, payload) => { for (const p of [...bus.rooms.get(code).values()]) p.h.onMessage(JSON.parse(JSON.stringify(payload))); };
 
 function playMatch(config, tamper) {
-  const s = E.newGame({ mode: "standard", difficulty: config.difficulty, capital: config.capital, dayLimit: config.days, seed: config.seed });
+  const s = E.newGame({ mode: "standard", difficulty: config.difficulty, capital: config.capital, dayLimit: config.days, seed: config.seed, record: true });
   let n = 0;
   while (!s.ended && n++ < 400000) {
     if (s.phase === "report") { E.nextDay(s); continue; }
@@ -37,8 +37,10 @@ function playMatch(config, tamper) {
 }
 // a shop that is ruined on purpose: a big overdraft and no trading
 function bankruptSave(config) {
-  const s = E.newGame({ mode: "standard", difficulty: config.difficulty, capital: config.capital, dayLimit: config.days, seed: config.seed });
-  post(s.ledger, s.day, "test: ruin", [{ acct: "rent", dr: 9000 }, { acct: "overdraft", cr: 9000 }]);
+  const s = E.newGame({ mode: "standard", difficulty: config.difficulty, capital: config.capital, dayLimit: config.days, seed: config.seed, record: true });
+  // ruin the shop with legal commands only (replay must be able to reproduce it): spend everything on upgrades and a full payroll, then trade nothing
+  for (let i = 0; i < 20; i++) for (const u of D.UPGRADES) E.buyUpgrade(s, u.id, "u" + i + u.id);
+  for (const c of [...s.candidates]) E.hire(s, c.id);
   let n = 0;
   while (!s.ended && n++ < 100000) { if (s.phase === "report") { E.nextDay(s); continue; } E.tick(s, 0.5); }
   return { raw: E.serialize(s), reason: s.ended && s.ended.reason, day: s.day };
@@ -190,7 +192,7 @@ test("8: a new host asks players without a verdict to send their save again", as
 });
 
 test("8: a bankrupt player gets a finished result with score 0 and a Bankrupt note", async () => {
-  const { a, b } = await startMatch();
+  const { a, b } = await startMatch({}, {}, 14);
   const cfg = a.mp.view().config;
   const br = bankruptSave(cfg);
   assert.equal(br.reason, "bankrupt", "test setup: the shop went bankrupt");
@@ -203,7 +205,7 @@ test("8: a bankrupt player gets a finished result with score 0 and a Bankrupt no
   assert.equal(a.log.results[0][0].name, "Alice", "the player who finished ranks above the bankrupt one");
 });
 test("8: a bankruptcy save with the wrong settings is still rejected", async () => {
-  const { a, b } = await startMatch();
+  const { a, b } = await startMatch({}, {}, 14);
   const cfg = a.mp.view().config;
   a.mp.submitFinal(playMatch(cfg));
   b.mp.submitFinal(bankruptSave({ ...cfg, capital: cfg.capital + 100 }).raw);

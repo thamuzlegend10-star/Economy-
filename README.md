@@ -22,7 +22,7 @@ The location is used by the real simulation: customer volume and rival pressure,
 
 Data honesty: country, region, city names and coordinates are real; **districts are simulated** and **every coefficient is a game-balancing estimate, not a statistic**. Game money stays in dollars (the currency field is informational). The globe is a schematic with coarse hand-made coastlines and works offline; there is no map service.
 
-Not built yet: street-level maps, server-authoritative multiplayer.
+Not built yet: street-level maps, a live authoritative game server.
 
 ## Rivals (v6)
 Busy sites have 1 to 4 simulated rival shops (`s.rivals`): name, type (discounter, balanced, premium), price level, quality, stock availability and promotions. Your share of local demand is your attractiveness divided by yours plus all rivals', where attractiveness depends on price against the market, reputation and your stockout rate. Each morning rivals react: they match prices if you undercut them, drift back to their usual level, run 2-day promotions and sometimes run low on stock. Rivals use their own random stream, so game results stay deterministic for a seed. The day report notes share swings of 3 points or more and the likely cause; Planning lists the rivals with their price against yours; rival shops appear on the district map. Neutral start has no rivals.
@@ -52,6 +52,16 @@ Limits: the room is still friendly play, so injected events and scenario play ar
 - **Sales and margin by product** in the day report (main shop only).
 - **Finance > Market:** share per day, who takes the demand (you vs each rival), the three factors behind your share (reputation, price, availability) and a price what-if. The day report shows the day's market share.
 Limits: reports from games saved before this version have no cash-flow breakdown for the day in progress; branch sales are in the totals but not in the product table.
+
+## Verified matches (v10)
+Online matches are now checked by **deterministic replay** instead of trusting the final save. The simulation runs in fixed 0.05 s steps, so a match is a pure function of its setup, the shared seed, the step count and the player's commands. Every online match is recorded (`cmdlog`: step number, command, arguments for each successful command), and when a player finishes, the host re-plays that log from the seed (`js/replay.js`) and requires the **exact same final state** (random stream, ledger balances, day, history length). The official score is computed from the replayed game, never from numbers the player sent. Editing the save, the log, the seed, the settings or removing or adding a command is rejected, and result rows say "Replay verified". `node tools/verify-match.mjs <config.json> <final-save.json>` runs the same check from the command line, so a server function can run it too.
+
+What this does and does not give you:
+- It stops edited saves, fake balances, skipped costs and invented commands. A replay takes tens of milliseconds.
+- It does not stop a player using a script or another tool to play well, or taking as long as they like in a paused game. Rules are enforced; the person is not.
+- There is still no live game server: the host's browser does the replay, so a malicious host can still lie about results. Moving `verifyAgainstReplay` into a server function (it is pure and runs in Node or Deno) is the next step; I did not deploy one because I cannot test your Supabase project from here.
+- Facilitator events are part of the log but the host does not require that every event was applied.
+- Saves from v9 or earlier carry no log, so they cannot be verified (new matches always start with one).
 
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.

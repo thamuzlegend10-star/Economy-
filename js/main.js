@@ -392,7 +392,7 @@ const mp = createMultiplayer({
 const mpEsc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));   // every network-supplied value goes through this before it reaches innerHTML
 
 function startMatch(cfg) {
-  const s = E.newGame({ mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, seed: cfg.seed, location: cfg.location, scenario: cfg.scenario });
+  const s = E.newGame({ mode: "standard", difficulty: cfg.difficulty, capital: cfg.capital, dayLimit: cfg.days, seed: cfg.seed, location: cfg.location, scenario: cfg.scenario, record: true });
   mpMatch = true; tut.stop(); ui.close(); menu.close();
   startState(s); world.setScene("district"); world.reset(); paused = false;
   setStatus(`Match started: ${cfg.days} days. Everyone has the same start. Good luck!`, "ok");

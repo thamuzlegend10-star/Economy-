@@ -10,6 +10,7 @@
 import * as E from "./engine.js";
 import { hasLocation } from "./locations.js";
 import { getScenario, SHOCK_KINDS } from "./scenarios.js";
+import { verifyAgainstReplay } from "./replay.js";
 
 export const CODE_RE = /^\d{6}$/;
 const JOIN_LIMIT = 5, JOIN_WINDOW_MS = 60000, GRACE_MS = 90000;
@@ -261,6 +262,11 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
       if (s.mode !== "standard" || s.dayLimit !== c.days || s.difficulty !== c.difficulty || s.capital !== c.capital || s.loc !== c.location || (s.scenario || "") !== (c.scenario || "")) return { ok: false, reason: "Save does not match the room settings." };
       const bankrupt = !!s.ended && s.ended.reason === "bankrupt" && s.day <= c.days;
       if (!bankrupt && (!s.ended || s.day !== c.days)) return { ok: false, reason: "Save is not a finished match." };
+      // Server-style check: the host re-plays the player's command log from the shared seed and requires the exact same final state.
+      // The official score comes from the REPLAYED game, never from the numbers the player sent.
+      const rp = verifyAgainstReplay(s, c);
+      if (!rp.ok) return { ok: false, reason: cleanText(rp.reason, 80) };
+      Object.assign(s, rp.state);
       const rec = E.reconcile(s);
       if (!rec.ok) return { ok: false, reason: "Books do not reconcile: " + cleanText(rec.problems[0], 50) };
       const d = E.updateDerived(s), revenue = s.history.reduce((a, h) => a + h.revenue, 0) + s.archive.revenue;
@@ -292,7 +298,7 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
     if (!isHost() || room.phase !== "playing") return { error: "Not playing." };
     const rows = Object.keys(room.roster).map(id => {
       const pr = room.progress[id] || {}, v = pr.verdict;
-      return { id, name: room.roster[id].name || "Player", finished: !!(v && v.ok), score: v && v.ok ? v.score : 0, rating: v && v.ok ? v.rating : "-", netWorth: v && v.ok ? v.netWorth : (pr.netWorth ?? 0), day: pr.day || 0, note: v ? (v.ok ? (v.bankrupt ? "Bankrupt" : v.goalsTotal ? `Goals ${v.goalsMet}/${v.goalsTotal}` : "") : "Rejected: " + v.reason) : "Did not finish" };
+      return { id, name: room.roster[id].name || "Player", finished: !!(v && v.ok), score: v && v.ok ? v.score : 0, rating: v && v.ok ? v.rating : "-", netWorth: v && v.ok ? v.netWorth : (pr.netWorth ?? 0), day: pr.day || 0, note: v ? (v.ok ? ((v.bankrupt ? "Bankrupt" : v.goalsTotal ? `Goals ${v.goalsMet}/${v.goalsTotal}` : "") + (v.bankrupt ? "" : (v.goalsTotal ? " · " : "") + "Replay verified")) : "Rejected: " + v.reason) : "Did not finish" };
     }).sort((a, b) => (b.finished - a.finished) || (b.score - a.score) || (b.netWorth - a.netWorth));
     rows.forEach((r, i) => { r.rank = i + 1; });
     rows.splice(20);                                                           // never more than 20 rows on the wire
