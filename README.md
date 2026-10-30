@@ -59,9 +59,21 @@ Online matches are now checked by **deterministic replay** instead of trusting t
 What this does and does not give you:
 - It stops edited saves, fake balances, skipped costs and invented commands. A replay takes tens of milliseconds.
 - It does not stop a player using a script or another tool to play well, or taking as long as they like in a paused game. Rules are enforced; the person is not.
-- There is still no live game server: the host's browser does the replay, so a malicious host can still lie about results. Moving `verifyAgainstReplay` into a server function (it is pure and runs in Node or Deno) is the next step; I did not deploy one because I cannot test your Supabase project from here.
+- The host's browser still does the replay in the app. A deployable server check now exists (below); the app does not call it yet, so a malicious host can still lie until that is wired in.
 - Facilitator events are part of the log but the host does not require that every event was applied.
 - Saves from v9 or earlier carry no log, so they cannot be verified (new matches always start with one).
+
+### Server verification (Supabase Edge Function)
+`server/verify-match.js` is the same replay check behind an HTTP handler. It has two actions: `register` (host stores a room's settings and a hashed secret; first write wins) and `submit` (a player sends a final save; the function replays it and stores the result in `match_results`; first valid result per player wins, 20 results per room max). Tables and row-level security are in `supabase/schema.sql` (public read of results, no anonymous writes). Only the function writes, using the service-role key from its own environment. Never put that key in this repo.
+
+Deploy with the Supabase CLI, from the repo root:
+```
+supabase link --project-ref <your-project-ref>
+supabase functions deploy verify-match --no-verify-jwt
+```
+The CLI bundles `supabase/functions/verify-match/index.ts` and the engine files it imports. Smoke test: finish a short match, POST the save, then read `match_results`. `node tools/verify-match.mjs config.json save.json` runs the same check locally.
+
+Limits: tested here against a fake database and a Deno shim, not a live Supabase project. A room code can be registered first by anyone (squatting). Scripts are not stopped. The game client does not call the function yet.
 
 ## Modes
 - **Standard**: fixed number of days, then a score and final report.
