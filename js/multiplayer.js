@@ -50,7 +50,7 @@ const cleanResults = a => (Array.isArray(a) ? a.slice(0, 20) : []).filter(r => r
   netWorth: cleanNum(r.netWorth), day: cleanInt(r.day, 0, 120), note: cleanText(r.note, 80), rank: cleanInt(r.rank, 1, 20) || i + 1,
 }));
 
-export function createMultiplayer({ net, storage = null, settleMs = 1200, helloMs = 2500, hostMs = 2000, retryMs = 4000, now = () => Date.now(), onChange = () => {}, onStart = () => {}, onResume = () => {}, onResults = () => {}, onInject = () => {} }) {
+export function createMultiplayer({ net, storage = null, settleMs = 1200, helloMs = 2500, hostMs = 2000, retryMs = 4000, now = () => Date.now(), onChange = () => {}, onStart = () => {}, onResume = () => {}, onResults = () => {}, onInject = () => {}, server = null }) {
   const store = {
     get: k => { try { return storage ? storage.getItem(k) : null; } catch { return null; } },
     set: (k, v) => { try { storage && storage.setItem(k, v); } catch { /* blocked */ } },
@@ -244,6 +244,32 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
     if (isHost()) verify(me.id, pendingFinal); else send("final", { save: pendingFinal });
   }
 
+  // ----- optional server check (Supabase Edge Function). The browser replay above stays as the fallback. -----
+  let hostSecret = "", srvRoom = false, srvPending = 0;
+  async function srvCall(body) {
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 12000) : null;
+    try {
+      const res = await (server.fetch || fetch)(server.url, { method: "POST", headers: { "Content-Type": "application/json", apikey: server.key }, body: JSON.stringify(body), signal: ctl ? ctl.signal : undefined });
+      return await res.json();
+    } catch { return null; } finally { if (timer) clearTimeout(timer); }
+  }
+  async function srvRegister() {
+    srvRoom = false; if (!server || !server.url) return;
+    hostSecret = rid() + rid();
+    const r = await srvCall({ action: "register", code, config: room.config, hostSecret });
+    srvRoom = !!(r && r.ok);
+  }
+  function srvSubmit(id, raw) {
+    if (!server || !server.url || !srvRoom) return;
+    srvPending++;
+    srvCall({ action: "submit", code, playerId: id, name: room.roster[id] ? room.roster[id].name : "Player", save: raw }).then(r => {
+      const pr = room.progress[id];
+      if (pr && pr.verdict && pr.verdict.ok) pr.verdict.server = !!(r && r.ok);
+      if (r && r.rejected && pr && pr.verdict) pr.server = "rejected";
+    }).finally(() => { srvPending--; emit(); checkEnd(); });
+  }
+
   // ----- host: verify final saves, end the match -----
   function verifySave(raw, id) {
     const r = verifyFinalSave(raw, room.config);
@@ -256,11 +282,12 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
     const r = verifySave(raw, id);
     room.progress[id] = { ...(room.progress[id] || {}), day: room.config.days, netWorth: r.netWorth ?? null, verdict: r.ok ? { ok: true, score: r.score, rating: r.rating, netWorth: r.netWorth, bankrupt: !!r.bankrupt, goalsMet: r.goalsMet || 0, goalsTotal: r.goalsTotal || 0 } : { ok: false, reason: r.reason } };
     send("verdict", { id, ...r });
+    if (r.ok) srvSubmit(id, raw);
     if (id === me.id) stopRetry();
     emit(); checkEnd();
   }
   function checkEnd() {
-    if (!isHost() || room.phase !== "playing") return;
+    if (!isHost() || room.phase !== "playing" || srvPending > 0) return;
     const t = now();
     for (const id of Object.keys(room.roster)) {
       const v = room.progress[id] && room.progress[id].verdict;
@@ -274,7 +301,7 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
     if (!isHost() || room.phase !== "playing") return { error: "Not playing." };
     const rows = Object.keys(room.roster).map(id => {
       const pr = room.progress[id] || {}, v = pr.verdict;
-      return { id, name: room.roster[id].name || "Player", finished: !!(v && v.ok), score: v && v.ok ? v.score : 0, rating: v && v.ok ? v.rating : "-", netWorth: v && v.ok ? v.netWorth : (pr.netWorth ?? 0), day: pr.day || 0, note: v ? (v.ok ? ((v.bankrupt ? "Bankrupt" : v.goalsTotal ? `Goals ${v.goalsMet}/${v.goalsTotal}` : "") + (v.bankrupt ? "" : (v.goalsTotal ? " · " : "") + "Replay verified")) : "Rejected: " + v.reason) : "Did not finish" };
+      return { id, name: room.roster[id].name || "Player", finished: !!(v && v.ok), score: v && v.ok ? v.score : 0, rating: v && v.ok ? v.rating : "-", netWorth: v && v.ok ? v.netWorth : (pr.netWorth ?? 0), day: pr.day || 0, note: v ? (v.ok ? ((v.bankrupt ? "Bankrupt" : v.goalsTotal ? `Goals ${v.goalsMet}/${v.goalsTotal}` : "") + (v.bankrupt ? "" : (v.goalsTotal ? " · " : "") + (v.server ? "Server verified" : "Replay verified"))) : "Rejected: " + v.reason) : "Did not finish" };
     }).sort((a, b) => (b.finished - a.finished) || (b.score - a.score) || (b.netWorth - a.netWorth));
     rows.forEach((r, i) => { r.rank = i + 1; });
     rows.splice(20);                                                           // never more than 20 rows on the wire
@@ -302,6 +329,7 @@ export function createMultiplayer({ net, storage = null, settleMs = 1200, helloM
       room.roster = Object.fromEntries(ps.map(p => [p.id, { name: p.name }]));
       room.phase = "playing"; room.progress = {}; room.results = null; room.leftAt = {};
       send("start", { config: room.config, roster: room.roster });
+      srvRegister();
       lastSig = ""; onStart(room.config); emit(); return { ok: true };
     },
     endNow() { return endMatch(); },
