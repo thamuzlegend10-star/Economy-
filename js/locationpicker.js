@@ -6,9 +6,9 @@ import { createGlobe } from "./globe.js";
 
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money0 = n => "$" + Math.round(n).toLocaleString();
-const CATS = { food: "Food", drinks: "Drinks", household: "Household", stationery: "Stationery", electronics: "Electronics" };
+const CATS = { food: "Noodles (food)", drinks: "Milk (drinks)", electronics: "Earbuds (electronics)" };
 
-export function createLocationPicker({ root, getDifficulty = () => "normal", onPick }) {
+export function createLocationPicker({ root, getArea = () => 250, onPick }) {
   const body = root.querySelector("#globeBody");
   const canvasHost = root.querySelector("#globeCv");
   const st = { country: null, region: null, city: null, sel: null, q: "", compare: [] };
@@ -45,38 +45,32 @@ export function createLocationPicker({ root, getDifficulty = () => "normal", onP
   }
   const bar = v => `<span class="gbar"><i style="width:${Math.max(4, Math.min(100, v * 100))}%"></i></span>`;
   function detail(id) {
-    const l = LOC.getLocation(id), d = getDifficulty(), est = E.siteEstimate(id, d), fit = E.siteSuitability(id);
-    const sup = ["FreshFarm Co-op", "Metro Wholesale", "QuickShip Express"].map((n, i) => ({ n, ok: !l.noSupplier.includes(["freshfarm", "metro", "quickship"][i]) }));
+    const l = LOC.getLocation(id), info = E.siteInfo(id, getArea());
     return `<div class="gdetail">
       <h4>${esc(l.name)} <span class="tag info">simulated district</span></h4>
-      <p class="muted small">${esc(l.country)} · ${esc(l.region)} · ${esc(l.city)} · ${esc(l.character)}, ${esc(l.popClass)} · ${esc(l.tz)} · local currency ${esc(l.currency)} (game money stays in $)</p>
+      <p class="muted small">${esc(l.country)} · ${esc(l.region)} · ${esc(l.city)} · ${esc(l.character)}, ${esc(l.popClass)}. Game money stays in $.</p>
       <div class="cards">
-        <div class="stat"><small>Customers / day</small><b>${est.customers[0]}–${est.customers[1]}</b></div>
-        <div class="stat"><small>Sales / day (est.)</small><b>${money0(est.revenue[0])}–${money0(est.revenue[1])}</b></div>
-        <div class="stat"><small>Fixed cost / day</small><b>${money0(est.fixedPerDay)}</b></div>
-        <div class="stat"><small>Break-even</small><b>${est.breakEvenCustomers == null ? "n/a" : est.breakEvenCustomers + " cust/day"}</b></div>
+        <div class="stat"><small>Rent</small><b>$${info.rentM2.toFixed(2)} / m²</b></div>
+        <div class="stat"><small>Units sold / day (est.)</small><b>${info.units.toLocaleString("en-US")}</b></div>
+        <div class="stat"><small>Sales / day (est.)</small><b>${money0(info.revenue)}</b></div>
+        <div class="stat"><small>Rent / day (${getArea()} m²)</small><b>${money0(info.rent)}</b></div>
       </div>
-      <p class="muted small">Estimate, not a promise. ${esc(est.assumptions)}</p>
-      <h5>Corner-shop suitability: ${fit.total} / 100</h5>
-      <table class="tbl"><thead><tr><th>Factor</th><th>Weight</th><th>Score</th><th>Why</th></tr></thead><tbody>${fit.parts.map(p => `<tr><td>${esc(p.name)}</td><td>${p.w}%</td><td>${Math.round(p.v * 100)}% ${bar(p.v)}</td><td>${esc(p.why)}</td></tr>`).join("")}</tbody></table>
-      <p class="muted small">Score = sum of weight × factor score. A higher score is not a guarantee: prices, stock, staff and events still decide the result.</p>
+      <p class="muted small">Estimate at the starting prices with full shelves. Not a promise: prices, stock and delivery delays decide the result.</p>
       <h5>What sells here (demand vs neutral start)</h5>
-      <div class="gcats">${Object.entries(l.cat).map(([k, v]) => `<div><span>${CATS[k]}</span>${bar(v / 1.6)}<b>×${v}</b></div>`).join("")}</div>
-      <h5>Operating conditions</h5>
-      <div class="gkv"><span>Rent</span><b>×${l.rent}</b><span>Wages</span><b>×${l.wage}</b><span>Utilities</span><b>×${l.utilities}</b><span>Delivery fee and time</span><b>×${l.logistics}</b><span>Purchasing power</span><b>×${l.power}</b><span>Price sensitivity</span><b>×${l.priceSens}</b><span>Rival pressure</span><b>${Math.round(l.competition * 100)}%</b></div>
-      <p class="small">Suppliers: ${sup.map(s => `<span class="tag ${s.ok ? "ok" : "bad"}">${esc(s.n)}${s.ok ? "" : " (not served)"}</span>`).join(" ")}</p>
-      <p class="muted small">Data note: ${esc(l.provenance)}</p>
-      <div class="row gap wrap"><button class="primary" data-g="use" data-id="${esc(id)}">Use this location</button>
+      <div class="gcats">${Object.entries(CATS).map(([k, label]) => `<div><span>${label}</span>${bar(l.cat[k] / 1.6)}<b>×${l.cat[k]}</b></div>`).join("")}</div>
+      <h5>Suppliers: distance and fastest delivery</h5>
+      <table class="tbl"><thead><tr><th>Supplier</th><th>Distance</th><th>Delivery</th></tr></thead><tbody>${info.suppliers.map(s => `<tr><td>${esc(s.name)}</td><td>${s.km.toLocaleString("en-US")} km</td><td>${s.days} day${s.days > 1 ? "s" : ""}</td></tr>`).join("")}</tbody></table>
+      <p class="muted small">Competition: ${Math.round(l.competition * 100)}% of demand goes elsewhere. Purchasing power ×${l.power}, price sensitivity ×${l.priceSens}. ${esc(l.provenance)}</p>
+      <div class="row gap wrap"><button class="primary" data-g="use" data-id="${esc(id)}">Rent here</button>
         <button class="ghost" data-g="cmp" data-id="${esc(id)}">${st.compare.includes(id) ? "Remove from comparison" : "Add to comparison"}</button></div></div>`;
   }
   function compareTable() {
     if (st.compare.length < 2) return st.compare.length ? `<p class="muted small">Add one more site to compare side by side.</p>` : "";
-    const d = getDifficulty(), rows = st.compare.map(id => ({ l: LOC.getLocation(id), e: E.siteEstimate(id, d), f: E.siteSuitability(id) }));
+    const rows = st.compare.map(id => ({ l: LOC.getLocation(id), e: E.siteInfo(id, getArea()) }));
     const r = (label, fn) => `<tr><th>${label}</th>${rows.map(x => `<td>${fn(x)}</td>`).join("")}</tr>`;
     return `<h5>Comparison</h5><div class="scroll"><table class="tbl"><thead><tr><th></th>${rows.map(x => `<th>${esc(x.l.city)}<br><small>${esc(x.l.district)}</small></th>`).join("")}</tr></thead><tbody>
-      ${r("Suitability", x => x.f.total + " / 100")}${r("Customers / day", x => `${x.e.customers[0]}–${x.e.customers[1]}`)}${r("Sales / day", x => `${money0(x.e.revenue[0])}–${money0(x.e.revenue[1])}`)}
-      ${r("Fixed cost / day", x => money0(x.e.fixedPerDay))}${r("Break-even", x => (x.e.breakEvenCustomers == null ? "n/a" : x.e.breakEvenCustomers + " cust/day"))}${r("Rent", x => "×" + x.l.rent)}${r("Wages", x => "×" + x.l.wage)}
-      ${r("Competition", x => Math.round(x.l.competition * 100) + "%")}${r("Purchasing power", x => "×" + x.l.power)}${r("Logistics", x => "×" + x.l.logistics)}</tbody></table></div>`;
+      ${r("Rent / m² / day", x => "$" + x.e.rentM2.toFixed(2))}${r("Units / day", x => x.e.units.toLocaleString("en-US"))}${r("Sales / day", x => money0(x.e.revenue))}${r("Rent / day", x => money0(x.e.rent))}
+      ${r("Competition", x => Math.round(x.l.competition * 100) + "%")}${r("Fastest delivery", x => Math.min(...x.e.suppliers.map(s => s.days)) + " d")}</tbody></table></div>`;
   }
   function render() {
     const lv = level(), list = items();
@@ -90,7 +84,7 @@ export function createLocationPicker({ root, getDifficulty = () => "normal", onP
       <div class="gcrumb">${crumb}</div><div class="glist" data-level="${lv}">${listHtml}</div>
       ${st.sel ? detail(st.sel) : `<p class="muted small">Pick a country, then a region, city and district. Or tap a marker on the globe. The globe is a schematic with simplified coastlines.</p>`}
       ${compareTable()}
-      <div class="row gap wrap"><button class="ghost" data-g="neutral">Use the neutral start (no location)</button>${current !== "default" ? `<span class="muted small">Current: ${esc(LOC.getLocation(current).name)}</span>` : ""}</div>`;
+      ${current !== "default" ? `<p class="muted small">Current: ${esc(LOC.getLocation(current).name)}</p>` : ""}`;
     const q = body.querySelector("#gq"); if (had && q) { q.focus(); q.setSelectionRange(pos, pos); }
   }
   body.addEventListener("input", e => { if (e.target.id === "gq") { st.q = e.target.value; render(); } });
@@ -103,7 +97,6 @@ export function createLocationPicker({ root, getDifficulty = () => "normal", onP
     else if (a === "crumb") { const fn = crumbs()[Number(t.dataset.i)]; fn && fn[1](); st.q = ""; render(); }
     else if (a === "cmp") { const id = t.dataset.id; st.compare = st.compare.includes(id) ? st.compare.filter(x => x !== id) : [...st.compare, id].slice(-3); render(); }
     else if (a === "use") { onPick(t.dataset.id); close(); }
-    else if (a === "neutral") { onPick("default"); close(); }
   });
   function open(cur = "default") {
     current = cur; root.hidden = false; document.body.classList.add("modal-open");
