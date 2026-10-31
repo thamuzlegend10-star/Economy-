@@ -9,7 +9,8 @@ export const FLUSH_STEPS = 20;                                    // sales are p
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
 export const PRODUCT = Object.fromEntries(D.PRODUCTS.map(p => [p.id, p]));
-export const SUPPLIER = Object.fromEntries(D.SUPPLIERS.map(s => [s.id, s]));
+const ALL_SUP = [...D.SUPPLIERS, ...D.WH_SUPPLIERS];
+export const SUPPLIER = Object.fromEntries(ALL_SUP.map(s => [s.id, s]));
 const WEEK = [1, 0.9, 0.9, 1, 1.1, 1.35, 1.2];
 
 export function rnd(s) {                                          // mulberry32 on s.rng
@@ -35,10 +36,10 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
+    ledger: newLedger(), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
-  for (const p of D.PRODUCTS) { s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
-  for (const sp of D.SUPPLIERS) { s.supIdx[sp.id] = 1; }
+  for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
+  for (const sp of ALL_SUP) { s.supIdx[sp.id] = 1; }
   post(s.ledger, 1, "Owner capital", [{ acct: "cash", dr: o.capital }, { acct: "capital", cr: o.capital }], "open");
   let gift = 0;
   for (const p of D.PRODUCTS) { const v = c(p.cost * D.START_STOCK[p.id]); s.qty[p.id] = D.START_STOCK[p.id]; s.val[p.id] = v; gift = c(gift + v); }
@@ -55,16 +56,21 @@ export const priceBounds = p => ({ min: priceFit(p, p.ref * 0.5), max: priceFit(
 
 // ---------- derived numbers ----------
 export const spaceUsed = s => D.PRODUCTS.reduce((a, p) => a + s.qty[p.id] * p.space, 0);
-export const spaceIncoming = s => s.orders.reduce((a, o) => a + o.qty * PRODUCT[o.pid].space, 0);
+export const spaceIncoming = s => s.orders.reduce((a, o) => a + (o.dest === "wh" ? 0 : o.qty * PRODUCT[o.pid].space), 0);
 export const spaceFree = s => capacityOf(s.area) - spaceUsed(s) - spaceIncoming(s);
-export const inventoryUnits = s => D.PRODUCTS.reduce((a, p) => a + s.qty[p.id], 0);
+export const whCapacity = s => Math.floor(s.wh.area * D.WH.spacePerM2);
+export const whUsed = s => D.PRODUCTS.reduce((a, p) => a + s.wh.qty[p.id] * p.space, 0);
+export const whIncoming = s => s.orders.reduce((a, o) => a + (o.dest === "wh" ? o.qty * PRODUCT[o.pid].space : 0), 0);
+export const whFree = s => whCapacity(s) - whUsed(s) - whIncoming(s);
+export const whUnits = s => D.PRODUCTS.reduce((a, p) => a + s.wh.qty[p.id], 0);
+export const inventoryUnits = s => D.PRODUCTS.reduce((a, p) => a + s.qty[p.id], 0) + whUnits(s);
 export const timeLeft = s => (s.ended ? 0 : Math.max(0, (s.stepsPerDay - s.dayStep) * STEP));
 export function dashboard(s) {
   const t = totals(s.ledger), cash = balance(s.ledger, "cash"), over = balance(s.ledger, "overdraft"), inv = balance(s.ledger, "inventory");
   const cap = capacityOf(s.area), used = spaceUsed(s);
   return { cash: c(cash), overdraft: c(over), revenue: t.revenue, expenses: t.costs, netProfit: c(t.revenue - t.costs), inventoryUnits: inventoryUnits(s), inventoryValue: c(inv),
     unitsSold: s.stats.units, pending: s.orders.length, pendingUnits: s.orders.reduce((a, o) => a + o.qty, 0), capacity: cap, used: Math.round(used), incoming: Math.round(spaceIncoming(s)),
-    utilization: cap ? used / cap : 0, netWorth: c(cash - over + inv + balance(s.ledger, "transit")), balanced: t.balanced };
+    utilization: cap ? used / cap : 0, wh: { rented: s.wh.area > 0, area: s.wh.area, capacity: whCapacity(s), used: Math.round(whUsed(s)), incoming: Math.round(whIncoming(s)), units: whUnits(s) }, netWorth: c(cash - over + inv + balance(s.ledger, "transit")), balanced: t.balanced };
 }
 
 // ---------- demand ----------
@@ -81,7 +87,7 @@ function beginDay(s) {
   s.today = { day: s.day, rev: 0, cogs: 0, ship: 0, rent: 0, units: {}, lost: {}, arrivals: [] };
   for (const p of D.PRODUCTS) { s.today.units[p.id] = 0; s.today.lost[p.id] = 0; }
   s.noise = 0.9 + 0.2 * rnd(s);
-  for (const sp of D.SUPPLIERS) {                                       // supplier prices drift (supplier stock is unlimited)
+  for (const sp of ALL_SUP) {                                           // supplier prices drift (supplier stock is unlimited)
     const i = s.supIdx[sp.id]; s.supIdx[sp.id] = Math.round(clamp(i + (rnd(s) - 0.5) * 0.05 + (1 - i) * 0.08, 0.9, 1.15) * 1000) / 1000;
   }
   arrivals(s);
@@ -91,10 +97,11 @@ function beginDay(s) {
 function arrivals(s) {
   const due = s.orders.filter(o => o.eta <= s.day);
   for (const o of due) {
-    post(s.ledger, s.day, `Delivery #${o.id} from ${SUPPLIER[o.sup].name}`, [{ acct: "inventory", dr: o.goods }, { acct: "transit", cr: o.goods }], "order:" + o.id);
-    s.qty[o.pid] += o.qty; s.val[o.pid] = c(s.val[o.pid] + o.goods);
+    post(s.ledger, s.day, `Delivery #${o.id} ${o.kind === "transfer" ? "from the warehouse" : "from " + SUPPLIER[o.sup].name}${o.dest === "wh" ? " to the warehouse" : ""}`, [{ acct: "inventory", dr: o.goods }, { acct: "transit", cr: o.goods }], "order:" + o.id);
+    const dst = o.dest === "wh" ? s.wh : s;
+    dst.qty[o.pid] += o.qty; dst.val[o.pid] = c(dst.val[o.pid] + o.goods);
     s.today.arrivals.push({ id: o.id, pid: o.pid, qty: o.qty });
-    s.feed.push({ id: ++s.feedSeq, kind: "truck", pid: o.pid, qty: o.qty }); log(s, `Delivery #${o.id} arrived: ${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}.`);
+    s.feed.push({ id: ++s.feedSeq, kind: "truck", pid: o.pid, qty: o.qty }); log(s, `Delivery #${o.id} arrived${o.dest === "wh" ? " at the warehouse" : ""}: ${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}.`);
   }
   s.orders = s.orders.filter(o => o.eta > s.day);
   if (s.feed.length > 40) s.feed.splice(0, s.feed.length - 40);
@@ -111,7 +118,7 @@ export function distanceKm(locId, sp) {
   }
   return Math.round(best);
 }
-export const discountFor = qty => { for (const [min, d] of D.BULK) if (qty >= min) return d; return 0; };
+export const discountFor = (qty, table = D.BULK) => { for (const [min, d] of table) if (qty >= min) return d; return 0; };
 export const unitCost = (s, sp, pid) => c(PRODUCT[pid].cost * sp.price * s.supIdx[sp.id]);
 
 export function quote(s, supId, pid, qty) {
@@ -135,9 +142,11 @@ export function quote(s, supId, pid, qty) {
 
 // A purchase order can carry several products from one supplier. It is all-or-nothing: one quote, one payment, one shipping fee,
 // and one shipment record per product (so each product's delivery shows on its own line).
-export function quoteMulti(s, supId, lines) {
-  const sp = SUPPLIER[supId];
-  if (!sp) return err("Unknown supplier.");
+export function quoteMulti(s, supId, lines, dest = "retail") {
+  const wh = dest === "wh", sp = SUPPLIER[supId];
+  if (!sp || (wh ? !D.WH_SUPPLIERS.includes(sp) : !D.SUPPLIERS.includes(sp))) return err("Unknown supplier.");
+  if (wh && s.wh.area <= 0) return err("Rent a warehouse first.");
+  const max = wh ? D.WH.maxQty : D.MAX_QTY, min = wh ? D.WH.minQty : 1, table = wh ? D.WH_BULK : D.BULK;
   const seen = new Set(), items = [];
   for (const l of Array.isArray(lines) ? lines : []) {
     const qty = Math.round(Number(l && l.qty));
@@ -145,34 +154,37 @@ export function quoteMulti(s, supId, lines) {
     seen.add(l.pid); items.push({ pid: l.pid, qty });
   }
   if (!items.length) return err("Choose a quantity for at least one product.");
-  for (const l of items) if (l.qty > D.MAX_QTY) return err(`The most you can order of one product is ${D.MAX_QTY.toLocaleString("en-US")}.`);
+  for (const l of items) {
+    if (l.qty > max) return err(`The most you can order of one product is ${max.toLocaleString("en-US")}.`);
+    if (l.qty < min) return err(`This supplier sells in bulk only: at least ${min.toLocaleString("en-US")} units of each product.`);
+  }
   const km = distanceKm(s.location, sp), L = getLocation(s.location), days = Math.max(1, Math.ceil(km / sp.speed + sp.prep));
   const errors = [];
   const out = items.map(l => {
-    const p = PRODUCT[l.pid], disc = discountFor(l.qty), baseUnit = unitCost(s, sp, l.pid), unit = c(baseUnit * (1 - disc)), goods = c(unit * l.qty);
+    const p = PRODUCT[l.pid], disc = discountFor(l.qty, table), baseUnit = unitCost(s, sp, l.pid), unit = c(baseUnit * (1 - disc)), goods = c(unit * l.qty);
     const ship = c(sp.rate * km * l.qty * p.space * L.logistics);
     return { pid: l.pid, qty: l.qty, discount: disc, baseUnit, unit, goods, ship, space: l.qty * p.space };
   });
   const fee = c(sp.fee * L.logistics), goods = c(out.reduce((a, l) => a + l.goods, 0)), ship = c(fee + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship);
-  const space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = spaceFree(s);
+  const space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = wh ? whFree(s) : spaceFree(s);
   if (total > cash + 0.004) errors.push(`Not enough cash: need $${total.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
-  if (space > free) errors.push(`Not enough storage: this needs ${Math.round(space).toLocaleString("en-US")} space, ${Math.max(0, Math.floor(free)).toLocaleString("en-US")} free (stock and shipments on the way count). Rent more space or order less.`);
-  return { supplier: supId, km, days, eta: s.day + days, lines: out, fee, goods, ship, total, space, reliability: sp.reliability, errors, ok: !errors.length };
+  if (space > free) errors.push(`Not enough ${wh ? "warehouse " : ""}storage: this needs ${Math.round(space).toLocaleString("en-US")} space, ${Math.max(0, Math.floor(free)).toLocaleString("en-US")} free (stock and shipments on the way count). Rent more space or order less.`);
+  return { supplier: supId, dest, km, days, eta: s.day + days, lines: out, fee, goods, ship, total, space, reliability: sp.reliability, errors, ok: !errors.length };
 }
 
-export function placeOrders(s, { supplier, lines } = {}) {
+export function placeOrders(s, { supplier, lines, dest = "retail" } = {}) {
   if (s.ended) return err("The game is over.");
-  const q = quoteMulti(s, supplier, lines);
+  const q = quoteMulti(s, supplier, lines, dest);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
   const late = rnd(s) > SUPPLIER[supplier].reliability ? 1 : 0, made = [];
   q.lines.forEach((l, i) => {
-    const o = { id: ++s.orderSeq, sup: supplier, pid: l.pid, qty: l.qty, unit: l.unit, goods: l.goods, ship: c(l.ship + (i === 0 ? q.fee : 0)), placed: s.day, eta: q.eta + late, delayed: late === 1, km: q.km };
+    const o = { id: ++s.orderSeq, sup: supplier, dest, pid: l.pid, qty: l.qty, unit: l.unit, goods: l.goods, ship: c(l.ship + (i === 0 ? q.fee : 0)), placed: s.day, eta: q.eta + late, delayed: late === 1, km: q.km };
     s.orders.push(o); s.stats.orders++; s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
   });
-  post(s.ledger, s.day, `Purchase order ${made.map(o => "#" + o.id).join(", ")} from ${SUPPLIER[supplier].name}`, [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, { acct: "cash", cr: q.total }], "order:" + made[0].id);
+  post(s.ledger, s.day, `Purchase order ${made.map(o => "#" + o.id).join(", ")} from ${SUPPLIER[supplier].name}${dest === "wh" ? " (to warehouse)" : ""}`, [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, { acct: "cash", cr: q.total }], "order:" + made[0].id);
   s.today.ship = c(s.today.ship + q.ship);
-  log(s, `Ordered ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} for $${q.total.toFixed(2)}. Arrives day ${q.eta + late}${late ? " (delayed a day)" : ""}.`);
+  log(s, `Ordered ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} for $${q.total.toFixed(2)}${dest === "wh" ? " to the warehouse" : ""}. Arrives day ${q.eta + late}${late ? " (delayed a day)" : ""}.`);
   return ok({ orders: made, order: made[0], total: q.total, eta: q.eta + late });
 }
 
@@ -201,6 +213,64 @@ export function setPrice(s, pid, price) {
 }
 export const adjustPrice = (s, pid, dir) => setPrice(s, pid, s.prices[pid] + dir * PRODUCT[pid].step);
 export const margin = (s, pid) => { const q = s.qty[pid], avg = q ? s.val[pid] / q : PRODUCT[pid].cost; return { avgCost: c(avg), unit: c(s.prices[pid] - avg), pct: s.prices[pid] ? (s.prices[pid] - avg) / s.prices[pid] : 0 }; };
+
+// ---------- warehouse ----------
+export const whRentPerM2 = (loc = "default") => c(D.WH.rentPerM2 * getLocation(loc).rent);
+export const whRent = s => (s.wh && s.wh.area > 0 ? c(whRentPerM2(s.location) * s.wh.area) : 0);
+export function whRentQuote(s, extra) {
+  extra = Math.round(Number(extra));
+  if (!Number.isFinite(extra) || extra < 1) return err("Choose how many m² to add.");
+  const first = s.wh.area <= 0, add = first ? Math.max(extra, D.WH.minArea) : extra, room = D.WH.maxArea - s.wh.area;
+  const q = { extra: add, first, newArea: s.wh.area + add, rate: whRentPerM2(s.location), errors: [] };
+  q.newRent = c(q.rate * q.newArea); q.extraRent = c(q.rate * add); q.newCapacity = Math.floor(q.newArea * D.WH.spacePerM2); q.addedCapacity = add * D.WH.spacePerM2;
+  if (add > room) q.errors.push(room > 0 ? `The most you can add is ${room} m² (warehouses are at most ${D.WH.maxArea} m²).` : `Your warehouse is already at the ${D.WH.maxArea} m² limit.`);
+  q.ok = !q.errors.length; return q;
+}
+export function rentWarehouse(s, extra) {
+  if (s.ended) return err("The game is over.");
+  const q = whRentQuote(s, extra);
+  if (q.error) return err(q.error);
+  if (!q.ok) return err(q.errors[0]);
+  s.wh.area = q.newArea;
+  log(s, `${q.first ? "Rented a warehouse of" : "Rented"} ${q.extra} m²${q.first ? "" : " more"}. The warehouse is now ${s.wh.area} m². Rent is $${q.newRent.toFixed(2)} per day.`);
+  return ok({ area: s.wh.area, rent: q.newRent });
+}
+// Send goods from the warehouse to the shop. One trip fee plus a charge per space unit; arrives after one day; all-or-nothing.
+export function quoteTransfer(s, lines) {
+  if (s.wh.area <= 0) return err("Rent a warehouse first.");
+  const seen = new Set(), items = [];
+  for (const l of Array.isArray(lines) ? lines : []) {
+    const qty = Math.round(Number(l && l.qty));
+    if (!l || !PRODUCT[l.pid] || seen.has(l.pid) || !Number.isFinite(qty) || qty < 1) continue;
+    seen.add(l.pid); items.push({ pid: l.pid, qty });
+  }
+  if (!items.length) return err("Choose a quantity for at least one product.");
+  const errors = [], out = items.map(l => {
+    const p = PRODUCT[l.pid], have = s.wh.qty[l.pid];
+    if (l.qty > have) errors.push(`The warehouse has only ${have.toLocaleString("en-US")} ${p.name}.`);
+    const value = !have ? 0 : l.qty >= have ? s.wh.val[l.pid] : c(s.wh.val[l.pid] / have * l.qty);
+    return { pid: l.pid, qty: l.qty, value, fee: c(D.TRANSFER.rate * l.qty * p.space), space: l.qty * p.space };
+  });
+  const fee = c(D.TRANSFER.fee + out.reduce((a, l) => a + l.fee, 0)), space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = spaceFree(s);
+  if (fee > cash + 0.004) errors.push(`Not enough cash for the transfer fee: need $${fee.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
+  if (space > free) errors.push(`Not enough space in the shop: this needs ${Math.round(space).toLocaleString("en-US")} space, ${Math.max(0, Math.floor(free)).toLocaleString("en-US")} free. Rent more shop space or send less.`);
+  return { lines: out, fee, space, days: D.TRANSFER.days, eta: s.day + D.TRANSFER.days, value: c(out.reduce((a, l) => a + l.value, 0)), errors, ok: !errors.length };
+}
+export function sendToRetail(s, { lines } = {}) {
+  if (s.ended) return err("The game is over.");
+  const q = quoteTransfer(s, lines);
+  if (q.error) return err(q.error);
+  if (!q.ok) return err(q.errors[0]);
+  const made = [];
+  q.lines.forEach((l, i) => {
+    const o = { id: ++s.orderSeq, sup: "wh", kind: "transfer", dest: "retail", pid: l.pid, qty: l.qty, unit: l.qty ? c(l.value / l.qty) : 0, goods: l.value, ship: c(l.fee + (i === 0 ? D.TRANSFER.fee : 0)), placed: s.day, eta: q.eta, delayed: false, km: 0 };
+    s.wh.qty[l.pid] -= l.qty; s.wh.val[l.pid] = c(s.wh.val[l.pid] - l.value); s.orders.push(o); s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
+  });
+  post(s.ledger, s.day, `Transfer ${made.map(o => "#" + o.id).join(", ")} from the warehouse to the shop`, [{ acct: "transit", dr: q.value }, { acct: "inventory", cr: q.value }, { acct: "delivery", dr: q.fee }, { acct: "cash", cr: q.fee }], "transfer:" + made[0].id);
+  s.today.ship = c(s.today.ship + q.fee);
+  log(s, `Sent ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} to the shop for $${q.fee.toFixed(2)}. Arrives day ${q.eta}.`);
+  return ok({ orders: made, fee: q.fee, eta: q.eta });
+}
 
 // ---------- renting more space ----------
 export function spaceQuote(s, extra) {
@@ -259,7 +329,7 @@ function stepOnce(s) {
 function closeDay(s) {
   flush(s);
   const day = s.day, before = balance(s.ledger, "cash");
-  const rent = dailyRent(s.location, s.area);
+  const rent = c(dailyRent(s.location, s.area) + whRent(s));
   const pay = Math.max(0, Math.min(before, rent)), over = c(rent - pay);
   const lines = [{ acct: "rent", dr: rent }];
   if (pay > 0) lines.push({ acct: "cash", cr: pay }); if (over > 0) lines.push({ acct: "overdraft", cr: over });
@@ -286,12 +356,13 @@ export function advanceSteps(s, n) { while (n-- > 0 && !s.ended) stepOnce(s); }
 
 // ---------- integrity, report, save ----------
 export function reconcile(s) {
-  const t = totals(s.ledger), val = c(Object.values(s.val).reduce((a, v) => a + v, 0)), problems = [];
+  const t = totals(s.ledger), val = c(Object.values(s.val).reduce((a, v) => a + v, 0) + Object.values((s.wh && s.wh.val) || {}).reduce((a, v) => a + v, 0)), problems = [];
   if (!t.balanced) problems.push("Ledger is not balanced.");
   if (Math.abs(val - balance(s.ledger, "inventory")) > 0.05) problems.push("Inventory value differs from the ledger.");
   const tr = c(s.orders.reduce((a, o) => a + o.goods, 0)); if (Math.abs(tr - balance(s.ledger, "transit")) > 0.05) problems.push("Goods in transit differ from the ledger.");
   for (const p of D.PRODUCTS) if (s.qty[p.id] < 0) problems.push(`${p.name} stock is negative.`);
   if (spaceUsed(s) > capacityOf(s.area) + 0.5) problems.push("Storage is over capacity.");
+  if (s.wh && whUsed(s) > whCapacity(s) + 0.5) problems.push("Warehouse is over capacity.");
   return { ok: !problems.length, problems };
 }
 export function finalReport(s) {
@@ -306,6 +377,7 @@ export const serialize = s => JSON.stringify(s);
 export function validateSave(raw) {
   let o; try { o = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return err("Save file is not valid JSON."); }
   if (!o || typeof o !== "object") return err("Save file is empty.");
+  if (o && o.v === 11) { o.v = 12; o.wh = { area: 0, qty: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])), val: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])) }; for (const sp of D.WH_SUPPLIERS) o.supIdx[sp.id] = 1; delete o.supStock; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -34,3 +34,19 @@ export const START_STOCK = { noodles: 3000, milk: 1200, earbuds: 120 };
 
 // Extra space the player can rent later, in m2. Rent and traffic follow the new total area.
 export const SPACE_STEPS = [10, 25, 50, 100, 250, 500];
+
+// ---------- Warehouse: a separate, much bigger building with its own bulk suppliers ----------
+// Goods bought here arrive in the warehouse. From there they can be sent to the shop (a transfer, which costs a trip fee) or, later, to B2B.
+export const WH = { minArea: 500, maxArea: 20000, areaSteps: [500, 1000, 2500, 5000, 10000], spacePerM2: 200, rentPerM2: 1.4, minQty: 25000, maxQty: 1000000 };
+export const WH_QTY = [25000, 50000, 100000, 200000, 300000, 500000, 750000, 1000000];
+export const WH_BULK = [[500000, 0.20], [200000, 0.16], [100000, 0.12], [50000, 0.08], [25000, 0.04]];
+export const WH_SUPPLIERS = [
+  { id: "harbor", name: "Harbor Wholesale Depot", desc: "Steady bulk seller, good on time.", price: 0.85, reliability: 0.97, fee: 250, rate: 0.000025, speed: 500, prep: 0.5,
+    hubs: [{ n: "Singapore", lat: 1.35, lon: 103.8 }, { n: "Jakarta", lat: -6.2, lon: 106.8 }] },
+  { id: "global", name: "Global Bulk Traders", desc: "Low price, three continents.", price: 0.80, reliability: 0.93, fee: 400, rate: 0.00002, speed: 700, prep: 1,
+    hubs: [{ n: "Tokyo", lat: 35.7, lon: 139.8 }, { n: "Singapore", lat: 1.35, lon: 103.8 }, { n: "New York", lat: 40.7, lon: -74 }] },
+  { id: "mega", name: "MegaPack Industrial", desc: "Cheapest, but often late.", price: 0.76, reliability: 0.86, fee: 600, rate: 0.000015, speed: 900, prep: 1.2,
+    hubs: [{ n: "New York", lat: 40.7, lon: -74 }, { n: "Tokyo", lat: 35.7, lon: 139.8 }] },
+];
+// Moving goods from the warehouse to the shop: one trip fee plus a charge per space unit. Takes one day.
+export const TRANSFER = { fee: 120, rate: 0.0006, days: 1 };
