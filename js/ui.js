@@ -12,6 +12,61 @@ const signCls = n => (n < 0 ? "neg" : n > 0 ? "pos" : "");
 const stat = (label, value, sub = "", cls = "") => `<div class="stat"><small>${label}</small><b class="${cls}">${value}</b>${sub ? `<small class="sub">${sub}</small>` : ""}</div>`;
 const dayWord = n => (n === 1 ? "1 day" : n + " days");
 
+// ---------- navigation: main tabs and sub tabs (the layout of a business-sim control room) ----------
+const ICON = {
+  finance: '<text x="8" y="12.5" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor" stroke="none">$</text>',
+  retail: '<path d="M2 6l1-3h10l1 3v1H2zM3 7v6h10V7M7 13v-3h2v3"/>',
+  warehouse: '<path d="M1 7l7-4 7 4v6H1zM5 13V9h6v4"/>',
+  shipping: '<path d="M1 4h8v7H1zM9 6h3l2 2v3H9z"/><circle cx="4" cy="12" r="1.2"/><circle cx="11.5" cy="12" r="1.2"/>',
+  b2b: '<path d="M2 9h5v4H2zM9 9h5v4H9zM5.5 4h5v4h-5z"/>',
+  mail: '<path d="M1 3h14v10H1zM1 3l7 6 7-6"/>',
+  data: '<circle cx="7" cy="7" r="4"/><path d="M10 10l4 4"/>',
+  info: '<circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5v.01"/>',
+};
+export const NAV = [
+  { id: "finance", label: "Finance", subs: [["overview", "Overview"], ["reports", "Reports"]] },
+  { id: "retail", label: "Retail", subs: [["location", "Location"], ["procurement", "Procurement"], ["store", "Store"], ["price", "Retail Sales & Price"], ["tx", "Transactions"]] },
+  { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock & Storage"]] },
+  { id: "shipping", label: "Shipping", subs: [["co", "Transport Company"], ["tx", "Transactions"]] },
+  { id: "b2b", label: "B2B", subs: [] },
+  { id: "mail", label: "Mail", subs: [], iconOnly: true },
+  { id: "data", label: "Data Explorer", subs: [] },
+  { id: "info", label: "Info", subs: [], iconOnly: true, action: true },
+];
+const svg = id => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
+export function navHtml(ui) {
+  const main = NAV.map(n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}" ${n.iconOnly ? `aria-label="${n.label}"` : ""}>${svg(n.id)}${n.iconOnly ? "" : `<span>${n.label}</span>`}</button>`).join("");
+  const cur = NAV.find(n => n.id === ui.main), subs = cur ? cur.subs : [];
+  const sub = subs.length > 1 ? subs.map(([id, label]) => `<button data-sub="${id}" class="${ui.sub[ui.main] === id ? "on" : ""}">${label}</button>`).join("") : "";
+  return { main, sub };
+}
+export const soon = (title, text) => `<div class="card soon"><div class="soon-head">${esc(title)}</div><p>${esc(text)}</p><p class="muted small">This section is not working yet. Its rules will be added later.</p>
+  <div class="soon-ghost" aria-hidden="true"><button disabled>Action</button><button class="ghost" disabled>Action</button></div></div>`;
+
+export function location(s) {
+  const L = getLocation(s.location), d = E.dashboard(s), info = E.siteInfo(s.location, s.area);
+  return `<div class="card"><div class="shophead"><b>Location &amp; Rental</b><small>${esc(L.name)}</small></div>
+    <div class="kv1"><div><span>Place</span><b>${esc(L.city)}, ${esc(L.country)}</b></div><div><span>Area rented</span><b>${num(s.area)} m²</b></div>
+      <div><span>Rent</span><b>${money2(E.rentPerM2(s.location))} / m² / day</b></div><div><span>Rent per day</span><b>${money2(E.dailyRent(s.location, s.area))}</b></div>
+      <div><span>Storage capacity</span><b>${num(d.capacity)} space</b></div><div><span>Storage used</span><b>${pct(d.utilization)}</b></div>
+      <div><span>Competition</span><b>${Math.round(L.competition * 100)}% of demand</b></div><div><span>Sales per day (est.)</span><b>${money(info.revenue)}</b></div></div>
+    <button id="spOpen">Rent more space</button>
+    <small class="muted">The shop stays in this district for the whole game. ${esc(L.provenance)}</small></div>`;
+}
+
+export function transactions(s) {
+  const rows = [...s.ledger.entries].reverse().slice(0, 40).map(e => `<tr><td>${e.day}</td><td class="l">${esc(e.memo)}</td><td>${money2(e.lines.reduce((a, l) => a + (l.dr || 0), 0))}</td></tr>`).join("");
+  return `<div class="card scroll"><table class="tbl"><thead><tr><th>Day</th><th class="l">Entry</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table></div><small class="muted">The latest 40 entries of the books. Every sale, purchase and payment is one balanced entry.</small>`;
+}
+
+export function warehouse(s) {
+  const d = E.dashboard(s), warn = d.utilization > 0.9 ? "full" : d.utilization > 0.7 ? "warn" : "";
+  const rows = D.PRODUCTS.map(p => `<tr><td><span class="dot" style="background:${p.color}"></span> ${esc(p.name)}</td><td>${num(s.qty[p.id])}</td><td>${money(s.val[p.id])}</td><td>${num(s.qty[p.id] * p.space)}</td></tr>`).join("");
+  return `<div class="card"><b>Storage: ${pct(d.utilization)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, d.utilization * 100)}%"></i></div>
+    <small>${num(d.used)} of ${num(d.capacity)} space used. ${num(d.incoming)} more is reserved for deliveries on the way. Free to order: ${num(Math.max(0, E.spaceFree(s)))}.</small><button class="ghost" id="spOpen">Rent more space</button></div>
+    <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In stock</th><th>Value</th><th>Space used</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 export function dashboard(s) {
   const d = E.dashboard(s), warn = d.utilization > 0.9 ? "full" : d.utilization > 0.7 ? "warn" : "";
   const prods = D.PRODUCTS.map(p => `<tr><td><span class="dot" style="background:${p.color}"></span> ${esc(p.name)}</td><td>${num(s.qty[p.id])}</td><td>${money(s.val[p.id])}</td><td>${num(s.stats.prod[p.id].units)}</td></tr>`).join("");
@@ -35,7 +90,7 @@ export function dashboard(s) {
 }
 
 const kfmt = n => { const a = Math.abs(n); return (n < 0 ? "-" : "") + (a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + "M" : a >= 1e3 ? (a / 1e3).toFixed(a >= 1e5 ? 0 : 1) + "k" : Math.round(a).toLocaleString("en-US")); };
-export function store(s) {
+export function store(s, part = "both") {
   const rows = D.PRODUCTS.map(p => { const st = s.stats.prod[p.id];
     return `<tr><th scope="row"><span class="dot" style="background:${p.color}"></span>${esc(p.name.split(" ")[0])}</th><td>${kfmt(st.units)}</td><td>${kfmt(st.rev)}</td><td>${kfmt(st.cogs)}</td><td class="${s.qty[p.id] < 1 ? "neg" : ""}">${kfmt(s.qty[p.id])}</td><td><b>${s.prices[p.id].toFixed(2)}</b></td></tr>`; }).join("");
   const ctl = D.PRODUCTS.map(p => {
@@ -46,10 +101,10 @@ export function store(s) {
       <div class="kv"><div><span>Cost (avg)</span><b>${money2(m.avgCost)}</b></div><div><span>Profit per unit</span><b class="${signCls(m.unit)}">${money2(m.unit)} (${pct(m.pct)})</b></div>
         <div><span>Demand today (est.)</span><b>${num(E.expectedDemand(s, p.id))}</b></div><div><span>Missed sales</span><b>${num(s.stats.prod[p.id].lost)}</b></div></div></div>`;
   }).join("");
-  return `<div class="card shoptbl"><div class="shophead"><b>My shop</b><small>${esc(E.siteLabel(s.location))} · ${num(s.area)} m²</small></div>
-    <table class="tbl fixed"><thead><tr><th></th><th>Unit sold</th><th>Sales ($)</th><th>COGS ($)</th><th>Unit remain</th><th>Price ($)</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <h2>Set prices</h2><div class="prod">${ctl}</div>
-    <small class="muted">Higher prices earn more per unit but fewer customers buy. Lower prices bring more buyers for less profit each. Sales only happen while there is stock.</small>`;
+  const table = `<div class="card shoptbl"><div class="shophead"><b>My shop</b><small>${esc(E.siteLabel(s.location))} · ${num(s.area)} m²</small></div>
+    <table class="tbl fixed"><thead><tr><th></th><th>Unit sold</th><th>Sales ($)</th><th>COGS ($)</th><th>Unit remain</th><th>Price ($)</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const prices = `<div class="prod">${ctl}</div><small class="muted">Higher prices earn more per unit but fewer customers buy. Lower prices bring more buyers for less profit each. Sales only happen while there is stock.</small>`;
+  return part === "table" ? table : part === "prices" ? prices : table + `<h2>Set prices</h2>` + prices;
 }
 
 // Rent more space dialog body.
@@ -108,8 +163,7 @@ export function orderForm(s, b) {
 }
 
 export function ship(s, ui = {}) {
-  const tab = ui.shipTab === "tx" ? "tx" : "co";
-  const sub = `<div class="subtabs" role="tablist"><button class="${tab === "co" ? "on" : ""}" data-shiptab="co" role="tab">Transport Company</button><button class="${tab === "tx" ? "on" : ""}" data-shiptab="tx" role="tab">Transactions</button></div>`;
+  const tab = ui.sub && ui.sub.shipping === "tx" ? "tx" : "co", sub = "";
   if (tab === "co") {
     const cards = D.SUPPLIERS.map(x => {
       const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)), fee = x.fee * getLocation(s.location).logistics, rate = x.rate * getLocation(s.location).logistics;
