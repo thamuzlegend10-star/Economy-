@@ -8,12 +8,12 @@ for (const [w, h] of sizes) {
   p.on("pageerror", e => errs.push("PE " + e.message)); p.on("console", m => { if (m.type() === "error" && !/fonts|ERR_|Failed to load/.test(m.text())) errs.push("CE " + m.text()); });
   await p.goto("http://localhost:8765/index.html"); await p.waitForTimeout(300);
   await p.click("#mNew"); await p.fill("#sSec", "10"); await p.fill("#sDays", "5"); await p.click("#sStart"); await p.waitForTimeout(200);
-  for (const t of ["dash", "store", "buy", "ship", "rep"]) {
-    if (t === "dash") { await p.click("#spOpen"); await p.screenshot({path:`/tmp/sp-${w}.png`}); await p.click("#spSubmit"); }
-    await p.click(`[data-tab="${t}"]`);
-    if (t === "buy") { await p.click("#poOpen"); await p.selectOption("#poQty-noodles","10000"); await p.selectOption("#poQty-milk","3000"); await p.selectOption("#poQty-earbuds","1000"); await p.screenshot({path:`/tmp/po-${w}.png`}); await p.click("#poSubmit"); await p.click('[data-tab="buy"]'); }
-    if (t === "ship") { await p.screenshot({path:`/tmp/ship-${w}.png`}); await p.click('[data-shiptab="tx"]'); }
-    await p.waitForTimeout(150);
+  for (const [m, sb] of [["finance","overview"],["retail","location"],["retail","procurement"],["retail","store"],["retail","price"],["retail","tx"],["warehouse",""],["shipping","co"],["shipping","tx"],["finance","reports"],["b2b",""],["mail",""],["data",""]]) {
+    const t = sb === "procurement" ? "buy" : sb === "co" ? "ship" : m + "/" + sb;
+    await p.click(`[data-main="${m}"]`); if (sb) await p.click(`[data-sub="${sb}"]`);
+    if (t === "retail/location") { await p.click("#spOpen"); await p.screenshot({path:`/tmp/sp-${w}.png`}); await p.click("#spSubmit"); }
+    if (t === "buy") { await p.click("#poOpen"); await p.selectOption("#poQty-noodles","10000"); await p.selectOption("#poQty-milk","3000"); await p.selectOption("#poQty-earbuds","1000"); await p.screenshot({path:`/tmp/po-${w}.png`}); await p.click("#poSubmit"); await p.click('[data-main="retail"]'); await p.click('[data-sub="procurement"]'); }
+        await p.waitForTimeout(150);
     const r = await p.evaluate(() => {
       const out = [], vw = document.documentElement.clientWidth;
       if (document.documentElement.scrollWidth > vw + 1) out.push("page scrolls sideways " + document.documentElement.scrollWidth + ">" + vw);

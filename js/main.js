@@ -12,7 +12,7 @@ const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }, del: k => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } } };
 
 let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central", lastSave = 0, lastView = 0, lastDay = 0;
-const ui = { tab: "dash", shipTab: "co", buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } } };
+const ui = { main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } } };
 
 // ---------- small helpers ----------
 function toast(text, kind = "") {
@@ -35,12 +35,23 @@ function renderHud() {
   $("status").textContent = s.ended ? "The game is over." : paused ? "Paused. The timer is stopped." : `Running. Day ${s.day} ends in ${tl} s.`;
   $("log").innerHTML = s.log.slice(-8).reverse().map(l => `<div><small>Day ${l.day}</small> ${UI.esc(l.text)}</div>`).join("");
 }
+const SOON = { b2b: ["B2B", "Trade with other businesses will be here."], mail: ["Mail", "Messages from suppliers, the bank and the facilitator will be here."], data: ["Data Explorer", "Charts and tables to dig into your numbers will be here."] };
+function viewFor() {
+  const m = ui.main, sub = ui.sub[m];
+  if (m === "finance") return sub === "reports" ? UI.reports(s) : UI.dashboard(s);
+  if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
+  if (m === "warehouse") return UI.warehouse(s);
+  if (m === "shipping") return UI.ship(s, ui);
+  return UI.soon(...SOON[m]);
+}
+function renderNav() { const n = UI.navHtml(ui); $("tabs").innerHTML = n.main; $("subtabs").innerHTML = n.sub; $("subtabs").hidden = !n.sub; }
+function goto(main, sub) { ui.main = main; if (sub) ui.sub[main] = sub; renderNav(); renderAll(true); }
 function renderView(force) {
   if (!s) { $("view").innerHTML = `<div class="card"><p>No game yet. Open the menu and start a new game.</p></div>`; return; }
   const a = document.activeElement;
   if (!force && a && a.closest && a.closest("#view") && /INPUT|SELECT/.test(a.tagName)) return;      // never rebuild while someone types
   const y = window.scrollY;
-  $("view").innerHTML = { dash: UI.dashboard, store: UI.store, buy: x => UI.buy(x, ui), ship: x => UI.ship(x, ui), rep: UI.reports }[ui.tab](s);
+  $("view").innerHTML = viewFor();
   window.scrollTo(0, y);
 }
 function renderAll(force) { renderHud(); renderView(force); lastView = performance.now(); }
@@ -61,13 +72,14 @@ function loop(now) {
 
 // ---------- tabs and view actions ----------
 $("tabs").addEventListener("click", e => {
-  const b = e.target.closest("[data-tab]"); if (!b) return;
-  ui.tab = b.dataset.tab; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b)); renderAll(true);
+  const b = e.target.closest("[data-main]"); if (!b) return;
+  if (b.dataset.main === "info") { openMenu("menuHelp"); return; }
+  goto(b.dataset.main);
 });
+$("subtabs").addEventListener("click", e => { const b = e.target.closest("[data-sub]"); if (b) goto(ui.main, b.dataset.sub); });
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
-  else if (t.dataset.shiptab) { ui.shipTab = t.dataset.shiptab; renderAll(true); }
   else if (t.dataset.posup) { ui.buy.sup = t.dataset.posup; openPo(); }
   else if (t.id === "poOpen") openPo();
   else if (t.id === "spOpen") { ui.space = D.SPACE_STEPS.find(n => n <= D.AREA.max - s.area) || 10; renderSp(); $("spDlg").showModal(); }
@@ -95,7 +107,7 @@ $("poDlg").addEventListener("click", e => {
   else if (t.id === "poSubmit") {
     const r = E.placeOrders(s, { supplier: ui.buy.sup, lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: ui.buy.qty[p.id] || 0 })) });
     if (!r.ok) { toast(r.error, "err"); renderPo(); return; }
-    $("poDlg").close(); toast(`Ordered ${r.orders.length} item${r.orders.length > 1 ? "s" : ""}. Arrives day ${r.eta}.`, "ok"); save(); ui.tab = "ship"; ui.shipTab = "tx"; document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "ship")); renderAll(true);
+    $("poDlg").close(); toast(`Ordered ${r.orders.length} item${r.orders.length > 1 ? "s" : ""}. Arrives day ${r.eta}.`, "ok"); save(); goto("shipping", "tx");
   }
 });
 
@@ -156,8 +168,8 @@ $("sStart").onclick = () => {
 };
 
 function adopt(state) {
-  s = state; paused = false; finalShown = !!s.ended; lastDay = s.day; ui.tab = "dash"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } };
-  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === "dash"));
+  s = state; paused = false; finalShown = !!s.ended; lastDay = s.day; ui.main = "finance"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } };
+  renderNav();
   scene.reset(); save(); renderAll(true);
 }
 
