@@ -170,3 +170,6 @@ dialog.po .po-head h2 { margin:0; color:var(--brass-ink); font:700 1.05rem/1.2 v
 dialog.overlay, dialog.overlay .sheet-body, dialog.overlay .globe-wrap { scrollbar-width:none; -ms-overflow-style:none; }
 dialog.overlay::-webkit-scrollbar, dialog.overlay .sheet-body::-webkit-scrollbar, dialog.overlay .globe-wrap::-webkit-scrollbar { display:none; width:0; height:0; }
 dialog.overlay .sheet { max-height:calc(100dvh - 4vh); }
+/* No visible scrollbars anywhere (page, dialogs, tables, log). Everything still scrolls by wheel, touch, trackpad and keys. */
+html, body, * { scrollbar-width:none; -ms-overflow-style:none; }
+*::-webkit-scrollbar { display:none; width:0; height:0; }
