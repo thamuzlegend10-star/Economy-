@@ -101,7 +101,7 @@ function arrivals(s) {
     const dst = o.dest === "wh" ? s.wh : s;
     dst.qty[o.pid] += o.qty; dst.val[o.pid] = c(dst.val[o.pid] + o.goods);
     s.today.arrivals.push({ id: o.id, pid: o.pid, qty: o.qty });
-    s.feed.push({ id: ++s.feedSeq, kind: "truck", pid: o.pid, qty: o.qty }); log(s, `Delivery #${o.id} arrived${o.dest === "wh" ? " at the warehouse" : ""}: ${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}.`);
+    s.feed.push({ id: ++s.feedSeq, kind: "truck", pid: o.pid, qty: o.qty, to: o.dest === "wh" ? "wh" : "retail", transfer: o.kind === "transfer" }); log(s, `Delivery #${o.id} arrived${o.dest === "wh" ? " at the warehouse" : ""}: ${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}.`);
   }
   s.orders = s.orders.filter(o => o.eta > s.day);
   if (s.feed.length > 40) s.feed.splice(0, s.feed.length - 40);
@@ -268,6 +268,7 @@ export function sendToRetail(s, { lines } = {}) {
   });
   post(s.ledger, s.day, `Transfer ${made.map(o => "#" + o.id).join(", ")} from the warehouse to the shop`, [{ acct: "transit", dr: q.value }, { acct: "inventory", cr: q.value }, { acct: "delivery", dr: q.fee }, { acct: "cash", cr: q.fee }], "transfer:" + made[0].id);
   s.today.ship = c(s.today.ship + q.fee);
+  for (const o of made) s.feed.push({ id: ++s.feedSeq, kind: "out", pid: o.pid, qty: o.qty });
   log(s, `Sent ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} to the shop for $${q.fee.toFixed(2)}. Arrives day ${q.eta}.`);
   return ok({ orders: made, fee: q.fee, eta: q.eta });
 }

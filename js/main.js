@@ -199,6 +199,7 @@ $("finalNew").onclick = () => { $("finalDlg").close(); openMenu("menuSetup"); re
 
 // ---------- boot ----------
 const scene = createScene($("stage"), { getState: () => s });
+$("sceneTabs").addEventListener("click", e => { const b = e.target.closest("[data-scene]"); if (!b) return; scene.setView(b.dataset.scene); document.querySelectorAll("#sceneTabs button").forEach(x => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); }); });
 startFit();
 for (const k of OLD_KEYS) if (ls.get(k)) { ls.del(k); $("mNote").textContent = "An old save from an earlier version was removed. The game changed completely, so old saves cannot be used."; }
 const raw = ls.get(SAVE_KEY);
