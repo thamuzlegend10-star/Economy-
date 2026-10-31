@@ -12,7 +12,7 @@ const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }, del: k => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } } };
 
 let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central", lastSave = 0, lastView = 0, lastDay = 0;
-const ui = { main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } } };
+const ui = { main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
 
 // ---------- small helpers ----------
 function toast(text, kind = "") {
@@ -40,7 +40,7 @@ function viewFor() {
   const m = ui.main, sub = ui.sub[m];
   if (m === "finance") return sub === "reports" ? UI.reports(s) : UI.dashboard(s);
   if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
-  if (m === "warehouse") return UI.warehouse(s);
+  if (m === "warehouse") return UI.warehouse(s, sub);
   if (m === "shipping") return UI.ship(s, ui);
   return UI.soon(...SOON[m]);
 }
@@ -80,24 +80,40 @@ $("subtabs").addEventListener("click", e => { const b = e.target.closest("[data-
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
-  else if (t.dataset.posup) { ui.buy.sup = t.dataset.posup; openPo(); }
-  else if (t.id === "poOpen") openPo();
-  else if (t.id === "spOpen") { ui.space = D.SPACE_STEPS.find(n => n <= D.AREA.max - s.area) || 10; renderSp(); $("spDlg").showModal(); }
+  else if (t.dataset.posup) { ui.buy.sup = t.dataset.posup; openPo("retail"); }
+  else if (t.dataset.whsup) { ui.whbuy.sup = t.dataset.whsup; openPo("wh"); }
+  else if (t.id === "poOpen") openPo("retail");
+  else if (t.id === "whPoOpen") openPo("wh");
+  else if (t.id === "spOpen") { ui.spaceMode = "shop"; ui.space = D.SPACE_STEPS.find(n => n <= D.AREA.max - s.area) || 10; renderSp(); $("spDlg").showModal(); }
+  else if (t.id === "whRentOpen") { ui.spaceMode = "wh"; ui.space = D.WH.areaSteps.find(n => n <= D.WH.maxArea - s.wh.area) || D.WH.minArea; renderSp(); $("spDlg").showModal(); }
+  else if (t.id === "trOpen") { ui.tr = { qty: {} }; renderTr(); $("trDlg").showModal(); }
 });
-function renderSp() { if (s) $("spBody").innerHTML = UI.spaceForm(s, ui.space); }
+function renderSp() { if (s) { $("spTitle").textContent = ui.spaceMode === "wh" ? (s.wh.area ? "Rent more warehouse space" : "Rent a warehouse") : "Rent more space"; $("spBody").innerHTML = UI.spaceForm(s, ui.space, ui.spaceMode); } }
 $("spDlg").addEventListener("change", e => { if (e.target.id === "spExtra") { ui.space = Number(e.target.value); renderSp(); } });
 $("spDlg").addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || !s) return;
   if (t.id === "spX" || t.id === "spCancel") $("spDlg").close();
-  else if (t.id === "spSubmit") { const r = E.rentMoreSpace(s, ui.space); if (!r.ok) { toast(r.error, "err"); renderSp(); return; } $("spDlg").close(); toast(`Shop is now ${r.area} m². Rent ${UI.money2(r.rent)} per day.`, "ok"); save(); renderAll(true); }
+  else if (t.id === "spSubmit") { const wh = ui.spaceMode === "wh", r = wh ? E.rentWarehouse(s, ui.space) : E.rentMoreSpace(s, ui.space); if (!r.ok) { toast(r.error, "err"); renderSp(); return; } $("spDlg").close(); toast(`${wh ? "Warehouse" : "Shop"} is now ${r.area} m². Rent ${UI.money2(r.rent)} per day.`, "ok"); save(); renderAll(true); }
 });
-function openPo() { const d = $("poDlg"); renderPo(); if (!d.open) d.showModal(); }
-function renderPo() { if (s) $("poBody").innerHTML = UI.orderForm(s, ui.buy); }
+const PB = () => (ui.poMode === "wh" ? ui.whbuy : ui.buy);
+function renderTr() { if (s) $("trBody").innerHTML = UI.transferForm(s, ui.tr); }
+$("trDlg").addEventListener("change", e => { const t = e.target, pid = t.dataset && t.dataset.pid; if (!pid || !t.id.startsWith("trQty-")) return; ui.tr.qty[pid] = t.value === "all" ? s.wh.qty[pid] : Number(t.value); renderTr(); });
+$("trDlg").addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t || !s) return;
+  if (t.id === "trX" || t.id === "trCancel") $("trDlg").close();
+  else if (t.id === "trSubmit") {
+    const r = E.sendToRetail(s, { lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: ui.tr.qty[p.id] || 0 })) });
+    if (!r.ok) { toast(r.error, "err"); renderTr(); return; }
+    $("trDlg").close(); toast(`Sent to the shop. Arrives day ${r.eta}.`, "ok"); save(); goto("shipping", "tx");
+  }
+});
+function openPo(mode) { ui.poMode = mode; const d = $("poDlg"); renderPo(); if (!d.open) d.showModal(); }
+function renderPo() { if (s) { $("poTitle").textContent = ui.poMode === "wh" ? "Bulk purchase order" : "Purchase order"; $("poBody").innerHTML = UI.orderForm(s, PB()); } }
 $("poDlg").addEventListener("change", e => {
-  const t = e.target, pid = t.dataset && t.dataset.pid;
-  if (t.id === "poSup") ui.buy.sup = t.value;
-  else if (pid && t.id.startsWith("poQty-")) { if (t.value === "custom") { const n = ui.buy.qty[pid]; ui.buy.qty[pid] = n > 0 && !D.QTY_CHOICES.includes(n) ? n : 500; } else ui.buy.qty[pid] = Number(t.value); }
-  else if (pid && t.id.startsWith("poCustom-")) { const v = Math.round(Number(t.value)); ui.buy.qty[pid] = v >= 1 ? Math.min(D.MAX_QTY, v) : 0; }
+  const t = e.target, pid = t.dataset && t.dataset.pid, B = PB(), wh = ui.poMode === "wh", ch = wh ? D.WH_QTY : D.QTY_CHOICES, lo = wh ? D.WH.minQty : 1, hi = wh ? D.WH.maxQty : D.MAX_QTY;
+  if (t.id === "poSup") B.sup = t.value;
+  else if (pid && t.id.startsWith("poQty-")) { if (t.value === "custom") { const n = B.qty[pid]; B.qty[pid] = n > 0 && !ch.includes(n) ? n : (wh ? D.WH.minQty : 500); } else B.qty[pid] = Number(t.value); }
+  else if (pid && t.id.startsWith("poCustom-")) { const v = Math.round(Number(t.value)); B.qty[pid] = v >= 1 ? Math.min(hi, Math.max(lo, v)) : 0; }
   else return;
   renderPo();
 });
@@ -105,7 +121,7 @@ $("poDlg").addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || !s) return;
   if (t.id === "poX" || t.id === "poCancel") $("poDlg").close();
   else if (t.id === "poSubmit") {
-    const r = E.placeOrders(s, { supplier: ui.buy.sup, lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: ui.buy.qty[p.id] || 0 })) });
+    const B = PB(), r = E.placeOrders(s, { supplier: B.sup, dest: ui.poMode === "wh" ? "wh" : "retail", lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: B.qty[p.id] || 0 })) });
     if (!r.ok) { toast(r.error, "err"); renderPo(); return; }
     $("poDlg").close(); toast(`Ordered ${r.orders.length} item${r.orders.length > 1 ? "s" : ""}. Arrives day ${r.eta}.`, "ok"); save(); goto("shipping", "tx");
   }
@@ -168,7 +184,7 @@ $("sStart").onclick = () => {
 };
 
 function adopt(state) {
-  s = state; paused = false; finalShown = !!s.ended; lastDay = s.day; ui.main = "finance"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } };
+  s = state; paused = false; finalShown = !!s.ended; lastDay = s.day; ui.main = "finance"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }; ui.whbuy = { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }; ui.tr = { qty: {} };
   renderNav();
   scene.reset(); save(); renderAll(true);
 }

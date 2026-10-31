@@ -26,7 +26,7 @@ const ICON = {
 export const NAV = [
   { id: "finance", label: "Finance", subs: [["overview", "Overview"], ["reports", "Reports"]] },
   { id: "retail", label: "Retail", subs: [["location", "Location"], ["procurement", "Procurement"], ["store", "Store"], ["price", "Retail Sales & Price"], ["tx", "Transactions"]] },
-  { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock & Storage"]] },
+  { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock & Storage"], ["procure", "Bulk Procurement"], ["send", "Send to Retail"], ["b2b", "Send to B2B"]] },
   { id: "shipping", label: "Shipping", subs: [["co", "Transport Company"], ["tx", "Transactions"]] },
   { id: "b2b", label: "B2B", subs: [] },
   { id: "mail", label: "Mail", subs: [], iconOnly: true },
@@ -59,12 +59,54 @@ export function transactions(s) {
   return `<div class="card scroll"><table class="tbl"><thead><tr><th>Day</th><th class="l">Entry</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table></div><small class="muted">The latest 40 entries of the books. Every sale, purchase and payment is one balanced entry.</small>`;
 }
 
-export function warehouse(s) {
-  const d = E.dashboard(s), warn = d.utilization > 0.9 ? "full" : d.utilization > 0.7 ? "warn" : "";
-  const rows = D.PRODUCTS.map(p => `<tr><td><span class="dot" style="background:${p.color}"></span> ${esc(p.name)}</td><td>${num(s.qty[p.id])}</td><td>${money(s.val[p.id])}</td><td>${num(s.qty[p.id] * p.space)}</td></tr>`).join("");
-  return `<div class="card"><b>Storage: ${pct(d.utilization)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, d.utilization * 100)}%"></i></div>
-    <small>${num(d.used)} of ${num(d.capacity)} space used. ${num(d.incoming)} more is reserved for deliveries on the way. Free to order: ${num(Math.max(0, E.spaceFree(s)))}.</small><button class="ghost" id="spOpen">Rent more space</button></div>
-    <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In stock</th><th>Value</th><th>Space used</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+export function warehouse(s, sub = "stock") {
+  const w = E.dashboard(s).wh;
+  if (sub === "b2b") return soon("Send to B2B", "Selling warehouse stock to other businesses will be here. Sending goods out of the warehouse costs a shipping fee, the same as sending them to your shop.");
+  if (!w.rented) return `<div class="card"><b>Warehouse</b><p class="muted">A warehouse is a separate building, much bigger than the shop and cheaper per m². It has its own bulk suppliers. Goods you buy there can be sent to your shop, or later to B2B. Every send costs a shipping fee.</p>
+    <div class="kv1"><div><span>Rent</span><b>${money2(E.whRentPerM2(s.location))} / m² / day</b></div><div><span>Size</span><b>${num(D.WH.minArea)} to ${num(D.WH.maxArea)} m²</b></div><div><span>Storage per m²</span><b>${num(D.WH.spacePerM2)}</b></div></div>
+    <button class="big" id="whRentOpen">Rent a warehouse</button></div>`;
+  const warn = w.used / w.capacity > 0.9 ? "full" : w.used / w.capacity > 0.7 ? "warn" : "";
+  if (sub === "procure") {
+    const cards = D.WH_SUPPLIERS.map(x => { const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)), L = getLocation(s.location);
+      return `<div class="card tco"><div class="tco-head">Bulk supplier</div><h4>${esc(x.name)}</h4><small class="muted">${esc(x.desc)}</small>
+        <div class="kv1"><div><span>Price level</span><b>×${x.price.toFixed(2)} of retail cost</b></div><div><span>Minimum order</span><b>${num(D.WH.minQty)} units / product</b></div><div><span>Trip fee</span><b>${money2(x.fee * L.logistics)} / trip</b></div>
+        <div><span>Shipping fee</span><b>${money2(x.rate * L.logistics * 1000)} / km / 1,000 space</b></div><div><span>Distance travel</span><b>${num(x.speed)} km / day</b></div><div><span>Distance to my warehouse</span><b>${num(km)} km</b></div>
+        <div><span>Delivery time</span><b>${dayWord(days)}</b></div><div><span>Reliability</span><b>${pct(x.reliability)} on time</b></div></div>
+        <button data-whsup="${x.id}">Order from here</button></div>`; }).join("");
+    return `<div class="card"><b>Bulk procurement</b><p class="muted">Raise a bulk purchase order for the warehouse: at least ${num(D.WH.minQty)} units of each product you pick, up to ${num(D.WH.maxQty)}. Bigger orders get bigger discounts.</p><button class="big" id="whPoOpen">New bulk purchase order</button>
+      <small class="note">Space free in the warehouse: ${num(Math.max(0, E.whFree(s)))}.</small></div><div class="tcos">${cards}</div>`;
+  }
+  if (sub === "send") return `<div class="card"><b>Send to Retail</b><p class="muted">Move goods from the warehouse to your shop. It arrives the next day. Cost: a trip fee of ${money2(D.TRANSFER.fee)} plus ${money2(D.TRANSFER.rate * 1000)} per 1,000 space moved. The shop must have free space.</p>
+    <div class="kv1"><div><span>Free space in the shop</span><b>${num(Math.max(0, E.spaceFree(s)))}</b></div><div><span>Goods in the warehouse</span><b>${num(w.units)} units</b></div></div>
+    <button class="big" id="trOpen" ${w.units ? "" : "disabled"}>Send goods to the shop</button>${w.units ? "" : '<small class="note">The warehouse is empty. Buy stock first in Bulk procurement.</small>'}</div>`;
+  const rows = D.PRODUCTS.map(p => `<tr><td><span class="dot" style="background:${p.color}"></span> ${esc(p.name)}</td><td>${num(s.wh.qty[p.id])}</td><td>${money(s.wh.val[p.id])}</td><td>${num(s.wh.qty[p.id] * p.space)}</td></tr>`).join("");
+  return `<div class="card"><b>Warehouse storage: ${pct(w.capacity ? w.used / w.capacity : 0)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, w.capacity ? w.used / w.capacity * 100 : 0)}%"></i></div>
+    <small>${num(w.used)} of ${num(w.capacity)} space used in ${num(w.area)} m². ${num(w.incoming)} more is reserved for deliveries on the way. Rent ${money2(E.whRent(s))} per day.</small><button class="ghost" id="whRentOpen">Rent more warehouse space</button></div>
+    <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In warehouse</th><th>Value</th><th>Space used</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// Send-to-shop dialog body. tr = { qty: {pid: n} }.
+export function transferForm(s, tr) {
+  const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
+  const lines = D.PRODUCTS.map(p => ({ pid: p.id, qty: tr.qty[p.id] || 0 }));
+  const q = E.quoteTransfer(s, lines);
+  const rows = D.PRODUCTS.map(p => {
+    const have = s.wh.qty[p.id], n = tr.qty[p.id] || 0, picks = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000].filter(v => v < have);
+    const cur = n === have && have > 0 ? "all" : n;
+    const list = opt(0, "None", cur) + picks.map(v => opt(v, num(v) + " units", cur)).join("") + (have > 0 ? opt("all", `All (${num(have)})`, cur) : "");
+    return `<div class="poline"><div class="poname"><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</b><small>in warehouse ${num(have)}</small></div><select id="trQty-${p.id}" data-pid="${p.id}" ${have ? "" : "disabled"} aria-label="Quantity of ${esc(p.name)} to send">${list}</select></div>`;
+  }).join("");
+  const sum = q.error ? `<div class="muted small">${esc(q.error)}</div>` : `<div class="quote">
+      ${q.lines.map(l => `<div class="ln"><span>${esc(E.PRODUCT[l.pid].name)} ${num(l.qty)}</span><b>${money2(l.fee)}</b></div>`).join("")}
+      <div class="ln"><span>Trip fee</span><b>${money2(D.TRANSFER.fee)}</b></div>
+      <div class="ln tot"><span>Shipping fee, paid now</span><b>${money2(q.fee)}</b></div>
+      <div class="ln"><span>Arrives</span><b>${dayWord(q.days)}, day ${q.eta}</b></div>
+      <div class="ln"><span>Shop space needed</span><b>${num(q.space)} of ${num(Math.max(0, E.spaceFree(s)))} free</b></div></div>
+    ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}`;
+  return `<label class="fld"><span>From</span><select disabled><option>My warehouse · ${num(s.wh.area)} m²</option></select></label>
+    <label class="fld"><span>To</span><select disabled><option>My shop · ${num(s.area)} m²</option></select></label>
+    <div class="fld"><span>Items and quantity</span>${rows}</div>${sum}
+    <div class="po-actions"><button class="ghost" id="trCancel" type="button">Cancel</button><button id="trSubmit" type="button" ${q.ok ? "" : "disabled"}>Send${q.fee ? " · " + money2(q.fee) : ""}</button></div>`;
 }
 
 export function dashboard(s) {
@@ -108,20 +150,24 @@ export function store(s, part = "both") {
 }
 
 // Rent more space dialog body.
-export function spaceForm(s, extra) {
-  const q = E.spaceQuote(s, extra), room = D.AREA.max - s.area;
-  const opts = D.SPACE_STEPS.filter(n => n <= room).map(n => `<option value="${n}" ${n === extra ? "selected" : ""}>+${n} m²</option>`).join("");
-  if (!opts) return `<div class="err">Your shop is already at the ${D.AREA.max} m² limit.</div><div class="po-actions"><button class="ghost" id="spCancel" type="button">Close</button></div>`;
-  return `<label class="fld"><span>Add space</span><select id="spExtra">${opts}</select></label>
+export function spaceForm(s, extra, mode = "shop") {
+  const wh = mode === "wh", cur = wh ? s.wh.area : s.area, max = wh ? D.WH.maxArea : D.AREA.max, room = max - cur;
+  const q = wh ? E.whRentQuote(s, extra) : E.spaceQuote(s, extra), label = wh ? "warehouse" : "shop";
+  const steps = (wh ? D.WH.areaSteps : D.SPACE_STEPS).filter(n => n <= room);
+  const opts = steps.map(n => `<option value="${n}" ${n === extra ? "selected" : ""}>${wh && !cur ? "" : "+"}${n} m²</option>`).join("");
+  if (!opts) return `<div class="err">Your ${label} is already at the ${num(max)} m² limit.</div><div class="po-actions"><button class="ghost" id="spCancel" type="button">Close</button></div>`;
+  const now = wh ? E.whRent(s) : E.dailyRent(s.location, s.area), cap = wh ? D.WH.spacePerM2 : D.SPACE_PER_M2;
+  return `<label class="fld"><span>${wh && !cur ? "Warehouse size" : "Add space"}</span><select id="spExtra">${opts}</select></label>
     <div class="quote">
-      <div class="ln"><span>Now</span><b>${num(s.area)} m² · ${money2(E.dailyRent(s.location, s.area))} / day</b></div>
+      <div class="ln"><span>Now</span><b>${cur ? `${num(cur)} m² · ${money2(now)} / day` : "No warehouse yet"}</b></div>
       <div class="ln"><span>Price</span><b>${money2(q.rate)} / m² / day</b></div>
       <div class="ln tot"><span>After</span><b>${num(q.newArea)} m²</b></div>
       <div class="ln"><span>Rent per day</span><b>${money2(q.newRent)} (+${money2(q.extraRent)})</b></div>
-      <div class="ln"><span>Storage</span><b>${num(q.newCapacity)} (+${num(q.addedCapacity)})</b></div></div>
+      <div class="ln"><span>Storage</span><b>${num(q.newCapacity)} (+${num(q.addedCapacity)})</b></div>
+      <div class="ln"><span>Storage per m²</span><b>${num(cap)}</b></div></div>
     ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}
-    <small class="note">The new space is yours right away. Rent for it is charged at the end of every day from now on, and a bigger shop attracts more customers.</small>
-    <div class="po-actions"><button class="ghost" id="spCancel" type="button">Cancel</button><button id="spSubmit" type="button" ${q.ok ? "" : "disabled"}>Rent +${q.extra} m²</button></div>`;
+    <small class="note">${wh ? "The warehouse is a separate, bigger building. Rent is charged at the end of every day. Goods bought from bulk suppliers arrive here, then you send them to the shop (or later to B2B) for a shipping fee." : "The new space is yours right away. Rent for it is charged at the end of every day from now on, and a bigger shop attracts more customers."}</small>
+    <div class="po-actions"><button class="ghost" id="spCancel" type="button">Cancel</button><button id="spSubmit" type="button" ${q.ok ? "" : "disabled"}>${wh && !cur ? "Rent warehouse" : "Rent +" + q.extra + " m²"}</button></div>`;
 }
 
 export function buy(s, ui) {
@@ -133,18 +179,18 @@ export function buy(s, ui) {
 
 // The purchase order form shown in the order dialog: one supplier, one quantity list per product, a live quote, Submit.
 export function orderForm(s, b) {
-  const sp = E.SUPPLIER[b.sup];
+  const wh = b.mode === "wh", sp = E.SUPPLIER[b.sup], list0 = wh ? D.WH_SUPPLIERS : D.SUPPLIERS, choices = wh ? D.WH_QTY : D.QTY_CHOICES, maxQ = wh ? D.WH.maxQty : D.MAX_QTY;
   const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
-  const sups = D.SUPPLIERS.map(x => { const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)); return opt(x.id, `${x.name} · ${num(km)} km · ${dayWord(days)}`, b.sup); }).join("");
+  const sups = list0.map(x => { const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)); return opt(x.id, `${x.name} · ${num(km)} km · ${dayWord(days)}`, b.sup); }).join("");
   const lines = D.PRODUCTS.map(p => ({ pid: p.id, qty: b.qty[p.id] || 0 }));
-  const q = E.quoteMulti(s, b.sup, lines);
+  const q = E.quoteMulti(s, b.sup, lines, wh ? "wh" : "retail");
   const rows = D.PRODUCTS.map(p => {
-    const n = b.qty[p.id] || 0, custom = n > 0 && !D.QTY_CHOICES.includes(n);
+    const n = b.qty[p.id] || 0, custom = n > 0 && !choices.includes(n);
     const cur = custom ? "custom" : n;
-    const list = opt(0, "None", cur) + D.QTY_CHOICES.map(v => opt(v, num(v) + " units", cur)).join("") + opt("custom", "Custom amount...", cur);
+    const list = opt(0, "None", cur) + choices.map(v => opt(v, num(v) + " units", cur)).join("") + opt("custom", "Custom amount...", cur);
     return `<div class="poline"><div class="poname"><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</b><small>${money2(E.unitCost(s, sp, p.id))} each</small></div>
       <select id="poQty-${p.id}" data-pid="${p.id}" aria-label="Quantity of ${esc(p.name)}">${list}</select>
-      ${custom ? `<input id="poCustom-${p.id}" data-pid="${p.id}" type="number" min="1" max="${D.MAX_QTY}" step="1" inputmode="numeric" value="${n}" aria-label="Custom quantity of ${esc(p.name)}">` : ""}</div>`;
+      ${custom ? `<input id="poCustom-${p.id}" data-pid="${p.id}" type="number" min="${wh ? D.WH.minQty : 1}" max="${maxQ}" step="1" inputmode="numeric" value="${n}" aria-label="Custom quantity of ${esc(p.name)}">` : ""}</div>`;
   }).join("");
   const sum = q.error ? `<div class="muted small">${esc(q.error)}</div>` : `<div class="quote">
       ${q.lines.map(l => `<div class="ln"><span>${esc(E.PRODUCT[l.pid].name)} ${num(l.qty)} × ${money2(l.unit)}${l.discount ? ` (bulk −${Math.round(l.discount * 100)}%)` : ""}</span><b>${money2(l.goods)}</b></div>`).join("")}
@@ -152,10 +198,10 @@ export function orderForm(s, b) {
       <div class="ln"><span>Shipping (${num(q.km)} km, one fee)</span><b>${money2(q.ship)}</b></div>
       <div class="ln tot"><span>Total, paid now</span><b>${money2(q.total)}</b></div>
       <div class="ln"><span>Estimated delivery</span><b>${dayWord(q.days)}, day ${q.eta}</b></div>
-      <div class="ln"><span>Storage needed</span><b>${num(q.space)} of ${num(Math.max(0, E.spaceFree(s)))} free</b></div></div>
+      <div class="ln"><span>Storage needed</span><b>${num(q.space)} of ${num(Math.max(0, wh ? E.whFree(s) : E.spaceFree(s)))} free</b></div></div>
     ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}
-    <small class="note">Bulk discounts per product: 10,000+ units −3%, 30,000+ −6%, 75,000+ −10%, 125,000+ −13%.${sp.reliability < 1 ? ` ${esc(sp.name)} is late about ${Math.round((1 - sp.reliability) * 100)}% of the time.` : ""}</small>`;
-  return `<label class="fld"><span>Ship to</span><select id="poShip" disabled><option>My shop · ${esc(E.siteLabel(s.location))} · ${num(s.area)} m²</option></select></label>
+    <small class="note">${wh ? "Bulk discounts per product: 25,000+ units −4%, 50,000+ −8%, 100,000+ −12%, 200,000+ −16%, 500,000+ −20%. At least 25,000 of each product you order." : "Bulk discounts per product: 10,000+ units −3%, 30,000+ −6%, 75,000+ −10%, 125,000+ −13%."}${sp.reliability < 1 ? ` ${esc(sp.name)} is late about ${Math.round((1 - sp.reliability) * 100)}% of the time.` : ""}</small>`;
+  return `<label class="fld"><span>Ship to</span><select id="poShip" disabled><option>${wh ? `My warehouse · ${num(s.wh.area)} m²` : `My shop · ${esc(E.siteLabel(s.location))} · ${num(s.area)} m²`}</option></select></label>
     <label class="fld"><span>Supplier</span><select id="poSup">${sups}</select></label>
     <div class="fld"><span>Items and quantity</span>${rows}</div>
     ${sum}
@@ -177,7 +223,7 @@ export function ship(s, ui = {}) {
   }
   const rows = [...s.orders].sort((a, b) => a.eta - b.eta).map(o => {
     const st = E.orderStatus(s, o), cls = st === "Delayed" ? "warn" : st === "Arriving today" ? "ok" : "info";
-    return `<tr><td>#${o.id}</td><td>${esc(E.PRODUCT[o.pid].name)}</td><td>${num(o.qty)}</td><td>${esc(E.SUPPLIER[o.sup].name)}</td><td><span class="tag ${cls}">${st}</span></td><td>Day ${o.eta} (${o.eta <= s.day ? "today" : "in " + dayWord(o.eta - s.day)})</td><td>${money2(o.goods + o.ship)}</td></tr>`;
+    return `<tr><td>#${o.id}</td><td>${esc(E.PRODUCT[o.pid].name)}</td><td>${num(o.qty)}</td><td>${o.kind === "transfer" ? "Warehouse → Shop" : esc(E.SUPPLIER[o.sup].name) + (o.dest === "wh" ? " → Warehouse" : "")}</td><td><span class="tag ${cls}">${st}</span></td><td>Day ${o.eta} (${o.eta <= s.day ? "today" : "in " + dayWord(o.eta - s.day)})</td><td>${money2(o.goods + o.ship)}</td></tr>`;
   }).join("");
   const recent = s.log.filter(l => /^Delivery/.test(l.text)).slice(-6).reverse().map(l => `<div><small>Day ${l.day}</small> ${esc(l.text)}</div>`).join("");
   return sub + `<div class="card scroll">${rows ? `<table class="tbl"><thead><tr><th>Order</th><th>Product</th><th>Units</th><th>Supplier</th><th>Status</th><th>Arrives</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="muted">No shipments on the way. Open Procurement to order stock. The fastest delivery takes 1 day.</p>`}</div>

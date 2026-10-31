@@ -137,3 +137,35 @@ test("one purchase order can carry all three products, pays one shipping fee and
   while (!s.ended && s.orders.length) E.tick(s, 0.5);
   assert.ok(E.reconcile(s).ok);
 });
+
+test("warehouse: rent it, buy in bulk from its own suppliers, send goods to the shop for a fee, books stay balanced", () => {
+  const s = mk({ capital: 200000, area: 300, days: 30 });
+  assert.equal(E.placeOrders(s, { supplier: "harbor", dest: "wh", lines: [{ pid: "noodles", qty: 50000 }] }).ok, false, "needs a warehouse first");
+  const rq = E.whRentQuote(s, 100); assert.equal(rq.extra, D.WH.minArea, "first rent is at least the minimum"); assert.equal(rq.newCapacity, D.WH.minArea * D.WH.spacePerM2);
+  const rent0 = E.dailyRent(s.location, s.area);
+  assert.ok(E.rentWarehouse(s, 2500).ok); assert.equal(s.wh.area, 2500); assert.ok(E.whRent(s) > 0);
+  assert.ok(E.quoteMulti(s, "harbor", [{ pid: "noodles", qty: 1000 }], "wh").error, "bulk only");
+  assert.equal(E.placeOrders(s, { supplier: "metro", dest: "wh", lines: [{ pid: "noodles", qty: 50000 }] }).ok, false, "shop suppliers do not serve the warehouse");
+  const lines = [{ pid: "noodles", qty: 100000 }, { pid: "milk", qty: 50000 }];
+  const q = E.quoteMulti(s, "harbor", lines, "wh"); assert.ok(q.ok); assert.equal(q.lines[0].discount, 0.12);
+  const retailUnit = E.unitCost(s, E.SUPPLIER.metro, "noodles"); assert.ok(q.lines[0].unit < retailUnit, "bulk is cheaper");
+  assert.ok(E.placeOrders(s, { supplier: "harbor", dest: "wh", lines }).ok);
+  assert.equal(E.spaceFree(s), E.capacityOf(s.area) - E.spaceUsed(s), "warehouse orders do not reserve shop space");
+  assert.ok(E.whIncoming(s) > 0); assert.ok(E.reconcile(s).ok);
+  const d0 = s.day; while (!s.ended && s.orders.length && s.day < d0 + 12) E.tick(s, 0.5);
+  assert.equal(s.orders.length, 0); assert.equal(s.wh.qty.noodles, 100000); assert.ok(E.reconcile(s).ok);
+  const stock0 = s.qty.noodles, cash0 = E.dashboard(s).cash, tq = E.quoteTransfer(s, [{ pid: "noodles", qty: 5000 }]);
+  assert.ok(tq.ok); assert.ok(tq.fee > D.TRANSFER.fee - 1e-9);
+  assert.equal(E.sendToRetail(s, { lines: [{ pid: "noodles", qty: 9e9 }] }).ok, false);
+  assert.ok(E.sendToRetail(s, { lines: [{ pid: "noodles", qty: 5000 }] }).ok);
+  assert.ok(Math.abs(E.dashboard(s).cash - (cash0 - tq.fee)) < 0.01); assert.equal(s.wh.qty.noodles, 95000); assert.ok(E.reconcile(s).ok);
+  const d1 = s.day; while (!s.ended && s.day === d1) E.tick(s, 0.5);
+  assert.ok(s.qty.noodles > stock0 - 5000, "arrived in the shop next day"); assert.ok(E.reconcile(s).ok);
+  assert.ok(s.lastReport.rent > rent0, "warehouse rent is charged daily");
+  assert.ok(E.validateSave(E.serialize(s)).ok);
+});
+
+test("old v11 saves get an empty warehouse instead of being refused", () => {
+  const s = mk(); const o = JSON.parse(E.serialize(s)); o.v = 11; delete o.wh; delete o.supIdx.harbor;
+  const v = E.validateSave(JSON.stringify(o)); assert.ok(v.ok); assert.equal(v.state.wh.area, 0);
+});
