@@ -3,6 +3,7 @@
 import { newLedger, post, balance, totals, round2 } from "./ledger.js";
 import { getLocation, hasLocation } from "./locations.js";
 import * as D from "./data.js";
+import { newFactory, factoryArrivals, factoryDay } from "./factory.js";
 
 export const STEP = 0.05;
 export const FLUSH_STEPS = 20;                                    // sales are posted to the ledger once per simulated second
@@ -36,7 +37,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
+    ledger: newLedger(), fx: newFactory(), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
   for (const sp of ALL_SUP) { s.supIdx[sp.id] = 1; }
@@ -50,7 +51,7 @@ export function newGame(opts = {}) {
   return s;
 }
 
-const log = (s, text) => { s.log.push({ day: s.day, text }); if (s.log.length > 60) s.log.shift(); };
+export const log = (s, text) => { s.log.push({ day: s.day, text }); if (s.log.length > 60) s.log.shift(); };
 const priceFit = (p, v) => c(Math.round(v / p.step) * p.step);
 export const priceBounds = p => ({ min: priceFit(p, p.ref * 0.5), max: priceFit(p, p.ref * 2.5) });
 
@@ -70,7 +71,7 @@ export function dashboard(s) {
   const cap = capacityOf(s.area), used = spaceUsed(s);
   return { cash: c(cash), overdraft: c(over), revenue: t.revenue, expenses: t.costs, netProfit: c(t.revenue - t.costs), inventoryUnits: inventoryUnits(s), inventoryValue: c(inv),
     unitsSold: s.stats.units, pending: s.orders.length, pendingUnits: s.orders.reduce((a, o) => a + o.qty, 0), capacity: cap, used: Math.round(used), incoming: Math.round(spaceIncoming(s)),
-    utilization: cap ? used / cap : 0, wh: { rented: s.wh.area > 0, area: s.wh.area, capacity: whCapacity(s), used: Math.round(whUsed(s)), incoming: Math.round(whIncoming(s)), units: whUnits(s) }, netWorth: c(cash - over + inv + balance(s.ledger, "transit")), balanced: t.balanced };
+    utilization: cap ? used / cap : 0, wh: { rented: s.wh.area > 0, area: s.wh.area, capacity: whCapacity(s), used: Math.round(whUsed(s)), incoming: Math.round(whIncoming(s)), units: whUnits(s) }, netWorth: c(t.assets - t.liabilities), balanced: t.balanced };
 }
 
 // ---------- demand ----------
@@ -90,7 +91,7 @@ function beginDay(s) {
   for (const sp of ALL_SUP) {                                           // supplier prices drift (supplier stock is unlimited)
     const i = s.supIdx[sp.id]; s.supIdx[sp.id] = Math.round(clamp(i + (rnd(s) - 0.5) * 0.05 + (1 - i) * 0.08, 0.9, 1.15) * 1000) / 1000;
   }
-  arrivals(s);
+  arrivals(s); factoryArrivals(s);
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
 }
 
@@ -335,6 +336,7 @@ function closeDay(s) {
   const lines = [{ acct: "rent", dr: rent }];
   if (pay > 0) lines.push({ acct: "cash", cr: pay }); if (over > 0) lines.push({ acct: "overdraft", cr: over });
   post(s.ledger, day, `Rent for day ${day}`, lines, "rent:" + day); s.today.rent = rent;
+  factoryDay(s);
   const od = balance(s.ledger, "overdraft"), cashNow = balance(s.ledger, "cash"), repay = c(Math.min(od, Math.max(0, cashNow)));
   if (repay > 0) post(s.ledger, day, "Overdraft repaid from cash", [{ acct: "overdraft", dr: repay }, { acct: "cash", cr: repay }]);
   s.overdraftDays = balance(s.ledger, "overdraft") > 0 ? s.overdraftDays + 1 : 0;
@@ -360,7 +362,13 @@ export function reconcile(s) {
   const t = totals(s.ledger), val = c(Object.values(s.val).reduce((a, v) => a + v, 0) + Object.values((s.wh && s.wh.val) || {}).reduce((a, v) => a + v, 0)), problems = [];
   if (!t.balanced) problems.push("Ledger is not balanced.");
   if (Math.abs(val - balance(s.ledger, "inventory")) > 0.05) problems.push("Inventory value differs from the ledger.");
-  const tr = c(s.orders.reduce((a, o) => a + o.goods, 0)); if (Math.abs(tr - balance(s.ledger, "transit")) > 0.05) problems.push("Goods in transit differ from the ledger.");
+  const fx = s.fx, fxv = o => c(Object.values(o.val).reduce((a, v) => a + v, 0));
+  if (Math.abs(fxv(fx.raw) - balance(s.ledger, "inv_raw")) > 0.05) problems.push("Raw material value differs from the ledger.");
+  if (Math.abs(fxv(fx.fg) - balance(s.ledger, "inv_fg")) > 0.05) problems.push("Factory finished goods differ from the ledger.");
+  if (Math.abs(c(fx.machines.reduce((a, m) => a + m.cost, 0)) - balance(s.ledger, "machinery")) > 0.05) problems.push("Machinery differs from the ledger.");
+  if (Math.abs(c(fx.machines.reduce((a, m) => a + m.deprec, 0)) + balance(s.ledger, "acc_deprec")) > 0.05) problems.push("Depreciation differs from the ledger.");
+  if (Math.abs(c(fx.payables.reduce((a, p) => a + p.amount, 0)) - balance(s.ledger, "payables")) > 0.05) problems.push("Supplier invoices differ from the ledger.");
+  const tr = c(s.orders.reduce((a, o) => a + o.goods, 0) + fx.pos.reduce((a, o) => a + o.goods, 0)); if (Math.abs(tr - balance(s.ledger, "transit")) > 0.05) problems.push("Goods in transit differ from the ledger.");
   for (const p of D.PRODUCTS) if (s.qty[p.id] < 0) problems.push(`${p.name} stock is negative.`);
   if (spaceUsed(s) > capacityOf(s.area) + 0.5) problems.push("Storage is over capacity.");
   if (s.wh && whUsed(s) > whCapacity(s) + 0.5) problems.push("Warehouse is over capacity.");
@@ -379,6 +387,7 @@ export function validateSave(raw) {
   let o; try { o = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return err("Save file is not valid JSON."); }
   if (!o || typeof o !== "object") return err("Save file is empty.");
   if (o && o.v === 11) { o.v = 12; o.wh = { area: 0, qty: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])), val: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])) }; for (const sp of D.WH_SUPPLIERS) o.supIdx[sp.id] = 1; delete o.supStock; }
+  if (o && o.v === 12) { o.v = 13; o.fx = newFactory(); }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

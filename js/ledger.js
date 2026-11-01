@@ -20,9 +20,26 @@ export const ACCOUNTS = {
   delivery:  { type:"expense",   name:"Delivery fees" },
   fees:      { type:"expense",   name:"Bank fees" },
   repairs:   { type:"expense",   name:"Repairs" },
+  // Phase 3 chart of accounts: manufacturing, banking, B2B and e-commerce.
+  receivables: { type:"asset",   name:"Receivables" },
+  inv_raw:   { type:"asset",     name:"Raw material inventory" },
+  inv_fg:    { type:"asset",     name:"Finished goods (factory)" },
+  machinery: { type:"asset",     name:"Machinery" },
+  acc_deprec: { type:"asset",    name:"Accumulated depreciation (contra)" },
+  credit:    { type:"liability", name:"Revolving credit" },
+  longdebt:  { type:"liability", name:"Long-term and equipment loans" },
+  escrow:    { type:"liability", name:"Escrow (customer money held)" },
+  retained:  { type:"equity",    name:"Retained earnings" },
+  sales_b2b: { type:"income",    name:"B2B sales" },
+  sales_ecom: { type:"income",   name:"E-commerce sales" },
+  depreciation: { type:"expense", name:"Depreciation" },
+  maintenance: { type:"expense", name:"Machine maintenance" },
+  penalties: { type:"expense",   name:"Contract penalties" },
+  overflow:  { type:"expense",   name:"Storage overflow fees" },
+  cogs_labor: { type:"expense",  name:"Production labour" },
 };
 const DEBIT_NORMAL = new Set(["asset", "expense"]);
-export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs"];
+export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor"];
 export const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const MAX_ENTRIES = 1500;
 
@@ -57,12 +74,9 @@ export function balance(ledger, acct) {
 }
 
 export function totals(ledger) {
-  const b = a => balance(ledger, a);
-  const assets = b("cash") + b("bank") + b("inventory") + b("equipment") + b("transit");
-  const liabilities = b("loan") + b("overdraft") + b("payables");
-  const revenue = b("sales");
-  const costs = b("cogs") + OPEX.reduce((s, a) => s + b(a), 0);
-  const equity = b("capital") + revenue - costs;
+  const sum = type => Object.keys(ACCOUNTS).filter(k => ACCOUNTS[k].type === type).reduce((s, k) => s + balance(ledger, k), 0);
+  const assets = sum("asset"), liabilities = sum("liability"), revenue = sum("income"), costs = sum("expense");
+  const equity = sum("equity") + revenue - costs;
   return { assets: round2(assets), liabilities: round2(liabilities), equity: round2(equity), revenue: round2(revenue), costs: round2(costs),
            balanced: Math.abs(assets - liabilities - equity) < 0.011 };
 }
