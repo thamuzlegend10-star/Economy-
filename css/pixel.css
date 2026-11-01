@@ -189,3 +189,4 @@ html, body, * { scrollbar-width:none; -ms-overflow-style:none; }
 .row input[type=number] { flex:1 1 90px; min-width:0; }
 .card .row button.big, .card > button.big { width:100%; }
 .shophead { flex-wrap:wrap; gap:2px 8px; } .shophead small { min-width:0; overflow-wrap:anywhere; }
+.warnrow { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0; border-bottom:1px dotted var(--line); font-size:.85rem; } .warnrow span { min-width:0; overflow-wrap:anywhere; } .warnrow.bad span { color:#ffb0b8; } .warnrow.warn span { color:var(--brass); }

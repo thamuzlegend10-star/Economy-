@@ -81,7 +81,7 @@ export function ecomDay(s) {
     if (n < 1) continue;
     const cost = n >= have ? src.val[pid] : c(src.val[pid] / have * n), amount = c(n * price), ship = c(n * (D.ECOM.pickPackPerOrder + D.ECOM.parcelPerOrder));
     src.qty[pid] -= n; src.val[pid] = c(src.val[pid] - cost);
-    const late = streamNext(e) < 0.06 ? 1 : 0, id = ++e.seq;
+    const late = streamNext(e) < D.SRV.webLateChance ? 1 : 0, id = ++e.seq;
     post(s.ledger, s.day, `Web order #${id}: ${n} ${p.name}`, [{ acct: "receivables", dr: amount }, { acct: "escrow", cr: amount }], "web:" + id);
     post(s.ledger, s.day, `Shipped web order #${id}`, [{ acct: "cogs", dr: cost }, { acct: PRODUCT[pid] ? "inventory" : "inv_fg", cr: cost }], "web:" + id);
     payOut(s, "delivery", ship, `Pick, pack and parcel, web order #${id}`, "webship:" + id);
@@ -93,6 +93,8 @@ export function ecomDay(s) {
 // ================= customer service =================
 export const newSrv = () => ({ csi: D.SRV.csiStart, backlog: 0, tickets: 0, resolved: 0 });
 export const ensureSrv = s => (s.srv = s.srv || newSrv());
+// Customer satisfaction moves demand: above the neutral score shoppers come back and tell others, below it they stay away.
+export const csiFactor = s => clamp(1 + D.SRV.demandPerPoint * ((s.srv ? s.srv.csi : D.SRV.neutralCsi) - D.SRV.neutralCsi), D.SRV.demandMin, D.SRV.demandMax);
 export function srvDay(s) {
   const v = ensureSrv(s), t = s.today, sold = Object.values(t.units).reduce((a, b) => a + b, 0), lost = Object.values(t.lost).reduce((a, b) => a + b, 0);
   const web = s.ecom && s.ecom.today ? s.ecom.today : { orders: 0, lost: 0, late: 0 }, lateWeb = s.ecom ? s.ecom.orders.filter(o => o.late).length : 0;
@@ -100,5 +102,5 @@ export function srvDay(s) {
   v.tickets += tickets; v.backlog += tickets; const done = Math.min(v.backlog, Math.floor(serviceCapacity(s))); v.backlog -= done; v.resolved += done;
   const lostShare = (lost + web.lost) / Math.max(1, sold + lost + web.orders + web.lost), backlogShare = v.backlog / Math.max(40, sold * 0.05 + 40);
   const target = clamp(95 - 140 * lostShare - 12 * Math.min(1, backlogShare) - 4 * lateWeb + 6 * (retailBoost(s) - 1) * 10, 0, 100);
-  v.csi = c(clamp(v.csi + (target - v.csi) * 0.15, 0, 100));
+  v.csi = c(clamp(v.csi + (target - v.csi) * D.SRV.csiDrift, 0, 100));
 }

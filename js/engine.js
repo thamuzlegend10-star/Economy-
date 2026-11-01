@@ -7,7 +7,7 @@ import { newFactory, factoryArrivals, factoryDay, rawUnitsUsedSpace, fgSpace } f
 import { newB2B, b2bDay } from "./b2b.js";
 import { newMrp, mrpDay } from "./mrp.js";
 import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
-import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut } from "./market.js";
+import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut, csiFactor } from "./market.js";
 import { newBank, bankDay } from "./bank.js";
 import { newKpi } from "./kpi.js";
 
@@ -89,7 +89,7 @@ function demandFor(s, p) {
   const L = getLocation(s.location), price = s.prices[p.id];
   const area = Math.pow(s.area / D.AREA.def, 0.3);
   const pf = clamp(Math.pow((p.ref * L.power) / price, p.elast * L.priceSens * priceCut(s, p.cat)), 0.01, 2.5);
-  return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s);
+  return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s) * csiFactor(s);
 }
 export const expectedDemand = (s, pid) => Math.round(demandFor(s, PRODUCT[pid]));
 

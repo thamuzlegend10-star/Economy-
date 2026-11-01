@@ -32,7 +32,7 @@ export function setTraining(s, v) { const t = D.HR.trainingBudget; ensureHr(s).t
 export const retailNeed = s => Math.max(1, Math.round(s.area / 60));
 export function retailBoost(s) {            // up to +10% shoppers served when the shop is fully staffed with skilled, happy people
   const h = ensureHr(s), st = h.staff.retail; if (!st.n) return 1;
-  return 1 + 0.10 * Math.min(1, st.n / retailNeed(s)) * clamp(st.skill, 0.5, 1.6) * (0.5 + h.morale / 200);
+  return 1 + D.HR_EFFECTS.retailBoost * Math.min(1, st.n / retailNeed(s)) * clamp(st.skill, D.HR_EFFECTS.skillMin, D.HR_EFFECTS.skillMax) * (0.5 + h.morale / 200);
 }
 export const operatorsNeeded = s => (s.fx ? s.fx.machines.reduce((a, m) => a + D.MACHINES.find(t => t.id === m.type).operators, 0) : 0);
 export function crew(s) {                  // factory output and wear factors
@@ -40,8 +40,8 @@ export function crew(s) {                  // factory output and wear factors
   const h = ensureHr(s), st = h.staff.factory, coverage = Math.min(1, st.n / need);
   return { coverage, out: (0.5 + 0.5 * coverage) * (0.9 + 0.1 * clamp(st.skill, 0.5, 1.6)), wear: clamp(1.2 - 0.2 * st.skill, 0.6, 1.3) };
 }
-export const transferDiscount = s => 0.15 * Math.min(1, ensureHr(s).staff.warehouse.n / 2) * (0.5 + ensureHr(s).morale / 200);
-export const salesEdge = s => 0.06 * Math.min(1, ensureHr(s).staff.sales.n / 2) * clamp(ensureHr(s).staff.sales.skill, 0.5, 1.6);
+export const transferDiscount = s => D.HR_EFFECTS.transferCut * Math.min(1, ensureHr(s).staff.warehouse.n / 2) * (0.5 + ensureHr(s).morale / 200);
+export const salesEdge = s => D.HR_EFFECTS.salesEdge * Math.min(1, ensureHr(s).staff.sales.n / 2) * clamp(ensureHr(s).staff.sales.skill, D.HR_EFFECTS.skillMin, D.HR_EFFECTS.skillMax);
 export const serviceCapacity = s => ensureHr(s).staff.service.n * D.SRV.perStaffPerDay * clamp(ensureHr(s).staff.service.skill, 0.5, 1.6);
 
 export function hrDay(s) {
@@ -58,7 +58,7 @@ export function hrDay(s) {
   }
   // morale drifts toward a target set by pay and training; overwork (too few operators) hurts
   const cv = crew(s), target = clamp(55 + 60 * (h.wageMult - 1) + Math.min(15, h.training / 40) - (cv.coverage < 1 ? 15 * (1 - cv.coverage) : 0), 0, 100);
-  h.morale = c(clamp(h.morale + (target - h.morale) * 0.1, 0, 100));
+  h.morale = c(clamp(h.morale + (target - h.morale) * D.HR_EFFECTS.moraleDrift, 0, 100));
   // turnover: unhappy staff quit
   for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30); for (let i = st.n; i > 0; i--) if (streamNext(h) < p) { st.n--; h.quits++; log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }
 }

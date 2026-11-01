@@ -168,13 +168,18 @@ export function statements(s) {
 const openingGift = s => round2(s.startNetWorth - s.capital);
 const quick = s => { const L = s.ledger, b = a => balance(L, a), cur = b("overdraft") + b("payables") + b("credit") + b("escrow"); return cur > 0 ? (b("cash") + b("receivables")) / cur : 99; };
 
+// Warning list. Each row jumps to the tab that fixes it.
+export function warningsCard(s) {
+  const w = Kp.warnings(s); if (!w.length) return "";
+  return `<div class="card">${head("Warnings", w.length + " to look at")}${w.map(x => `<div class="warnrow ${x.level}"><span>${esc(x.text)}</span><button class="mini ghost" data-goto="${x.where[0]}" data-gsub="${x.where[1]}">Open</button></div>`).join("")}</div>`;
+}
 // ================= SCORING & DATA =================
 export function scoring(s, f) {
   const sb = Kp.scoreboard(s), w = Kp.ensureKpi(s).weights;
   const fmt = (r) => r.unit === "$" ? money(r.value) : r.unit === "x" ? dec(r.value, 2) + "×" : dec(r.value, 1) + (r.unit === "%" ? "%" : "");
   const rows = sb.rows.map(r => `<tr><td class="l">${esc(r.name)}</td><td>${fmt(r)}</td><td>${dec(r.score, 0)}</td><td>${dec(r.points, 1)}</td></tr>`).join("");
   const inputs = D.KPIS.map(k => `<label class="fld"><span>${esc(k.name)}</span>${sel("w." + k.id, [0, 5, 10, 15, 20, 25, 30, 40, 50].map(x => [x, x + "%"]), f.w[k.id] != null ? f.w[k.id] : Math.round(w[k.id] * 100))}</label>`).join("");
-  return `<div class="card">${head("Score", "Weighted KPIs")}<div class="gradebig">${dec(sb.total, 1)}<small>out of 100</small></div></div>
+  return `${warningsCard(s)}<div class="card">${head("Score", "Weighted KPIs")}<div class="gradebig">${dec(sb.total, 1)}<small>out of 100</small></div></div>
     <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">KPI</th><th>Value</th><th>Score</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="card">${head("Weights", "Set what matters; they are re-balanced to 100%")}<div class="two">${inputs}</div><div class="row">${btn("weights", "Apply weights", { mini: false })}${btn("weightsReset", "Defaults", { ghost: true, mini: false })}</div></div>`;
 }

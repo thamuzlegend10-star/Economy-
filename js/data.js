@@ -180,7 +180,7 @@ export const BANK = {
 };
 
 // ---------- Service and customer satisfaction ----------
-export const SRV = { csiStart: 80, ticketRate: 0.004, perStaffPerDay: 40, lateDeliveryHit: 0.5, defectHit: 1.5, stockoutHit: 0.01, repGain: 0.02 };
+export const SRV = { neutralCsi: 80, demandPerPoint: 0.004, demandMin: 0.8, demandMax: 1.1, csiDrift: 0.15, webLateChance: 0.06, csiStart: 80, ticketRate: 0.004, perStaffPerDay: 40, lateDeliveryHit: 0.5, defectHit: 1.5, stockoutHit: 0.01, repGain: 0.02 };
 
 // ---------- Scoring matrix: key, label, default weight. Weights are re-normalised so they sum to 1. ----------
 export const KPIS = [
@@ -198,3 +198,8 @@ export const KPIS = [
 export const SCENES = [
   { id: "store", name: "Store" }, { id: "warehouse", name: "Warehouse" }, { id: "factory", name: "Factory" }, { id: "district", name: "District" },
 ];
+
+// Effect sizes of staff on the rest of the business (tunable). Everything is neutral until people are hired.
+export const HR_EFFECTS = { retailBoost: 0.10, transferCut: 0.15, salesEdge: 0.06, moraleDrift: 0.1, skillMin: 0.5, skillMax: 1.6 };
+// Business warning thresholds used by the warnings panel.
+export const WARN = { cashLow: 3000, csiLow: 60, moraleLow: 40, healthLow: 40, storageHigh: 0.9, stockDays: 1.5 };

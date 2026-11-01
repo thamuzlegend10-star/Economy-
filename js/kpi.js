@@ -2,7 +2,7 @@
 import { totals, balance, round2 } from "./ledger.js";
 import { getLocation } from "./locations.js";
 import * as D from "./data.js";
-import { PRODUCT } from "./engine.js";
+import { PRODUCT, whOverflow, capacityOf, spaceUsed } from "./engine.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const newKpi = () => ({ weights: Object.fromEntries(D.KPIS.map(k => [k.id, k.weight])) });
@@ -41,4 +41,20 @@ export function scoreboard(s) {
 export function competitorPrices(s) {
   const L = getLocation(s.location);
   return D.PRODUCTS.map(p => ({ pid: p.id, name: p.name, you: s.prices[p.id], rivals: [0, 1, 2].map(i => c(p.ref * L.power * (1 + 0.05 * Math.sin(s.day * 0.6 + i * 2.1 + p.base % 7) + 0.02 * (i - 1)))) }));
+}
+
+// Business warnings from real state. Each: { level: "bad"|"warn", text, where: [main tab, sub tab] }.
+export function warnings(s) {
+  const w = [], W = D.WARN, cash = balance(s.ledger, "cash"), od = balance(s.ledger, "overdraft");
+  if (od > 0) w.push({ level: "bad", text: `Overdraft ${Math.round(od).toLocaleString("en-US")} dollars. Three days in a row ends the game.`, where: ["finance", "bank"] });
+  else if (cash < W.cashLow) w.push({ level: "warn", text: `Cash is low (${Math.round(cash).toLocaleString("en-US")} dollars).`, where: ["finance", "bank"] });
+  const lostToday = s.today ? Object.values(s.today.lost).reduce((a, b) => a + b, 0) : 0;
+  if (lostToday > 0) w.push({ level: "warn", text: `Shoppers left without goods: ${lostToday.toLocaleString("en-US")} units missed today.`, where: ["retail", "procurement"] });
+  if (s.srv && s.srv.csi < W.csiLow) w.push({ level: "warn", text: `Customer satisfaction is ${Math.round(s.srv.csi)}. Demand is falling.`, where: ["hr", ""] });
+  if (s.hr && s.hr.morale < W.moraleLow) w.push({ level: "warn", text: `Staff morale is ${Math.round(s.hr.morale)}. People will quit.`, where: ["hr", ""] });
+  for (const m of s.fx.machines) { if (m.status === "broken") w.push({ level: "bad", text: `${m.name} is broken.`, where: ["factory", "machines"] }); else if (m.health < W.healthLow) w.push({ level: "warn", text: `${m.name} health is ${Math.round(m.health)}%. Service it.`, where: ["factory", "machines"] }); }
+  for (const k of s.b2b.active) if (s.day > k.due) w.push({ level: "bad", text: `B2B contract #${k.id} is ${k.lateDays + 1} day(s) late.`, where: ["b2b", "contracts"] });
+  const ov = whOverflow(s); if (ov > 0) w.push({ level: "warn", text: `Warehouse over capacity by ${Math.round(ov).toLocaleString("en-US")} space. Overflow fees apply.`, where: ["warehouse", "stock"] });
+  if (spaceUsed(s) > W.storageHigh * capacityOf(s.area)) w.push({ level: "warn", text: "The shop storage is almost full.", where: ["retail", "location"] });
+  return w;
 }

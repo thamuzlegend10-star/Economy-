@@ -40,7 +40,7 @@ function renderHud() {
 const SOON = { mail: ["Mail", "Messages from suppliers, the bank and the facilitator will be here."], data: ["Data Explorer", "Charts and tables to dig into your numbers will be here."] };
 function viewFor() {
   const m = ui.main, sub = ui.sub[m];
-  if (m === "finance") return sub === "reports" ? UI.reports(s) : sub === "statements" ? SC.statements(s) : sub === "bank" ? SC.bank(s, ui.f) : UI.dashboard(s);
+  if (m === "finance") return sub === "reports" ? UI.reports(s) : sub === "statements" ? SC.statements(s) : sub === "bank" ? SC.bank(s, ui.f) : SC.warningsCard(s) + UI.dashboard(s);
   if (m === "factory") return sub === "raw" ? SC.factoryRaw(s, ui.f) : sub === "mrp" ? SC.factoryMrp(s) : SC.factoryMachines(s);
   if (m === "b2b") return sub === "contracts" ? SC.b2bContracts(s) : SC.b2bMarket(s, ui.f);
   if (m === "hr") return SC.hrScreen(s);
@@ -88,6 +88,7 @@ $("tabs").addEventListener("click", e => {
 $("subtabs").addEventListener("click", e => { const b = e.target.closest("[data-sub]"); if (b) goto(ui.main, b.dataset.sub); });
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.goto) { goto(t.dataset.goto, t.dataset.gsub || undefined); return; }
   if (t.dataset.act) { const r = act(s, ui.f, t.dataset.act, { id: t.dataset.id, dir: t.dataset.dir, juice: t.dataset.juice }); if (!r.ok) toast(r.error, "err"); else { toast(r.msg, "ok"); save(); } renderAll(true); return; }
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
   else if (t.dataset.posup) { ui.buy.sup = t.dataset.posup; openPo("retail"); }
