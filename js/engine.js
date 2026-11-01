@@ -18,7 +18,7 @@ const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o 
 export const PRODUCT = Object.fromEntries(D.PRODUCTS.map(p => [p.id, p]));
 const ALL_SUP = [...D.SUPPLIERS, ...D.WH_SUPPLIERS];
 export const SUPPLIER = Object.fromEntries(ALL_SUP.map(s => [s.id, s]));
-const WEEK = [1, 0.9, 0.9, 1, 1.1, 1.35, 1.2];
+export const WEEK = [1, 0.9, 0.9, 1, 1.1, 1.35, 1.2];
 
 export function rnd(s) {                                          // mulberry32 on s.rng
   s.rng = (s.rng + 0x6d2b79f5) | 0; let t = s.rng;

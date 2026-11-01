@@ -12,6 +12,7 @@ import * as Kp from "./kpi.js";
 import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
 import { esc, money, money2, num } from "./ui.js";
 import { rawLines } from "./actions.js";
+import * as Fc from "./forecast.js";
 
 const pct = n => Math.round(n * 100) + "%", dec = (n, d = 1) => Number(n).toFixed(d);
 const cls = n => (n < 0 ? "neg" : n > 0 ? "pos" : "");
@@ -26,7 +27,7 @@ const itemName = id => (E.PRODUCT[id] || F.JUICE[id] || { name: id }).name;
 const stat = (label, value, sub = "", c = "") => `<div class="stat"><small>${label}</small><b class="${c}">${value}</b>${sub ? `<small class="sub">${sub}</small>` : ""}</div>`;
 
 // ================= FACTORY =================
-export function factoryMachines(s, f = { farea: 250 }) {
+export function factoryMachines(s, f = { farea: 250, q: { juice: "apple", qty: 1000 } }) {
   const fx = F.ensureFactory(s), jq = [0, 25, 50, 75, 100];
   const types = D.MACHINES.map(t => { const q = F.quoteMachine(s, t.id);
     return `<div class="card">${head(t.name, `${num(t.perDay)} bottles / day`)}${kv([["Price + setup", money(t.price + t.setup)], ["Depreciation", money2((t.price + t.setup) / t.life) + " / day"], ["Operators needed", t.operators], ["Wear", dec(t.wear) + " health / day"], ["Service", money(t.pmCost)]])}
@@ -36,7 +37,8 @@ export function factoryMachines(s, f = { farea: 250 }) {
       <small>Health ${dec(m.health, 0)}% · efficiency ${pct(F.machineEfficiency(m))}${m.downDays ? ` · down ${m.downDays} more day${m.downDays > 1 ? "s" : ""}` : ""}</small>${meter(m.health, m.health < 30 ? "full" : m.health < 60 ? "warn" : "")}
       <div class="two"><label class="fld"><span>Makes</span><select id="mj-${m.id}-juice" data-mj="${m.id}"><option value="">Nothing</option>${D.JUICES.map(x => opt(x.id, x.name, j)).join("")}</select></label>
         <label class="fld"><span>Share of capacity</span><select id="mj-${m.id}-qty" data-mj="${m.id}">${jq.map(x => opt(x, x + "%", pc)).join("")}</select></label></div>
-      <div class="row">${btn("pm", `Service · ${money(t.pmCost)}`, { id: m.id, ghost: true, dis: m.downDays > 0 })}<small class="muted">Stops about ${Math.round(t.pmDays * 24)} h, restores health</small></div></div>`; }).join("");
+      <div class="row">${btn("pm", `Service · ${money(t.pmCost)}`, { id: m.id, ghost: true, dis: m.downDays > 0 })}<small class="muted">Stops about ${Math.round(t.pmDays * 24)} h, restores health</small></div>
+      ${queueHtml(s, m, f)}</div>`; }).join("");
   const fg = D.JUICES.map(j => `<tr><td class="l"><span class="dot" style="background:${j.color}"></span> ${esc(j.name.replace(" (1 L)", ""))}</td><td>${num((fx.today && fx.today.made[j.id]) || 0)}</td><td>${num(fx.fg.qty[j.id])}</td><td>${fx.fg.qty[j.id] ? money2(fx.fg.val[j.id] / fx.fg.qty[j.id]) : "-"}</td></tr>`).join("");
   const cw = H.crew(s);
   const fa = F.ensureFactory(s).area, room = D.FACTORY.maxArea - fa;
@@ -50,6 +52,11 @@ export function factoryMachines(s, f = { farea: 250 }) {
     <div class="tcos">${types}</div>`;
 }
 
+function queueHtml(s, m, f) {
+  const q = m.queue || [], rows = q.map((b, i) => `<div class="qrow"><div class="row"><b>${i === 0 ? "Now" : "#" + (i + 1)}: ${num(b.qty)} ${esc(F.JUICE[b.juice].name.replace(" (1 L)", ""))}</b>${btn("qdrop", "Remove", { id: m.id, ghost: true, arg: `data-batch="${b.id}"` })}</div>${meter(b.done / b.qty * 100)}<small class="muted">${num(b.done)} of ${num(b.qty)} made</small></div>`).join("");
+  return `<div class="qbox"><small class="muted">Production queue${q.length ? ` · about ${F.batchDaysLeft(s, m)} day(s) of work` : " · empty, the standing run above is used"}</small>${rows}
+    <div class="row">${sel("q.juice", D.JUICES.map(j => [j.id, j.name.replace(" (1 L)", "")]), f.q.juice, false)}${sel("q.qty", [500, 1000, 3000, 5000, 10000].map(x => [x, num(x)]), f.q.qty)}${btn("qadd", "Queue batch", { id: m.id, dis: q.length >= F.QUEUE_MAX })}</div></div>`;
+}
 export function factoryRaw(s, f) {
   const fx = F.ensureFactory(s), v = F.VENDOR[f.vendor], inc = F.rawIncoming(s), per = M.demandPerDay(s);
   const stockRows = D.RAW.map(r => `<tr><td class="l"><span class="dot" style="background:${r.color}"></span> ${esc(r.name)}</td><td>${num(fx.raw.qty[r.id])} ${r.unit}</td><td>${num(inc[r.id])}</td><td>${per[r.id] ? num(per[r.id]) : "-"}</td></tr>`).join("");
@@ -72,10 +79,10 @@ export function factoryRaw(s, f) {
 
 export function factoryMrp(s) {
   const m = M.ensureMrp(s), p = M.plan(s), any = p.rows.some(r => r.qty > 0), mach = F.ensureFactory(s).machines.length;
-  const rows = p.rows.map(r => `<tr><td class="l">${esc(F.RAWM[r.rid].name)}</td><td>${num(r.perDay)}</td><td>${num(r.onHand + r.incoming)}</td><td class="${r.qty ? "warnc" : ""}">${r.qty ? num(r.qty) : "-"}</td><td class="l">${esc(F.VENDOR[r.vendor].name.split(" ")[0])}</td></tr>`).join("");
-  return `<div class="card">${head("Material requirements planning", `${D.MRP.horizonDays} days ahead`)}<small class="muted">Adds up what your machines will use and what your B2B contracts still need, subtracts stock and orders on the way, and suggests lot sizes from the best vendor.</small>
+  const rows = p.rows.map(r => `<tr><td class="l">${esc(F.RAWM[r.rid].name)}</td><td>${num(r.perDay)}</td><td>${num(r.onHand + r.incoming)}</td><td>${r.ss ? num(r.ss) : "-"}</td><td class="${r.qty ? "warnc" : ""}">${r.qty ? num(r.qty) : "-"}${r.limited ? "*" : ""}</td></tr>`).join("");
+  return `<div class="card">${head("Material requirements planning", `${D.MRP.horizonDays} days ahead`)}<small class="muted">Adds up what your machines will use and what your B2B contracts still need, subtracts stock and orders on the way, and suggests lot sizes from the best vendor. Safety stock covers late deliveries. * means the warehouse has no room for more.</small>
     <div class="row">${btn("mrpAuto", m.autoPO ? "Auto purchasing: ON" : "Auto purchasing: OFF", { ghost: !m.autoPO })}<small class="muted">Orders on Net 7 terms each morning</small></div></div>
-    <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">Material</th><th>Use / day</th><th>Have + coming</th><th>Suggest</th><th class="l">Vendor</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">Material</th><th>Use / day</th><th>Have + coming</th><th>Safety</th><th>Suggest</th></tr></thead><tbody>${rows}</tbody></table></div>
     ${mach ? "" : `<small class="note warnc">Buy a machine and set a production run first. Then the plan has something to plan for.</small>`}
     <div class="row">${btn("mrpPlan", "Refresh plan", { ghost: true, mini: false })}${btn("mrpGen", "Make requisitions", { ghost: true, dis: !any, mini: false })}${btn("mrpOrder", "Order all", { dis: !any, mini: false })}</div>`;
 }
@@ -193,4 +200,17 @@ export function competitors(s) {
   const chartRev = nets.length ? `<div class="chart" role="img" aria-label="Revenue per day">${nets.map(h => `<div class="col"><i style="height:${Math.max(3, h.revenue / max * 100)}%"></i><small>${h.day}</small></div>`).join("")}</div>` : `<small class="muted">The first day report appears when day 1 ends.</small>`;
   return `<div class="card scroll"><b>Competitor prices</b><table class="tbl fixed"><thead><tr><th class="l">Product</th><th>You</th><th>Rival A</th><th>Rival B</th><th>Rival C</th></tr></thead><tbody>${rows}</tbody></table></div>
     <small class="muted">Amber means a rival is cheaper than you by more than 5%.</small><div class="card"><b>Revenue per day</b>${chartRev}</div>`;
+}
+
+export function forecast(s) {
+  const per = D.PRODUCTS.map(p => { const a = Fc.retailAdvice(s, p.id), sp = D.SUPPLIERS.find(x => x.id === a.supplier), tr = a.trend / Math.max(1, a.level) * 100;
+    return `<div class="card"><div class="shophead"><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</b><small>${a.basis === "history" ? "from sales history" : "from the demand model (few days of history)"}</small></div>
+      ${kv([["Forecast / day (next 7)", num(a.perDay)], ["Trend", (tr >= 0 ? "+" : "") + dec(tr, 1) + "% / day"], ["Accuracy (1 day ahead)", a.error == null ? "not enough days" : pct(Math.max(0, 1 - a.error))], ["Stock + on the way", num(a.position)], ["Days of cover", a.daysCover == null ? "-" : dec(a.daysCover, 1)],
+        ["Lead time (quoted / expected)", `${a.lead} / ${dec(a.leadExp, 1)} d`], ["Safety stock", num(a.ss)], ["Reorder point", num(a.rop)]])}
+      <div class="row">${btn("advBuy", a.qty ? `Order ${num(a.qty)} from ${esc(sp.name.split(" ")[0])}` : "No order needed", { id: p.id, dis: !a.qty, mini: false })}</div>${a.limited ? `<small class="note warnc">The shop has no room for the full amount.</small>` : ""}</div>`; }).join("");
+  const jc = D.JUICES.map(j => { const a = Fc.juiceAdvice(s, j.id); return `<div class="card"><div class="shophead"><b><span class="dot" style="background:${j.color}"></span>${esc(j.name.replace(" (1 L)", ""))}</b><small>production advice</small></div>
+      ${kv([["Contracts to fill", num(a.contracts)], ["Web sales / day", num(a.webPerDay)], ["In stock + queued", `${num(a.fg)} + ${num(a.queued)}`], ["Still needed", num(a.qty)]])}
+      <div class="row">${btn("advMake", a.qty ? `Queue ${num(a.qty)} bottles` : "Enough planned", { id: j.id, dis: !a.qty || !s.fx.machines.length, mini: false })}</div></div>`; }).join("");
+  const cp = Kp.competitorPrices(s).map(r => { const avg = r.rivals.reduce((x, y) => x + y, 0) / r.rivals.length; return `<div class="kv1"><div><span>${esc(r.name)}: you vs rivals</span><b class="${r.you > avg * 1.05 ? "warnc" : ""}">${money2(r.you)} vs ${money2(avg)}</b></div></div>`; }).join("");
+  return `<div class="card">${head("Forecast", "Built from your real sales")}<small class="muted">Demand is the units sold plus the units customers wanted but could not buy. The weekday pattern is removed, a trend is fitted, and the pattern is put back. Safety stock covers demand noise and late suppliers. The advice counts stock, deliveries on the way and free space.</small>${cp}</div>${per}${jc}`;
 }

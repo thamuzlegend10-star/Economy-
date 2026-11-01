@@ -84,6 +84,26 @@ export function setRun(s, { machine, juice, qty } = {}) {
   m.job = qty ? { juice, qty } : null; return ok({ machine: m });
 }
 
+// ---------- production queue ----------
+// A machine works its queue first, front to back. With an empty queue it repeats its daily run (the standing job).
+export const QUEUE_MAX = 5;
+export function workOf(m) {
+  const b = m.queue && m.queue[0]; if (b) return { juice: b.juice, qty: Math.min(b.qty - b.done, MACHINE[m.type].perDay), batch: b };
+  return m.job ? { juice: m.job.juice, qty: m.job.qty, batch: null } : null;
+}
+export function queueBatch(s, { machine, juice, qty } = {}) {
+  if (s.ended) return err("The game is over."); const m = findMachine(s, machine); if (!m) return err("Unknown machine."); if (!JUICE[juice]) return err("Unknown juice.");
+  qty = Math.round(Number(qty)); if (!Number.isFinite(qty) || qty < 100) return err("A batch is at least 100 bottles.");
+  m.queue = m.queue || []; if (m.queue.length >= QUEUE_MAX) return err(`The queue holds ${QUEUE_MAX} batches.`);
+  const id = (fx => (fx.bseq = (fx.bseq || 0) + 1))(ensureFactory(s)); m.queue.push({ id, juice, qty, done: 0, added: s.day, started: null }); return ok({ batch: m.queue[m.queue.length - 1] });
+}
+export function dropBatch(s, { machine, id } = {}) {
+  const m = findMachine(s, machine); if (!m) return err("Unknown machine."); const i = (m.queue || []).findIndex(b => b.id === Number(id)); if (i < 0) return err("Unknown batch.");
+  m.queue.splice(i, 1); return ok();
+}
+export const queuedBottles = (s, juice) => ensureFactory(s).machines.reduce((a, m) => a + (m.queue || []).filter(b => b.juice === juice).reduce((x, b) => x + (b.qty - b.done), 0), 0);
+export const batchDaysLeft = (s, m) => { const per = MACHINE[m.type].perDay * machineEfficiency(m); return Math.ceil((m.queue || []).reduce((a, b) => a + (b.qty - b.done), 0) / Math.max(1, per)); };
+
 // ---------- maintenance ----------
 export function preventiveMaintenance(s, machineId) {
   if (s.ended) return err("The game is over.");
@@ -179,9 +199,9 @@ export function factoryDay(s) {
     if (dep > 0) { post(s.ledger, s.day, `Depreciation ${m.name}`, [{ acct: "depreciation", dr: dep }, { acct: "acc_deprec", cr: dep }], "dep:" + m.id + ":" + s.day); m.deprec = c(m.deprec + dep); }
     // downtime from an earlier breakdown
     if (m.downDays > 0) { m.downDays--; m.status = m.downDays > 0 ? "broken" : "idle"; if (m.downDays === 0) m.health = 80; continue; }
-    if (!m.job) { m.status = "idle"; continue; }
-    const j = JUICE[m.job.juice], serviceLoss = m.pmToday ? t.pmDays : 0;
-    const cap = Math.floor(Math.min(m.job.qty, t.perDay) * machineEfficiency(m) * cw.out * (1 - serviceLoss)), n = Math.min(cap, bottlesPossible(s, j.id));
+    const w = workOf(m); if (!w) { m.status = "idle"; continue; }
+    const j = JUICE[w.juice], serviceLoss = m.pmToday ? t.pmDays : 0;
+    const base = w.batch ? t.perDay : Math.min(w.qty, t.perDay), cap = Math.floor(base * machineEfficiency(m) * cw.out * (1 - serviceLoss)), n = Math.min(cap, w.batch ? w.batch.qty - w.batch.done : Infinity, bottlesPossible(s, j.id));   // a batch uses full machine capacity, so its last bottles do not trail off
     if (n <= 0) { m.status = "idle"; fx.today.idle++; if (m.pmToday) m.health = D.MAINT.restoreTo; continue; }
     let cost = 0;
     for (const [rid, q] of Object.entries(j.bom)) {
@@ -193,6 +213,7 @@ export function factoryDay(s) {
     fx.fg.qty[j.id] += n; fx.fg.val[j.id] = c(fx.fg.val[j.id] + cost);
     fx.today.made[j.id] = (fx.today.made[j.id] || 0) + n; fx.today.cost = c(fx.today.cost + cost);
     m.status = "running";
+    if (w.batch) { w.batch.done += n; w.batch.started = w.batch.started ?? s.day; if (w.batch.done >= w.batch.qty) { m.queue.shift(); log(s, `${m.name} finished a batch of ${w.batch.qty.toLocaleString("en-US")} ${j.name}.`); } }
     if (!m.pmToday) m.health = c(Math.max(0, m.health - t.wear * cw.wear));
     // breakdown risk when health is under the threshold
     if (m.health < D.MAINT.breakdownBelow && rnd(s) < D.MAINT.breakdownChance) {

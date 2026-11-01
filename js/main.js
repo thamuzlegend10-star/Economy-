@@ -46,7 +46,7 @@ function viewFor() {
   if (m === "hr") return SC.hrScreen(s);
   if (m === "marketing") return SC.marketing(s, ui.f);
   if (m === "ecom") return SC.ecom(s);
-  if (m === "data") return sub === "market" ? SC.competitors(s) : SC.scoring(s, ui.f);
+  if (m === "data") return sub === "market" ? SC.competitors(s) : sub === "forecast" ? SC.forecast(s) : SC.scoring(s, ui.f);
   if (m === "warehouse" && sub === "b2b") return SC.b2bContracts(s);
   if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
   if (m === "warehouse") return UI.warehouse(s, sub);
@@ -89,7 +89,7 @@ $("subtabs").addEventListener("click", e => { const b = e.target.closest("[data-
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.goto) { goto(t.dataset.goto, t.dataset.gsub || undefined); return; }
-  if (t.dataset.act) { const r = act(s, ui.f, t.dataset.act, { id: t.dataset.id, dir: t.dataset.dir, juice: t.dataset.juice }); if (!r.ok) toast(r.error, "err"); else { toast(r.msg, "ok"); save(); } renderAll(true); return; }
+  if (t.dataset.act) { const r = act(s, ui.f, t.dataset.act, { id: t.dataset.id, dir: t.dataset.dir, juice: t.dataset.juice, batch: t.dataset.batch }); if (!r.ok) toast(r.error, "err"); else { toast(r.msg, "ok"); save(); } renderAll(true); return; }
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
   else if (t.dataset.posup) { ui.buy.sup = t.dataset.posup; openPo("retail"); }
   else if (t.dataset.whsup) { ui.whbuy.sup = t.dataset.whsup; openPo("wh"); }

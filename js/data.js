@@ -206,3 +206,6 @@ export const WARN = { cashLow: 3000, csiLow: 60, moraleLow: 40, healthLow: 40, s
 
 // Factory building: rented floor area. Machines need floor space. Rent and utilities are paid every day and become part of the cost of the goods made that day.
 export const FACTORY = { minArea: 100, maxArea: 5000, areaSteps: [100, 250, 500, 1000, 2500], rentPerM2: 1.1, utilitiesPerM2: 0.12 };
+
+// Forecasting: z is the service level multiplier for safety stock (1.65 is about 95%). window is how many days of history are used.
+export const FORECAST = { window: 14, minPoints: 3, z: 1.65, minSafetyDays: 1, reviewDays: 7, errorWindow: 10, lateDayRisk: 1 };

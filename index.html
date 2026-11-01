@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Pixelify+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <style>html,body,*{scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none;width:0;height:0}</style>
-<link rel="stylesheet" href="css/pixel.css?v=20261102b">
+<link rel="stylesheet" href="css/pixel.css?v=20261102c">
 </head>
 <body>
 <div class="wrap">
@@ -58,7 +58,7 @@
       <button class="primary big" id="mNew">New game</button>
       <div class="menu-row"><button class="ghost" id="mHelp">How to play</button><button class="ghost" id="mImport">Load save file</button><button class="ghost" id="mExport">Download save</button></div>
       <button class="ghost" id="mClose" hidden>Back to game</button>
-      <small class="muted build-tag">Build 20261102b · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
+      <small class="muted build-tag">Build 20261102c · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
     </div>
     <p class="muted small center" id="mNote"></p>
   </div>
@@ -100,7 +100,7 @@
 </dialog>
 
 <input type="file" id="fileIn" accept="application/json,.json" hidden>
-<script type="module" src="js/main.js?v=20261102b"></script>
+<script type="module" src="js/main.js?v=20261102c"></script>
 <script>
   window.addEventListener("error", function (e) { var s = document.getElementById("status"); if (s && !window.__economyBooted) { s.textContent = "Game failed to start: " + (e.message || "script error") + ". Reload the page."; } });
 </script>
