@@ -4,6 +4,8 @@ import { newLedger, post, balance, totals, round2 } from "./ledger.js";
 import { getLocation, hasLocation } from "./locations.js";
 import * as D from "./data.js";
 import { newFactory, factoryArrivals, factoryDay } from "./factory.js";
+import { newB2B, b2bDay } from "./b2b.js";
+import { newMrp, mrpDay } from "./mrp.js";
 
 export const STEP = 0.05;
 export const FLUSH_STEPS = 20;                                    // sales are posted to the ledger once per simulated second
@@ -37,7 +39,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), fx: newFactory(), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
+    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
   for (const sp of ALL_SUP) { s.supIdx[sp.id] = 1; }
@@ -91,7 +93,7 @@ function beginDay(s) {
   for (const sp of ALL_SUP) {                                           // supplier prices drift (supplier stock is unlimited)
     const i = s.supIdx[sp.id]; s.supIdx[sp.id] = Math.round(clamp(i + (rnd(s) - 0.5) * 0.05 + (1 - i) * 0.08, 0.9, 1.15) * 1000) / 1000;
   }
-  arrivals(s); factoryArrivals(s);
+  arrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
 }
 
@@ -388,6 +390,7 @@ export function validateSave(raw) {
   if (!o || typeof o !== "object") return err("Save file is empty.");
   if (o && o.v === 11) { o.v = 12; o.wh = { area: 0, qty: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])), val: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])) }; for (const sp of D.WH_SUPPLIERS) o.supIdx[sp.id] = 1; delete o.supStock; }
   if (o && o.v === 12) { o.v = 13; o.fx = newFactory(); }
+  if (o && o.v === 13) { o.v = 14; o.b2b = newB2B(o.seed); o.mrp = newMrp(); }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");
