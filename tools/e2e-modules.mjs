@@ -1,0 +1,27 @@
+// Clicks through the module screens in a real browser, then saves screenshots. Run with the server up: python3 -m http.server 8765
+import { createRequire } from "module";
+const { chromium } = createRequire(import.meta.url)("playwright");
+const b = await chromium.launch(), errs = [];
+const p = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+p.on("pageerror", e => errs.push("PE " + e.message)); p.on("console", m => { if (m.type() === "error" && !/fonts|ERR_|Failed to load/.test(m.text())) errs.push("CE " + m.text()); });
+const go = async (m, sb) => { await p.click(`[data-main="${m}"]`); if (sb) await p.click(`[data-sub="${sb}"]`); await p.waitForTimeout(120); };
+const st = () => p.evaluate(() => { const s = window.__economy.state; return { machines: s.fx.machines.length, job: s.fx.machines[0] && s.fx.machines[0].job, prs: s.fx.prs.length, pos: s.fx.pos.length, staff: s.hr.staff.retail.n, camp: s.mkt.campaigns.length, web: s.ecom.active, credit: s.bank.credit.bal, cash: Math.round(s.ledger.bal.cash) }; });
+await p.goto("http://localhost:8765/index.html"); await p.waitForTimeout(300);
+await p.click("#mNew"); await p.fill("#sSec", "30"); await p.fill("#sDays", "30"); await p.selectOption("#sCap", "150000"); await p.click("#sStart"); await p.waitForTimeout(200);
+await go("factory", "machines"); await p.click('[data-act="buyMachine"][data-id="std"]'); await p.waitForTimeout(150);
+await p.selectOption("#mj-1-juice", "orange"); await p.waitForTimeout(150);
+await go("factory", "raw"); await p.selectOption('[data-f="vendor"]', "agro"); await p.selectOption('[data-f="rq.orangePulp"]', "5000"); await p.selectOption('[data-f="rq.water"]', "10000");
+await p.click('[data-act="prCreate"]'); await p.waitForTimeout(150); await p.click('[data-act="prApprove"]'); await p.waitForTimeout(150);
+await p.selectOption('[data-f="vendor"]', "packco"); await p.selectOption('[data-f="rq.bottles"]', "10000"); await p.selectOption('[data-f="rq.caps"]', "10000"); await p.selectOption('[data-f="terms"]', "net7"); await p.click('[data-act="poNow"]'); await p.waitForTimeout(150);
+await p.screenshot({ path: "/tmp/m-raw.png", fullPage: true });
+await go("factory", "mrp"); await p.click('[data-act="mrpAuto"]');
+await go("hr"); await p.click('[data-act="hire"][data-id="retail"]'); await p.selectOption('[data-hrf="wage"]', "1.2");
+await go("marketing"); await p.selectOption('[data-f="mkt.channel"]', "radio"); await p.selectOption('[data-f="mkt.budget"]', "1000"); await p.click('[data-act="mktStart"]');
+await go("ecom"); await p.click('[data-act="ecomOpen"]'); await p.waitForTimeout(150); await p.click('[data-act="ecomCat"][data-id="noodles"]');
+await go("finance", "bank"); await p.click('[data-act="credDraw"]');
+await go("finance", "statements"); await p.screenshot({ path: "/tmp/m-stmt.png", fullPage: true });
+await go("data", "score"); await p.screenshot({ path: "/tmp/m-score.png", fullPage: true });
+await go("factory", "machines"); await p.screenshot({ path: "/tmp/m-mach.png", fullPage: true });
+await go("b2b", "market"); await p.screenshot({ path: "/tmp/m-b2b.png", fullPage: true });
+console.log(JSON.stringify(await st()), "errors", JSON.stringify(errs));
+await b.close();

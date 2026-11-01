@@ -178,3 +178,14 @@ html, body, * { scrollbar-width:none; -ms-overflow-style:none; }
 .scene-tabs { position:absolute; left:8px; bottom:8px; display:flex; gap:4px; }
 .scene-tabs button { min-height:28px; padding:2px 8px; font-size:.72rem; background:rgba(10,14,25,.85); color:var(--fg); border-color:var(--px-hi); }
 .scene-tabs button.on { background:var(--brass); color:var(--brass-ink); border-color:var(--px-edge); }
+
+/* Module screens: factory, B2B, HR, marketing, e-commerce, bank, statements, scoring */
+.chip { display:inline-block; padding:2px 8px; border:2px solid var(--px-hi); border-radius:4px; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); white-space:nowrap; }
+.chip.ok { color:var(--mint); border-color:var(--mint); } .chip.bad { color:#ffb0b8; border-color:var(--coral); }
+.two { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } .two .fld { min-width:0; }
+.warnc { color:var(--brass); }
+.bigno { font:700 1.4rem var(--font); min-width:1.6em; }
+.gradebig { font:700 2.6rem var(--font); color:var(--brass); text-align:center; } .gradebig small { display:block; font-size:.8rem; color:var(--muted); }
+.row input[type=number] { flex:1 1 90px; min-width:0; }
+.card .row button.big, .card > button.big { width:100%; }
+.shophead { flex-wrap:wrap; gap:2px 8px; } .shophead small { min-width:0; overflow-wrap:anywhere; }

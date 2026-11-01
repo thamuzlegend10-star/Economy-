@@ -22,15 +22,23 @@ const ICON = {
   mail: '<path d="M1 3h14v10H1zM1 3l7 6 7-6"/>',
   data: '<circle cx="7" cy="7" r="4"/><path d="M10 10l4 4"/>',
   info: '<circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5v.01"/>',
+  factory: '<path d="M1 13V6l4 2.5V6l4 2.5V3h3v10z"/>',
+  hr: '<circle cx="6" cy="5" r="2.2"/><path d="M2 13c0-2.5 1.8-4 4-4s4 1.5 4 4M11 4.5a2 2 0 010 4M12 9.3c1.5.4 2.5 1.6 2.5 3.7"/>',
+  marketing: '<path d="M2 6v4h3l5 3V3L5 6zM12 6.5a2.5 2.5 0 010 3"/>',
+  ecom: '<path d="M1.5 2.5h2l1.6 7h7l1.2-5H4"/><circle cx="6" cy="12.5" r="1.1"/><circle cx="11" cy="12.5" r="1.1"/>',
 };
 export const NAV = [
-  { id: "finance", label: "Finance", subs: [["overview", "Overview"], ["reports", "Reports"]] },
+  { id: "finance", label: "Finance", subs: [["overview", "Overview"], ["reports", "Reports"], ["statements", "Statements"], ["bank", "Bank"]] },
   { id: "retail", label: "Retail", subs: [["location", "Location"], ["procurement", "Procurement"], ["store", "Store"], ["price", "Retail Sales & Price"], ["tx", "Transactions"]] },
   { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock & Storage"], ["procure", "Bulk Procurement"], ["send", "Send to Retail"], ["b2b", "Send to B2B"]] },
+  { id: "factory", label: "Factory", subs: [["machines", "Machines"], ["raw", "Raw & Purchasing"], ["mrp", "MRP"]] },
   { id: "shipping", label: "Shipping", subs: [["co", "Transport Company"], ["tx", "Transactions"]] },
-  { id: "b2b", label: "B2B", subs: [] },
+  { id: "b2b", label: "B2B", subs: [["market", "Market"], ["contracts", "Contracts"]] },
+  { id: "hr", label: "HR", subs: [] },
+  { id: "marketing", label: "Marketing", subs: [] },
+  { id: "ecom", label: "E-commerce", subs: [] },
   { id: "mail", label: "Mail", subs: [], iconOnly: true },
-  { id: "data", label: "Data Explorer", subs: [] },
+  { id: "data", label: "Data Explorer", subs: [["score", "Scoring"], ["market", "Competitors"]] },
   { id: "info", label: "Info", subs: [], iconOnly: true, action: true },
 ];
 const svg = id => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
@@ -80,9 +88,12 @@ export function warehouse(s, sub = "stock") {
     <div class="kv1"><div><span>Free space in the shop</span><b>${num(Math.max(0, E.spaceFree(s)))}</b></div><div><span>Goods in the warehouse</span><b>${num(w.units)} units</b></div></div>
     <button class="big" id="trOpen" ${w.units ? "" : "disabled"}>Send goods to the shop</button>${w.units ? "" : '<small class="note">The warehouse is empty. Buy stock first in Bulk procurement.</small>'}</div>`;
   const rows = D.PRODUCTS.map(p => `<tr><td><span class="dot" style="background:${p.color}"></span> ${esc(p.name)}</td><td>${num(s.wh.qty[p.id])}</td><td>${money(s.wh.val[p.id])}</td><td>${num(s.wh.qty[p.id] * p.space)}</td></tr>`).join("");
+  const fxRows = D.RAW.filter(r => s.fx.raw.qty[r.id] > 0).map(r => `<tr><td><span class="dot" style="background:${r.color}"></span> ${esc(r.name)}</td><td>${num(s.fx.raw.qty[r.id])}</td><td>${money(s.fx.raw.val[r.id])}</td><td>${num(s.fx.raw.qty[r.id] * r.space)}</td></tr>`).join("")
+    + D.JUICES.filter(j => s.fx.fg.qty[j.id] > 0).map(j => `<tr><td><span class="dot" style="background:${j.color}"></span> ${esc(j.name)}</td><td>${num(s.fx.fg.qty[j.id])}</td><td>${money(s.fx.fg.val[j.id])}</td><td>${num(s.fx.fg.qty[j.id] * j.space)}</td></tr>`).join("");
+  const over = w.overflow > 0 ? `<div class="err">Over capacity by ${num(w.overflow)} space. Overflow costs ${money2(w.overflow * D.OVERFLOW.perSpacePerDay)} per day. Rent more space or move goods out.</div>` : "";
   return `<div class="card"><b>Warehouse storage: ${pct(w.capacity ? w.used / w.capacity : 0)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, w.capacity ? w.used / w.capacity * 100 : 0)}%"></i></div>
     <small>${num(w.used)} of ${num(w.capacity)} space used in ${num(w.area)} m². ${num(w.incoming)} more is reserved for deliveries on the way. Rent ${money2(E.whRent(s))} per day.</small><button class="ghost" id="whRentOpen">Rent more warehouse space</button></div>
-    <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In warehouse</th><th>Value</th><th>Space used</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In warehouse</th><th>Value</th><th>Space used</th></tr></thead><tbody>${rows}${fxRows}</tbody></table></div>${over}`;
 }
 
 // Send-to-shop dialog body. tr = { qty: {pid: n} }.
@@ -256,7 +267,7 @@ export function finalReport(s) {
     <small class="muted">Product profit = revenue − cost of goods − shipping. Rent is shared by the whole shop, so it is not split by product.</small>`;
 }
 
-export const HELP = `<h4>The goal</h4><p>Rent a shop, buy stock, set prices, and finish the chosen number of days with the most profit.</p>
+export const HELP = `<h4>More tabs</h4><p>Factory: buy machines, buy raw materials (requisition, then order, with payment terms) and let MRP plan purchases. B2B: bid on tenders and deliver contracts. HR, Marketing, E-commerce and Finance → Bank add people, awareness, a webstore and loans. Data Explorer shows your weighted score.</p><h4>The goal</h4><p>Rent a shop, buy stock, set prices, and finish the chosen number of days with the most profit.</p>
 <h4>Location and size</h4><p>Pick a place on the map. Each place has its own customers, rent per m² and competition. The m² you rent sets how much stock you can hold, and you pay rent every day.</p>
 <h4>Three products</h4><ul><li>Instant noodles: many sales, small margin.</li><li>Fresh milk: steady sales, takes twice the space.</li><li>Earbuds: few sales, big margin, little space.</li></ul>
 <h4>Buying</h4><p>In Procurement, raise a purchase order: pick a supplier, then a quantity for each of the three products from the list. You see the total, the bulk discounts and the delivery time before you submit. Suppliers never run out. They differ in price, distance, shipping and reliability. The fastest delivery is one day.</p>

@@ -3,6 +3,8 @@ import * as E from "./engine.js";
 import * as D from "./data.js";
 import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
+import * as SC from "./screens.js";
+import { act, newForms, setField } from "./actions.js";
 import { createScene } from "./scene.js";
 import { createLocationPicker } from "./locationpicker.js";
 import { startFit } from "./fit.js";
@@ -12,7 +14,7 @@ const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }, del: k => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } } };
 
 let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central", lastSave = 0, lastView = 0, lastDay = 0;
-const ui = { main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
+const ui = { f: newForms(), main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co", factory: "machines", b2b: "market", data: "score" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
 
 // ---------- small helpers ----------
 function toast(text, kind = "") {
@@ -35,10 +37,17 @@ function renderHud() {
   $("status").textContent = s.ended ? "The game is over." : paused ? "Paused. The timer is stopped." : `Running. Day ${s.day} ends in ${tl} s.`;
   $("log").innerHTML = s.log.slice(-8).reverse().map(l => `<div><small>Day ${l.day}</small> ${UI.esc(l.text)}</div>`).join("");
 }
-const SOON = { b2b: ["B2B", "Trade with other businesses will be here."], mail: ["Mail", "Messages from suppliers, the bank and the facilitator will be here."], data: ["Data Explorer", "Charts and tables to dig into your numbers will be here."] };
+const SOON = { mail: ["Mail", "Messages from suppliers, the bank and the facilitator will be here."], data: ["Data Explorer", "Charts and tables to dig into your numbers will be here."] };
 function viewFor() {
   const m = ui.main, sub = ui.sub[m];
-  if (m === "finance") return sub === "reports" ? UI.reports(s) : UI.dashboard(s);
+  if (m === "finance") return sub === "reports" ? UI.reports(s) : sub === "statements" ? SC.statements(s) : sub === "bank" ? SC.bank(s, ui.f) : UI.dashboard(s);
+  if (m === "factory") return sub === "raw" ? SC.factoryRaw(s, ui.f) : sub === "mrp" ? SC.factoryMrp(s) : SC.factoryMachines(s);
+  if (m === "b2b") return sub === "contracts" ? SC.b2bContracts(s) : SC.b2bMarket(s, ui.f);
+  if (m === "hr") return SC.hrScreen(s);
+  if (m === "marketing") return SC.marketing(s, ui.f);
+  if (m === "ecom") return SC.ecom(s);
+  if (m === "data") return sub === "market" ? SC.competitors(s) : SC.scoring(s, ui.f);
+  if (m === "warehouse" && sub === "b2b") return SC.b2bContracts(s);
   if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
   if (m === "warehouse") return UI.warehouse(s, sub);
   if (m === "shipping") return UI.ship(s, ui);
@@ -79,6 +88,7 @@ $("tabs").addEventListener("click", e => {
 $("subtabs").addEventListener("click", e => { const b = e.target.closest("[data-sub]"); if (b) goto(ui.main, b.dataset.sub); });
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.act) { const r = act(s, ui.f, t.dataset.act, { id: t.dataset.id, dir: t.dataset.dir, juice: t.dataset.juice }); if (!r.ok) toast(r.error, "err"); else { toast(r.msg, "ok"); save(); } renderAll(true); return; }
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
   else if (t.dataset.posup) { ui.buy.sup = t.dataset.posup; openPo("retail"); }
   else if (t.dataset.whsup) { ui.whbuy.sup = t.dataset.whsup; openPo("wh"); }
@@ -88,6 +98,16 @@ $("view").addEventListener("click", e => {
   else if (t.id === "whRentOpen") { ui.spaceMode = "wh"; ui.space = D.WH.areaSteps.find(n => n <= D.WH.maxArea - s.wh.area) || D.WH.minArea; renderSp(); $("spDlg").showModal(); }
   else if (t.id === "trOpen") { ui.tr = { qty: {} }; renderTr(); $("trDlg").showModal(); }
 });
+// Module screens: selects and inputs. Form fields only store a value; a re-draw updates quotes and totals.
+$("view").addEventListener("change", e => {
+  const t = e.target; if (!s || !t) return;
+  if (t.dataset.f) { setField(ui.f, t.dataset.f, t.value, !!t.dataset.num); renderAll(true); return; }
+  if (t.dataset.mj) { const id = t.dataset.mj, juice = $("mj-" + id + "-juice").value, pc = Number($("mj-" + id + "-qty").value) || 0, m = s.fx.machines.find(x => x.id === Number(id));
+    const pcx = t.id.endsWith("-juice") && m && !m.job ? 100 : pc, r = act(s, ui.f, "setjob", { id, juice, qty: juice && m ? Math.round(E.MACHINE_PER_DAY(m) * pcx / 100) : 0 }); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); return; }
+  if (t.dataset.hrf) { const r = act(s, ui.f, t.dataset.hrf, { value: t.value }); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); return; }
+  if (t.dataset.ecf) { const r = act(s, ui.f, "ecomAds", { value: t.value }); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
+});
+$("view").addEventListener("input", e => { const t = e.target; if (s && t && t.dataset && t.dataset.f && t.type === "number") setField(ui.f, t.dataset.f, t.value, true); });
 function renderSp() { if (s) { $("spTitle").textContent = ui.spaceMode === "wh" ? (s.wh.area ? "Rent more warehouse space" : "Rent a warehouse") : "Rent more space"; $("spBody").innerHTML = UI.spaceForm(s, ui.space, ui.spaceMode); } }
 $("spDlg").addEventListener("change", e => { if (e.target.id === "spExtra") { ui.space = Number(e.target.value); renderSp(); } });
 $("spDlg").addEventListener("click", e => {
@@ -184,7 +204,7 @@ $("sStart").onclick = () => {
 };
 
 function adopt(state) {
-  s = state; paused = false; finalShown = !!s.ended; lastDay = s.day; ui.main = "finance"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }; ui.whbuy = { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }; ui.tr = { qty: {} };
+  s = state; ui.f = newForms(); paused = false; finalShown = !!s.ended; lastDay = s.day; ui.main = "finance"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }; ui.whbuy = { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }; ui.tr = { qty: {} };
   renderNav();
   scene.reset(); save(); renderAll(true);
 }

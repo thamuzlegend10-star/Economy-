@@ -36,6 +36,7 @@ export function cleanSetup(o = {}) {
     seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648),
   };
 }
+export const MACHINE_PER_DAY = m => (D.MACHINES.find(x => x.id === m.type) || { perDay: 0 }).perDay;
 export const rentPerM2 = loc => c(D.RENT_PER_M2 * getLocation(loc).rent);
 export const dailyRent = (loc, area) => c(rentPerM2(loc) * area);
 export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);

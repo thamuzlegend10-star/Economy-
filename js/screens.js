@@ -1,0 +1,187 @@
+// Screens for the extra modules: factory, purchasing, MRP, B2B, HR, marketing, e-commerce, bank, statements and scoring.
+// Pure functions of the game state and the form state. Buttons carry data-act; fields carry data-f. See actions.js.
+import * as E from "./engine.js";
+import * as D from "./data.js";
+import * as F from "./factory.js";
+import * as M from "./mrp.js";
+import * as B from "./b2b.js";
+import * as H from "./hr.js";
+import * as K from "./market.js";
+import * as Bk from "./bank.js";
+import * as Kp from "./kpi.js";
+import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
+import { esc, money, money2, num } from "./ui.js";
+import { rawLines } from "./actions.js";
+
+const pct = n => Math.round(n * 100) + "%", dec = (n, d = 1) => Number(n).toFixed(d);
+const cls = n => (n < 0 ? "neg" : n > 0 ? "pos" : "");
+const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
+const sel = (path, options, cur, numeric = true, extra = "") => `<select data-f="${path}" ${numeric ? 'data-num="1"' : ""} ${extra}>${options.map(([v, l]) => opt(v, l, cur)).join("")}</select>`;
+const btn = (act, label, { id, dis, ghost, mini = true, arg = "" } = {}) => `<button class="${ghost ? "ghost " : ""}${mini ? "mini" : ""}" data-act="${act}" ${id != null ? `data-id="${esc(id)}"` : ""} ${arg} ${dis ? "disabled" : ""}>${label}</button>`;
+const kv = rows => `<div class="kv1">${rows.map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join("")}</div>`;
+const head = (title, sub = "") => `<div class="shophead"><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</div>`;
+const chip = (t, k = "") => `<span class="chip ${k}">${esc(t)}</span>`;
+const meter = (v, warn) => `<div class="meter ${warn || ""}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div>`;
+const itemName = id => (E.PRODUCT[id] || F.JUICE[id] || { name: id }).name;
+const stat = (label, value, sub = "", c = "") => `<div class="stat"><small>${label}</small><b class="${c}">${value}</b>${sub ? `<small class="sub">${sub}</small>` : ""}</div>`;
+
+// ================= FACTORY =================
+export function factoryMachines(s) {
+  const fx = F.ensureFactory(s), jq = [0, 25, 50, 75, 100];
+  const types = D.MACHINES.map(t => { const q = F.quoteMachine(s, t.id);
+    return `<div class="card">${head(t.name, `${num(t.perDay)} bottles / day`)}${kv([["Price + setup", money(t.price + t.setup)], ["Depreciation", money2((t.price + t.setup) / t.life) + " / day"], ["Operators needed", t.operators], ["Wear", dec(t.wear) + " health / day"], ["Service", money(t.pmCost)]])}
+      ${btn("buyMachine", "Buy machine", { id: t.id, dis: !q.ok, mini: false })}${q.ok ? "" : `<small class="note warnc">${esc(q.errors[0])}</small>`}</div>`; }).join("");
+  const own = fx.machines.map(m => { const t = F.MACHINE[m.type], j = m.job ? m.job.juice : "", pc = m.job ? Math.round(m.job.qty / t.perDay * 100) : 0, st = m.status;
+    return `<div class="card"><div class="shophead"><b>${esc(m.name)}</b>${chip(st, st === "running" ? "ok" : st === "broken" ? "bad" : "")}</div>
+      <small>Health ${dec(m.health, 0)}% · efficiency ${pct(F.machineEfficiency(m))}${m.downDays ? ` · down ${m.downDays} more day${m.downDays > 1 ? "s" : ""}` : ""}</small>${meter(m.health, m.health < 30 ? "full" : m.health < 60 ? "warn" : "")}
+      <div class="two"><label class="fld"><span>Makes</span><select id="mj-${m.id}-juice" data-mj="${m.id}"><option value="">Nothing</option>${D.JUICES.map(x => opt(x.id, x.name, j)).join("")}</select></label>
+        <label class="fld"><span>Share of capacity</span><select id="mj-${m.id}-qty" data-mj="${m.id}">${jq.map(x => opt(x, x + "%", pc)).join("")}</select></label></div>
+      <div class="row">${btn("pm", `Service · ${money(t.pmCost)}`, { id: m.id, ghost: true, dis: m.downDays > 0 })}<small class="muted">Stops about ${Math.round(t.pmDays * 24)} h, restores health</small></div></div>`; }).join("");
+  const fg = D.JUICES.map(j => `<tr><td class="l"><span class="dot" style="background:${j.color}"></span> ${esc(j.name.replace(" (1 L)", ""))}</td><td>${num((fx.today && fx.today.made[j.id]) || 0)}</td><td>${num(fx.fg.qty[j.id])}</td><td>${fx.fg.qty[j.id] ? money2(fx.fg.val[j.id] / fx.fg.qty[j.id]) : "-"}</td></tr>`).join("");
+  const cw = H.crew(s);
+  return `<div class="card">${head("Factory", "Bottles juice from raw materials")}<small class="muted">Each bottle needs the recipe's raw materials. Machines lose health as they run. Below ${D.MAINT.breakdownBelow}% they can break down: emergency repair costs ${D.MAINT.emergencyMult}× and the line stops 1 to 2 days. Operators come with the machine; with too few, output drops.</small>
+      ${kv([["Operators", `${num(s.hr.staff.factory.n)} of ${num(H.operatorsNeeded(s))}`], ["Crew output", pct(cw.out)], ["Goods in storage", num(F.fgSpace(s)) + " space"]])}</div>
+    ${own || `<div class="card"><small class="muted">You have no machines yet. Buy one below.</small></div>`}
+    <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">Juice</th><th>Made today</th><th>In stock</th><th>Cost each</th></tr></thead><tbody>${fg}</tbody></table></div>
+    <div class="tcos">${types}</div>`;
+}
+
+export function factoryRaw(s, f) {
+  const fx = F.ensureFactory(s), v = F.VENDOR[f.vendor], inc = F.rawIncoming(s), per = M.demandPerDay(s);
+  const stockRows = D.RAW.map(r => `<tr><td class="l"><span class="dot" style="background:${r.color}"></span> ${esc(r.name)}</td><td>${num(fx.raw.qty[r.id])} ${r.unit}</td><td>${num(inc[r.id])}</td><td>${per[r.id] ? num(per[r.id]) : "-"}</td></tr>`).join("");
+  const qtys = [[0, "None"], ...[100, 500, 1000, 5000, 10000, 50000].map(x => [x, num(x)])];
+  const lines = v.sells.map(rid => `<div class="poline"><div class="poname"><b>${esc(F.RAWM[rid].name)}</b><small>${money2(F.RAWM[rid].cost * v.price)} per ${F.RAWM[rid].unit}</small></div>${sel("rq." + rid, qtys, f.rq[rid] || 0)}</div>`).join("");
+  const ls = rawLines(f).filter(l => v.sells.includes(l.rid)), q = ls.length ? F.quoteRaw(s, { vendor: f.vendor, terms: f.terms, lines: ls }) : null;
+  const sum = !q ? `<small class="muted">Choose a quantity for at least one material.</small>` : q.error ? `<div class="err">${esc(q.error)}</div>` : `<div class="quote">${q.lines.map(l => `<div class="ln"><span>${esc(F.RAWM[l.rid].name)} ${num(l.qty)}</span><b>${money2(l.goods)}</b></div>`).join("")}
+      <div class="ln"><span>Freight, paid now</span><b>${money2(q.ship)}</b></div><div class="ln tot"><span>Goods ${q.dueDays ? `(pay on day ${s.day + q.dueDays + 0})` : "(pay now)"}</span><b>${money2(q.goods)}</b></div>
+      <div class="ln"><span>Arrives</span><b>day ${q.eta}</b></div></div>${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}`;
+  const prs = fx.prs.slice(-6).reverse().map(p => `<div class="kv1"><div><span>Requisition #${p.id} · ${esc(F.VENDOR[p.spec.vendor].name)}</span><b>${money(p.estimate)} · ${p.status}</b></div></div>${p.status === "pending" ? `<div class="row">${btn("prApprove", "Approve", { id: p.id })}${btn("prReject", "Reject", { id: p.id, ghost: true })}</div>` : ""}`).join("");
+  const pos = fx.pos.map(p => `<div class="kv1"><div><span>Order #${p.id} · ${esc(F.VENDOR[p.vendor].name)} · ${F.TERM[p.terms].name}</span><b>arrives day ${p.eta}${p.delayed ? " (late)" : ""}</b></div></div>`).join("");
+  const due = fx.payables.map(p => `<div class="kv1"><div><span>Invoice for order #${p.po}</span><b>${money2(p.amount)} due day ${p.due}</b></div></div>`).join("");
+  return `<div class="card">${head("Raw materials", "Stored in your warehouse")}<div class="scroll"><table class="tbl fixed"><thead><tr><th class="l">Material</th><th>In stock</th><th>On the way</th><th>Need / day</th></tr></thead><tbody>${stockRows}</tbody></table></div></div>
+    <div class="card">${head("Raw purchase", "Requisition, then order")}
+      <label class="fld"><span>Vendor</span>${sel("vendor", D.RAW_VENDORS.map(x => [x.id, `${x.name} · ${pct(x.reliability)} on time`]), f.vendor, false)}</label>
+      <label class="fld"><span>Payment terms</span>${sel("terms", D.TERMS.map(t => [t.id, t.name + (t.price > 1 ? ` · +${dec((t.price - 1) * 100)}% price` : "")]), f.terms, false)}</label>
+      ${lines}${sum}<div class="row">${btn("prCreate", "Create requisition", { ghost: true, dis: !q || !!q.error, mini: false })}${btn("poNow", "Order now", { dis: !q || !!q.error || !q.ok, mini: false })}</div></div>
+    ${prs || pos || due ? `<div class="card">${head("Open items")}${prs}${pos}${due}</div>` : ""}`;
+}
+
+export function factoryMrp(s) {
+  const m = M.ensureMrp(s), p = M.plan(s), any = p.rows.some(r => r.qty > 0), mach = F.ensureFactory(s).machines.length;
+  const rows = p.rows.map(r => `<tr><td class="l">${esc(F.RAWM[r.rid].name)}</td><td>${num(r.perDay)}</td><td>${num(r.onHand + r.incoming)}</td><td class="${r.qty ? "warnc" : ""}">${r.qty ? num(r.qty) : "-"}</td><td class="l">${esc(F.VENDOR[r.vendor].name.split(" ")[0])}</td></tr>`).join("");
+  return `<div class="card">${head("Material requirements planning", `${D.MRP.horizonDays} days ahead`)}<small class="muted">Adds up what your machines will use and what your B2B contracts still need, subtracts stock and orders on the way, and suggests lot sizes from the best vendor.</small>
+    <div class="row">${btn("mrpAuto", m.autoPO ? "Auto purchasing: ON" : "Auto purchasing: OFF", { ghost: !m.autoPO })}<small class="muted">Orders on Net 7 terms each morning</small></div></div>
+    <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">Material</th><th>Use / day</th><th>Have + coming</th><th>Suggest</th><th class="l">Vendor</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${mach ? "" : `<small class="note warnc">Buy a machine and set a production run first. Then the plan has something to plan for.</small>`}
+    <div class="row">${btn("mrpPlan", "Refresh plan", { ghost: true, mini: false })}${btn("mrpGen", "Make requisitions", { ghost: true, dis: !any, mini: false })}${btn("mrpOrder", "Order all", { dis: !any, mini: false })}</div>`;
+}
+
+// ================= B2B =================
+const buyer = id => (D.B2B.buyers.find(b => b.id === id) || { name: id }).name;
+export function b2bMarket(s, f) {
+  const b = B.ensureB2B(s);
+  const card = t => { const have = B.available(s, t.pid), isFixed = t.kind === "fixed", cur = t.bid;
+    return `<div class="card">${head(buyer(t.buyer), isFixed ? "Fixed deal" : "Tender")}<b>${num(t.qty)} × ${esc(itemName(t.pid))}</b>
+      ${kv([[isFixed ? "Fixed price" : "Ceiling price", money2(isFixed ? t.price : t.ceiling) + " each"], ["Deliver by", "day " + t.due], [isFixed ? "Offer ends" : "Bids close", "day " + t.closes], ["Late penalty", pct(t.penalty)], ["Stock you could ship", num(have)]])}
+      ${isFixed ? `<div class="row">${btn("accept", `Accept · ${money(t.qty * t.price)}`, { id: t.id, mini: false })}</div>` :
+        `<div class="row"><input type="number" inputmode="decimal" step="0.01" min="0.01" max="${t.ceiling}" placeholder="Your price" value="${cur ?? f.bid[t.id] ?? ""}" data-f="bid.${t.id}" data-num="1" aria-label="Your bid per unit">${btn("bid", cur != null ? "Change bid" : "Place bid", { id: t.id })}${cur != null ? btn("unbid", "Withdraw", { id: t.id, ghost: true }) : ""}</div>${cur != null ? `<small class="note">Your bid: ${money2(cur)} each</small>` : ""}`}</div>`; };
+  return `<div class="card">${head("B2B market", "Institutional buyers")}${kv([["Reputation", dec(b.rep, 0) + " / 100"], ["On-time record", b.ontime + b.late ? pct(B.reliabilityOf(b)) : "no history"], ["Tenders won / lost", `${b.won} / ${b.lost}`], ["Sales team edge", "+" + dec(H.salesEdge(s) * 100) + " pts"]])}
+      <small class="muted">Winner is chosen on price, reputation and delivery record. A sales team helps. Bids close ${D.B2B.openDays} days after a tender opens.</small></div>
+    ${b.open.length ? b.open.map(card).join("") : `<div class="card"><small class="muted">No open tenders right now. New ones appear most days.</small></div>`}`;
+}
+export function b2bContracts(s) {
+  const b = B.ensureB2B(s);
+  const act = b.active.map(k => { const q = B.quoteDelivery(s, k.id), late = s.day > k.due;
+    return `<div class="card">${head(buyer(k.buyer), late ? `${k.lateDays} day(s) late` : "Contract")}<b>${num(k.qty)} × ${esc(itemName(k.pid))}</b>${kv([["Price", money2(k.price) + " each"], ["Worth", money(k.qty * k.price)], ["Deliver by", "day " + k.due], ["Stock", `${num(B.available(s, k.pid))} ${E.PRODUCT[k.pid] ? "in warehouse" : "at factory"}`]])}
+      ${late ? `<small class="note warnc">Fined ${money2(k.fined)} so far. Cancelled after 5 days late.</small>` : ""}${q.ok ? "" : `<small class="muted">${esc(q.errors[0])}</small>`}${btn("deliver", `Deliver · ${money(q.value || k.qty * k.price)}`, { id: k.id, dis: !q.ok, mini: false })}</div>`; }).join("");
+  const hist = b.history.slice(-10).reverse().map(h => `<tr><td>${h.day}</td><td class="l">${esc(buyer(h.buyer).split(" ")[0])}</td><td class="l">${esc(h.result)}</td><td>${h.revenue ? money(h.revenue) : h.penaltyPaid ? "-" + money(h.penaltyPaid) : "-"}</td></tr>`).join("");
+  return `${act || `<div class="card"><small class="muted">No contracts yet. Win a tender or accept a fixed deal in the market.</small></div>`}
+    ${hist ? `<div class="card scroll"><table class="tbl fixed"><thead><tr><th>Day</th><th class="l">Buyer</th><th class="l">Result</th><th>Money</th></tr></thead><tbody>${hist}</tbody></table></div>` : ""}`;
+}
+
+// ================= HR =================
+export function hrScreen(s) {
+  const h = H.ensureHr(s), pay = H.dailyPayroll(s);
+  const rows = D.HR_ROLES.map(r => { const st = h.staff[r.id]; return `<div class="card"><div class="shophead"><b>${esc(r.name)}</b><small>${money2(H.wageOf(s, r.id))} / person / day</small></div><small class="muted">${esc(r.note)}</small>
+      <div class="row"><b class="bigno">${st.n}</b>${btn("hire", "Hire +1", { id: r.id })}${btn("fire", "Let go -1", { id: r.id, ghost: true, dis: !st.n })}<small class="muted">skill ${dec(st.skill, 2)}</small></div></div>`; }).join("");
+  const w = D.HR.wageMult, t = D.HR.trainingBudget, wopts = [0.6, 0.8, 1, 1.2, 1.4, 1.6].map(x => [x, `×${x.toFixed(1)}${x === 1 ? " (normal)" : ""}`]), topts = [0, 100, 250, 500, 1000, 2000].map(x => [x, x ? money(x) + " / day" : "None"]);
+  return `<div class="card">${head("People", `${num(H.headcount(s))} staff · payroll ${money(pay)} / day`)}${kv([["Morale", dec(h.morale, 0) + "%"], ["Quit so far", h.quits], ["Paid so far", money(h.paidTotal)]])}${meter(h.morale, h.morale < 40 ? "full" : h.morale < 60 ? "warn" : "")}
+      <div class="two"><label class="fld"><span>Wage level</span><select data-hrf="wage">${wopts.map(([v, l]) => opt(v, l, h.wageMult)).join("")}</select></label>
+      <label class="fld"><span>Training budget</span><select data-hrf="training">${topts.map(([v, l]) => opt(v, l, h.training)).join("")}</select></label></div>
+      <small class="muted">Pay and training lift morale and skill. Unhappy staff quit. Shop staff add up to 10% sales, handlers cut transfer fees, sales reps help in tenders, service staff clear tickets, operators run machines.</small></div>${rows}`;
+}
+
+// ================= MARKETING =================
+export function marketing(s, f) {
+  const m = K.ensureMkt(s), cats = [["all", "All products"], ["food", "Food"], ["drinks", "Drinks"], ["electronics", "Electronics"]], ch = D.MKT_CHANNELS.find(c => c.id === f.mkt.channel);
+  const aw = ["food", "drinks", "electronics"].map(c => `<div class="kv1"><div><span>${c[0].toUpperCase() + c.slice(1)} awareness</span><b>${dec(K.awareness(s, c), 0)} / 100 · demand ×${dec(K.demandLift(s, c), 2)}</b></div></div>${meter(K.awareness(s, c))}`).join("");
+  const list = m.campaigns.map(k => `<div class="kv1"><div><span>#${k.id} ${esc(D.MKT_CHANNELS.find(c => c.id === k.channel).name)} · ${esc(k.cat)}</span><b>${k.left ? `${k.left} d left · ${money(k.daily)}/d` : "ended, fading"}</b></div></div>${k.left ? `<div class="row">${btn("mktStop", "Stop", { id: k.id, ghost: true })}</div>` : ""}`).join("");
+  return `<div class="card">${head("Awareness", "Fades a little every day")}${aw}</div>
+    <div class="card">${head("New campaign")}<label class="fld"><span>Channel</span>${sel("mkt.channel", D.MKT_CHANNELS.map(c => [c.id, `${c.name} · ${c.note}`]), f.mkt.channel, false)}</label>
+      <div class="two"><label class="fld"><span>Total budget</span>${sel("mkt.budget", [100, 250, 500, 1000, 2500, 5000, 10000].map(x => [x, money(x)]), f.mkt.budget)}</label>
+      <label class="fld"><span>Days</span>${sel("mkt.days", [1, 3, 7, 14, 21, 30].map(x => [x, x + " d"]), f.mkt.days)}</label></div>
+      <label class="fld"><span>Target</span>${sel("mkt.cat", cats, f.mkt.cat, false)}</label>
+      <small class="muted">${esc(ch.name)}: minimum ${money(ch.minBudget)}, memory fades ${pct(ch.decay)} a day. Awareness lifts shopper numbers and makes them less price-sensitive. Spend is paid daily.</small>${btn("mktStart", `Start · ${money(f.mkt.budget)}`, { mini: false })}</div>
+    ${list ? `<div class="card">${head("Campaigns")}${list}</div>` : ""}`;
+}
+
+// ================= E-COMMERCE =================
+export function ecom(s) {
+  const e = K.ensureEcom(s);
+  if (!e.active) return `<div class="card">${head("Webstore")}<p class="muted">Sell online from your warehouse and factory stock. Customers pay into escrow. The money is yours after the parcel arrives. You pay a setup fee of ${money(D.ECOM.setupFee)}, hosting ${money(D.ECOM.hostingPerDay)} a day, ${dec(D.ECOM.gatewayRate * 100)}% gateway fee, and pick, pack and parcel costs per order.</p>${btn("ecomOpen", `Open the webstore · ${money(D.ECOM.setupFee)}`, { mini: false, dis: balance(s.ledger, "cash") < D.ECOM.setupFee })}</div>`;
+  const all = [...D.PRODUCTS, ...D.JUICES], rows = all.map(p => { const on = e.catalog.includes(p.id), price = e.prices[p.id] || p.ref * 1.1, st = E.PRODUCT[p.id] ? s.wh.qty[p.id] : s.fx.fg.qty[p.id];
+    return `<div class="card"><div class="shophead"><b>${esc(p.name)}</b><small>stock ${num(st)}</small></div><div class="row">${btn("ecomCat", on ? "In catalog" : "Add", { id: p.id, ghost: !on })}${on ? `${btn("ecomPrice", "-", { id: p.id, ghost: true, arg: 'data-dir="-1"' })}<b>${money2(price)}</b>${btn("ecomPrice", "+", { id: p.id, ghost: true, arg: 'data-dir="1"' })}` : `<small class="muted">Ref ${money2(p.ref)}</small>`}</div></div>`; }).join("");
+  return `<div class="card">${head("Webstore", "Open")}${kv([["Visitors / day (est.)", num(K.webTraffic(s))], ["Orders so far", num(e.stats.orders)], ["Units sold", num(e.stats.units)], ["Missed (no stock)", num(e.stats.lost)], ["Money in escrow", money2(balance(s.ledger, "escrow"))], ["Released to you", money2(balance(s.ledger, "sales_ecom"))]])}
+      <label class="fld"><span>Pay-per-click ad budget</span><select data-ecf="ads">${[0, 50, 100, 250, 500, 1000, 2500].map(x => opt(x, x ? money(x) + " / day" : "None", e.adBudget)).join("")}</select></label>
+      <small class="muted">Each ${money2(D.ECOM.cpc)} buys a visitor. Fewer than ${D.ECOM.baseConversion * 100}% of visitors buy, and fewer at high prices.</small></div>${rows}`;
+}
+
+// ================= BANK =================
+export function bank(s, f) {
+  const b = Bk.ensureBank(s), od = balance(s.ledger, "overdraft"), cap = Bk.loanCap(s, f.loan.kind), room = Bk.creditRoom(s);
+  const loans = b.loans.map(l => `<div class="kv1"><div><span>Loan #${l.id} · ${l.kind}</span><b>${money(l.balance)} · ${l.left} d left</b></div></div>`).join("");
+  return `<div class="card">${head("Bank", "Interest is charged every day")}${kv([["Overdraft", money2(od)], ["Overdraft interest", dec(D.BANK.overdraft.rate * 100, 3) + "% / day"], ["Credit line", `${money2(b.credit.bal)} of ${money(D.BANK.credit.limit)}`], ["Interest paid so far", money2(b.interestPaid)]])}
+      <small class="muted">An overdraft for three days in a row ends the game. Repay it from sales.</small></div>
+    <div class="card">${head("Credit line", `${D.BANK.credit.termDays} days, ${dec(D.BANK.credit.rate * 100, 3)}% / day`)}
+      <label class="fld"><span>Amount</span>${sel("credit", [1000, 5000, 10000, 20000, 40000, 60000].map(x => [x, money(x)]), f.credit)}</label>
+      <div class="row">${btn("credDraw", "Draw", { dis: f.credit > room, mini: false })}${btn("credRepay", "Repay", { ghost: true, dis: !b.credit.bal, mini: false })}</div><small class="muted">Room left: ${money(room)}. Anything unpaid after ${D.BANK.credit.termDays} days moves to the overdraft.</small></div>
+    <div class="card">${head("Loans")}<label class="fld"><span>Type</span>${sel("loan.kind", [["equipment", `Equipment · up to 80% of machinery`], ["long", `Long-term · from ${money(D.BANK.longTerm.minAmount)}`]], f.loan.kind, false)}</label>
+      <div class="two"><label class="fld"><span>Amount</span>${sel("loan.amount", [5000, 10000, 20000, 30000, 50000, 100000].map(x => [x, money(x)]), f.loan.amount)}</label>
+      <label class="fld"><span>Term</span>${f.loan.kind === "long" ? `<select disabled><option>365 d</option></select>` : sel("loan.term", D.BANK.equipment.termsDays.map(x => [x, x + " d"]), f.loan.term)}</label></div>
+      <small class="muted">The bank will lend you ${money(cap)} of this kind. Repaid in equal daily parts plus interest on what is left.</small>${btn("loan", "Take loan", { dis: f.loan.amount > cap, mini: false })}${loans}</div>`;
+}
+
+// ================= STATEMENTS =================
+export function statements(s) {
+  const L = s.ledger, b = a => balance(L, a), t = totals(L);
+  const nz = (a, label) => (Math.abs(b(a)) > 0.004 ? `<tr><td class="l">${label || ACCOUNTS[a].name}</td><td>${money2(b(a))}</td></tr>` : "");
+  const rev = ["sales", "sales_b2b", "sales_ecom"].map(a => nz(a)).join(""), exp = ["cogs", ...OPEX].map(a => nz(a)).join(""), net = round2(t.revenue - t.costs);
+  const assets = ["cash", "receivables", "inventory", "inv_raw", "inv_fg", "transit", "machinery", "acc_deprec"].map(a => nz(a)).join(""), liab = ["overdraft", "payables", "credit", "longdebt", "escrow"].map(a => nz(a)).join("");
+  const machGross = b("machinery"), financing = round2(b("capital") - openingGift(s) + b("overdraft") + b("credit") + b("longdebt")), investing = -machGross, cash = b("cash"), operating = round2(cash - financing - investing);
+  const tbl = (title, rows, foot) => `<div class="card scroll"><b>${title}</b><table class="tbl fixed"><tbody>${rows}</tbody>${foot ? `<tfoot>${foot}</tfoot>` : ""}</table></div>`;
+  return tbl("Income statement", `<tr><td class="l"><b>Revenue</b></td><td></td></tr>${rev}<tr><td class="l"><b>Expenses</b></td><td></td></tr>${exp}`, `<tr><td class="l">Net profit</td><td class="${cls(net)}">${money2(net)}</td></tr>`)
+    + tbl("Balance sheet", `<tr><td class="l"><b>Assets</b></td><td></td></tr>${assets}<tr><td class="l"><b>Liabilities</b></td><td></td></tr>${liab}<tr><td class="l">Owner capital</td><td>${money2(b("capital"))}</td></tr><tr><td class="l">Profit kept</td><td>${money2(net)}</td></tr>`,
+      `<tr><td class="l">Assets / Liabilities + Equity</td><td>${money(t.assets)} / ${money(t.liabilities + t.equity)}</td></tr>`)
+    + tbl("Statement of cash flows", `<tr><td class="l">Operating</td><td class="${cls(operating)}">${money2(operating)}</td></tr><tr><td class="l">Investing (machines)</td><td class="${cls(investing)}">${money2(investing)}</td></tr><tr><td class="l">Financing (capital, loans, overdraft)</td><td>${money2(financing)}</td></tr>`, `<tr><td class="l">Cash on hand</td><td>${money2(cash)}</td></tr>`)
+    + `<small class="muted">Operating cash flow is what is left after investing and financing explain the rest of the cash. Opening stock was a gift from the owner, so it is not counted as cash capital. Return on assets ${dec(Kp.kpis(s).roa)}%, quick ratio ${dec(quick(s), 2)}.</small>`;
+}
+const openingGift = s => round2(s.startNetWorth - s.capital);
+const quick = s => { const L = s.ledger, b = a => balance(L, a), cur = b("overdraft") + b("payables") + b("credit") + b("escrow"); return cur > 0 ? (b("cash") + b("receivables")) / cur : 99; };
+
+// ================= SCORING & DATA =================
+export function scoring(s, f) {
+  const sb = Kp.scoreboard(s), w = Kp.ensureKpi(s).weights;
+  const fmt = (r) => r.unit === "$" ? money(r.value) : r.unit === "x" ? dec(r.value, 2) + "×" : dec(r.value, 1) + (r.unit === "%" ? "%" : "");
+  const rows = sb.rows.map(r => `<tr><td class="l">${esc(r.name)}</td><td>${fmt(r)}</td><td>${dec(r.score, 0)}</td><td>${dec(r.points, 1)}</td></tr>`).join("");
+  const inputs = D.KPIS.map(k => `<label class="fld"><span>${esc(k.name)}</span>${sel("w." + k.id, [0, 5, 10, 15, 20, 25, 30, 40, 50].map(x => [x, x + "%"]), f.w[k.id] != null ? f.w[k.id] : Math.round(w[k.id] * 100))}</label>`).join("");
+  return `<div class="card">${head("Score", "Weighted KPIs")}<div class="gradebig">${dec(sb.total, 1)}<small>out of 100</small></div></div>
+    <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">KPI</th><th>Value</th><th>Score</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="card">${head("Weights", "Set what matters; they are re-balanced to 100%")}<div class="two">${inputs}</div><div class="row">${btn("weights", "Apply weights", { mini: false })}${btn("weightsReset", "Defaults", { ghost: true, mini: false })}</div></div>`;
+}
+export function competitors(s) {
+  const rows = Kp.competitorPrices(s).map(r => `<tr><td class="l">${esc(r.name)}</td><td>${money2(r.you)}</td>${r.rivals.map(x => `<td class="${r.you > x * 1.05 ? "warnc" : ""}">${money2(x)}</td>`).join("")}</tr>`).join("");
+  const nets = s.history.slice(-30), max = Math.max(1, ...nets.map(h => h.revenue));
+  const chartRev = nets.length ? `<div class="chart" role="img" aria-label="Revenue per day">${nets.map(h => `<div class="col"><i style="height:${Math.max(3, h.revenue / max * 100)}%"></i><small>${h.day}</small></div>`).join("")}</div>` : `<small class="muted">The first day report appears when day 1 ends.</small>`;
+  return `<div class="card scroll"><b>Competitor prices</b><table class="tbl fixed"><thead><tr><th class="l">Product</th><th>You</th><th>Rival A</th><th>Rival B</th><th>Rival C</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <small class="muted">Amber means a rival is cheaper than you by more than 5%.</small><div class="card"><b>Revenue per day</b>${chartRev}</div>`;
+}
