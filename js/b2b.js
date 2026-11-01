@@ -6,6 +6,7 @@ import * as D from "./data.js";
 import { streamNext, seedFrom } from "./rng.js";
 import { log, PRODUCT } from "./engine.js";
 import { JUICE } from "./factory.js";
+import { salesEdge } from "./hr.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
@@ -70,7 +71,7 @@ export function acceptDeal(s, tender) {
   if (t.kind !== "fixed") return err("This one is a tender: place a bid.");
   b.open = b.open.filter(x => x !== t); award(s, b, t, t.price, "Fixed deal"); return ok();
 }
-const playerScore = (b, t, price) => wf().price * (1 - price / t.ceiling) + wf().reputation * (b.rep / 100) + wf().reliability * reliabilityOf(b);
+const playerScore = (s, b, t, price) => salesEdge(s) + wf().price * (1 - price / t.ceiling) + wf().reputation * (b.rep / 100) + wf().reliability * reliabilityOf(b);
 function resolve(s, b, t) {
   if (t.kind === "fixed") { b.history.push({ ...t, result: "expired", day: s.day }); return; }
   let best = { who: null, score: -Infinity, price: 0 };
@@ -78,7 +79,7 @@ function resolve(s, b, t) {
     const p = c(t.ceiling * r.aggression * (0.96 + 0.08 * streamNext(b))), sc = wf().price * (1 - p / t.ceiling) + wf().reputation * (0.4 + 0.5 * streamNext(b)) + wf().reliability * r.reliability;
     if (sc > best.score) best = { who: r.id, score: sc, price: p };
   }
-  if (t.bid != null && playerScore(b, t, t.bid) >= best.score) { award(s, b, t, t.bid, "Tender"); b.won++; }
+  if (t.bid != null && playerScore(s, b, t, t.bid) >= best.score) { award(s, b, t, t.bid, "Tender"); b.won++; }
   else { b.history.push({ ...t, result: t.bid == null ? "no bid" : "lost", winner: best.who, winPrice: best.price, day: s.day }); if (t.bid != null) b.lost++; }
 }
 function award(s, b, t, price, how) {

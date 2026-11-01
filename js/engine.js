@@ -3,9 +3,13 @@
 import { newLedger, post, balance, totals, round2 } from "./ledger.js";
 import { getLocation, hasLocation } from "./locations.js";
 import * as D from "./data.js";
-import { newFactory, factoryArrivals, factoryDay } from "./factory.js";
+import { newFactory, factoryArrivals, factoryDay, rawUnitsUsedSpace, fgSpace } from "./factory.js";
 import { newB2B, b2bDay } from "./b2b.js";
 import { newMrp, mrpDay } from "./mrp.js";
+import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
+import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut } from "./market.js";
+import { newBank, bankDay } from "./bank.js";
+import { newKpi } from "./kpi.js";
 
 export const STEP = 0.05;
 export const FLUSH_STEPS = 20;                                    // sales are posted to the ledger once per simulated second
@@ -39,7 +43,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
+    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
   for (const sp of ALL_SUP) { s.supIdx[sp.id] = 1; }
@@ -64,7 +68,10 @@ export const spaceFree = s => capacityOf(s.area) - spaceUsed(s) - spaceIncoming(
 export const whCapacity = s => Math.floor(s.wh.area * D.WH.spacePerM2);
 export const whUsed = s => D.PRODUCTS.reduce((a, p) => a + s.wh.qty[p.id] * p.space, 0);
 export const whIncoming = s => s.orders.reduce((a, o) => a + (o.dest === "wh" ? o.qty * PRODUCT[o.pid].space : 0), 0);
-export const whFree = s => whCapacity(s) - whUsed(s) - whIncoming(s);
+export const whFactoryUsed = s => (s.fx ? rawUnitsUsedSpace(s) + fgSpace(s) : 0);   // raw materials and factory goods also live in the warehouse
+export const whTotalUsed = s => whUsed(s) + whFactoryUsed(s);
+export const whOverflow = s => Math.max(0, whTotalUsed(s) - whCapacity(s));
+export const whFree = s => whCapacity(s) - whTotalUsed(s) - whIncoming(s);
 export const whUnits = s => D.PRODUCTS.reduce((a, p) => a + s.wh.qty[p.id], 0);
 export const inventoryUnits = s => D.PRODUCTS.reduce((a, p) => a + s.qty[p.id], 0) + whUnits(s);
 export const timeLeft = s => (s.ended ? 0 : Math.max(0, (s.stepsPerDay - s.dayStep) * STEP));
@@ -73,21 +80,22 @@ export function dashboard(s) {
   const cap = capacityOf(s.area), used = spaceUsed(s);
   return { cash: c(cash), overdraft: c(over), revenue: t.revenue, expenses: t.costs, netProfit: c(t.revenue - t.costs), inventoryUnits: inventoryUnits(s), inventoryValue: c(inv),
     unitsSold: s.stats.units, pending: s.orders.length, pendingUnits: s.orders.reduce((a, o) => a + o.qty, 0), capacity: cap, used: Math.round(used), incoming: Math.round(spaceIncoming(s)),
-    utilization: cap ? used / cap : 0, wh: { rented: s.wh.area > 0, area: s.wh.area, capacity: whCapacity(s), used: Math.round(whUsed(s)), incoming: Math.round(whIncoming(s)), units: whUnits(s) }, netWorth: c(t.assets - t.liabilities), balanced: t.balanced };
+    utilization: cap ? used / cap : 0, wh: { rented: s.wh.area > 0, area: s.wh.area, capacity: whCapacity(s), used: Math.round(whTotalUsed(s)), overflow: Math.round(whOverflow(s)), incoming: Math.round(whIncoming(s)), units: whUnits(s) }, netWorth: c(t.assets - t.liabilities), balanced: t.balanced };
 }
 
 // ---------- demand ----------
 function demandFor(s, p) {
   const L = getLocation(s.location), price = s.prices[p.id];
   const area = Math.pow(s.area / D.AREA.def, 0.3);
-  const pf = clamp(Math.pow((p.ref * L.power) / price, p.elast * L.priceSens), 0.01, 2.5);
-  return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise;
+  const pf = clamp(Math.pow((p.ref * L.power) / price, p.elast * L.priceSens * priceCut(s, p.cat)), 0.01, 2.5);
+  return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s);
 }
 export const expectedDemand = (s, pid) => Math.round(demandFor(s, PRODUCT[pid]));
 
 function beginDay(s) {
   s.dayStep = 0; s.flushAcc = 0;
-  s.today = { day: s.day, rev: 0, cogs: 0, ship: 0, rent: 0, units: {}, lost: {}, arrivals: [] };
+  const t0 = totals(s.ledger), p0 = c(t0.revenue - t0.costs);
+  s.today = { p0, day: s.day, rev: 0, cogs: 0, ship: 0, rent: 0, units: {}, lost: {}, arrivals: [] };
   for (const p of D.PRODUCTS) { s.today.units[p.id] = 0; s.today.lost[p.id] = 0; }
   s.noise = 0.9 + 0.2 * rnd(s);
   for (const sp of ALL_SUP) {                                           // supplier prices drift (supplier stock is unlimited)
@@ -252,12 +260,12 @@ export function quoteTransfer(s, lines) {
     const p = PRODUCT[l.pid], have = s.wh.qty[l.pid];
     if (l.qty > have) errors.push(`The warehouse has only ${have.toLocaleString("en-US")} ${p.name}.`);
     const value = !have ? 0 : l.qty >= have ? s.wh.val[l.pid] : c(s.wh.val[l.pid] / have * l.qty);
-    return { pid: l.pid, qty: l.qty, value, fee: c(D.TRANSFER.rate * l.qty * p.space), space: l.qty * p.space };
+    return { pid: l.pid, qty: l.qty, value, fee: c(D.TRANSFER.rate * l.qty * p.space * (1 - transferDiscount(s))), space: l.qty * p.space };
   });
-  const fee = c(D.TRANSFER.fee + out.reduce((a, l) => a + l.fee, 0)), space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = spaceFree(s);
+  const trip = c(D.TRANSFER.fee * (1 - transferDiscount(s))), fee = c(trip + out.reduce((a, l) => a + l.fee, 0)), space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = spaceFree(s);
   if (fee > cash + 0.004) errors.push(`Not enough cash for the transfer fee: need $${fee.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
   if (space > free) errors.push(`Not enough space in the shop: this needs ${Math.round(space).toLocaleString("en-US")} space, ${Math.max(0, Math.floor(free)).toLocaleString("en-US")} free. Rent more shop space or send less.`);
-  return { lines: out, fee, space, days: D.TRANSFER.days, eta: s.day + D.TRANSFER.days, value: c(out.reduce((a, l) => a + l.value, 0)), errors, ok: !errors.length };
+  return { lines: out, fee, trip, space, days: D.TRANSFER.days, eta: s.day + D.TRANSFER.days, value: c(out.reduce((a, l) => a + l.value, 0)), errors, ok: !errors.length };
 }
 export function sendToRetail(s, { lines } = {}) {
   if (s.ended) return err("The game is over.");
@@ -266,7 +274,7 @@ export function sendToRetail(s, { lines } = {}) {
   if (!q.ok) return err(q.errors[0]);
   const made = [];
   q.lines.forEach((l, i) => {
-    const o = { id: ++s.orderSeq, sup: "wh", kind: "transfer", dest: "retail", pid: l.pid, qty: l.qty, unit: l.qty ? c(l.value / l.qty) : 0, goods: l.value, ship: c(l.fee + (i === 0 ? D.TRANSFER.fee : 0)), placed: s.day, eta: q.eta, delayed: false, km: 0 };
+    const o = { id: ++s.orderSeq, sup: "wh", kind: "transfer", dest: "retail", pid: l.pid, qty: l.qty, unit: l.qty ? c(l.value / l.qty) : 0, goods: l.value, ship: c(l.fee + (i === 0 ? q.trip : 0)), placed: s.day, eta: q.eta, delayed: false, km: 0 };
     s.wh.qty[l.pid] -= l.qty; s.wh.val[l.pid] = c(s.wh.val[l.pid] - l.value); s.orders.push(o); s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
   });
   post(s.ledger, s.day, `Transfer ${made.map(o => "#" + o.id).join(", ")} from the warehouse to the shop`, [{ acct: "transit", dr: q.value }, { acct: "inventory", cr: q.value }, { acct: "delivery", dr: q.fee }, { acct: "cash", cr: q.fee }], "transfer:" + made[0].id);
@@ -330,6 +338,11 @@ function stepOnce(s) {
   if (s.dayStep >= s.stepsPerDay) closeDay(s);
 }
 
+function overflowDay(s) {
+  const o = whOverflow(s); if (o <= 0) return; const fee = c(o * D.OVERFLOW.perSpacePerDay), cash = Math.max(0, balance(s.ledger, "cash")), paid = c(Math.min(cash, fee)), short = c(fee - paid);
+  const lines = [{ acct: "overflow", dr: fee }]; if (paid > 0) lines.push({ acct: "cash", cr: paid }); if (short > 0) lines.push({ acct: "overdraft", cr: short });
+  post(s.ledger, s.day, `Storage overflow fee (${Math.round(o).toLocaleString("en-US")} space over capacity)`, lines, "ovf:" + s.day);
+}
 function closeDay(s) {
   flush(s);
   const day = s.day, before = balance(s.ledger, "cash");
@@ -338,11 +351,11 @@ function closeDay(s) {
   const lines = [{ acct: "rent", dr: rent }];
   if (pay > 0) lines.push({ acct: "cash", cr: pay }); if (over > 0) lines.push({ acct: "overdraft", cr: over });
   post(s.ledger, day, `Rent for day ${day}`, lines, "rent:" + day); s.today.rent = rent;
-  factoryDay(s);
+  factoryDay(s); hrDay(s); mktDay(s); ecomDay(s); overflowDay(s); bankDay(s); srvDay(s);
   const od = balance(s.ledger, "overdraft"), cashNow = balance(s.ledger, "cash"), repay = c(Math.min(od, Math.max(0, cashNow)));
   if (repay > 0) post(s.ledger, day, "Overdraft repaid from cash", [{ acct: "overdraft", dr: repay }, { acct: "cash", cr: repay }]);
   s.overdraftDays = balance(s.ledger, "overdraft") > 0 ? s.overdraftDays + 1 : 0;
-  const net = c(s.today.rev - s.today.cogs - s.today.ship - rent);
+  const tt = totals(s.ledger), net = c(tt.revenue - tt.costs - s.today.p0);
   const rep = { day, revenue: s.today.rev, cogs: s.today.cogs, shipping: s.today.ship, rent, net, units: { ...s.today.units }, lost: { ...s.today.lost }, arrivals: s.today.arrivals, cash: c(balance(s.ledger, "cash")), inventoryValue: c(balance(s.ledger, "inventory")) };
   s.history.push(rep); if (s.history.length > 90) s.history.shift(); s.lastReport = rep;
   log(s, `Day ${day} closed: revenue $${rep.revenue.toFixed(0)}, net $${net.toFixed(0)}.`);
@@ -370,6 +383,9 @@ export function reconcile(s) {
   if (Math.abs(c(fx.machines.reduce((a, m) => a + m.cost, 0)) - balance(s.ledger, "machinery")) > 0.05) problems.push("Machinery differs from the ledger.");
   if (Math.abs(c(fx.machines.reduce((a, m) => a + m.deprec, 0)) + balance(s.ledger, "acc_deprec")) > 0.05) problems.push("Depreciation differs from the ledger.");
   if (Math.abs(c(fx.payables.reduce((a, p) => a + p.amount, 0)) - balance(s.ledger, "payables")) > 0.05) problems.push("Supplier invoices differ from the ledger.");
+  const bk = s.bank; if (Math.abs(c(bk.credit.bal) - balance(s.ledger, "credit")) > 0.05) problems.push("Credit line differs from the ledger.");
+  if (Math.abs(c(bk.loans.reduce((a, l) => a + l.balance, 0)) - balance(s.ledger, "longdebt")) > 0.05) problems.push("Loans differ from the ledger.");
+  if (Math.abs(c(s.ecom.orders.reduce((a, o) => a + o.amount, 0)) - balance(s.ledger, "escrow")) > 0.05) problems.push("Escrow differs from the ledger.");
   const tr = c(s.orders.reduce((a, o) => a + o.goods, 0) + fx.pos.reduce((a, o) => a + o.goods, 0)); if (Math.abs(tr - balance(s.ledger, "transit")) > 0.05) problems.push("Goods in transit differ from the ledger.");
   for (const p of D.PRODUCTS) if (s.qty[p.id] < 0) problems.push(`${p.name} stock is negative.`);
   if (spaceUsed(s) > capacityOf(s.area) + 0.5) problems.push("Storage is over capacity.");
@@ -391,6 +407,7 @@ export function validateSave(raw) {
   if (o && o.v === 11) { o.v = 12; o.wh = { area: 0, qty: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])), val: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])) }; for (const sp of D.WH_SUPPLIERS) o.supIdx[sp.id] = 1; delete o.supStock; }
   if (o && o.v === 12) { o.v = 13; o.fx = newFactory(); }
   if (o && o.v === 13) { o.v = 14; o.b2b = newB2B(o.seed); o.mrp = newMrp(); }
+  if (o && o.v === 14) { o.v = 15; Object.assign(o, { hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi() }); }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

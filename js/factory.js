@@ -5,6 +5,7 @@ import { post, balance, round2 } from "./ledger.js";
 import { getLocation } from "./locations.js";
 import * as D from "./data.js";
 import { rnd, log, distanceKm } from "./engine.js";
+import { hire, crew } from "./hr.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
@@ -52,7 +53,7 @@ export function buyMachine(s, { type } = {}) {
   const q = quoteMachine(s, type); if (q.error) return err(q.error); if (!q.ok) return err(q.errors[0]);
   const t = MACHINE[type], fx = ensureFactory(s);
   const m = { id: ++fx.mseq, type, name: `${t.name} ${fx.mseq}`, health: D.MAINT.startHealth, status: "idle", ageDays: 0, cost: q.total, deprec: 0, job: null, downDays: 0, pmToday: false, emergency: 0 };
-  fx.machines.push(m);
+  fx.machines.push(m); hire(s, "factory", t.operators);
   post(s.ledger, s.day, `Bought ${m.name} (price and setup capitalised)`, [{ acct: "machinery", dr: q.total }, { acct: "cash", cr: q.total }], "machine:" + m.id);
   log(s, `Bought ${m.name} for $${q.total.toFixed(2)}.`);
   return ok({ machine: m });
@@ -153,7 +154,7 @@ export function factoryArrivals(s) {
 }
 
 export function factoryDay(s) {
-  const fx = ensureFactory(s); fx.today = { made: {}, cost: 0, idle: 0, broke: [] };
+  const fx = ensureFactory(s), cw = crew(s); fx.today = { made: {}, cost: 0, idle: 0, broke: [] };
   for (const m of fx.machines) {
     const t = MACHINE[m.type]; m.ageDays++;
     // depreciation: straight line on price + setup, never below zero book value
@@ -163,7 +164,7 @@ export function factoryDay(s) {
     if (m.downDays > 0) { m.downDays--; m.status = m.downDays > 0 ? "broken" : "idle"; if (m.downDays === 0) m.health = 80; continue; }
     if (!m.job) { m.status = "idle"; continue; }
     const j = JUICE[m.job.juice], serviceLoss = m.pmToday ? t.pmDays : 0;
-    const cap = Math.floor(Math.min(m.job.qty, t.perDay) * machineEfficiency(m) * (1 - serviceLoss)), n = Math.min(cap, bottlesPossible(s, j.id));
+    const cap = Math.floor(Math.min(m.job.qty, t.perDay) * machineEfficiency(m) * cw.out * (1 - serviceLoss)), n = Math.min(cap, bottlesPossible(s, j.id));
     if (n <= 0) { m.status = "idle"; fx.today.idle++; if (m.pmToday) m.health = D.MAINT.restoreTo; continue; }
     let cost = 0;
     for (const [rid, q] of Object.entries(j.bom)) {
@@ -175,7 +176,7 @@ export function factoryDay(s) {
     fx.fg.qty[j.id] += n; fx.fg.val[j.id] = c(fx.fg.val[j.id] + cost);
     fx.today.made[j.id] = (fx.today.made[j.id] || 0) + n; fx.today.cost = c(fx.today.cost + cost);
     m.status = "running";
-    if (!m.pmToday) m.health = c(Math.max(0, m.health - t.wear));
+    if (!m.pmToday) m.health = c(Math.max(0, m.health - t.wear * cw.wear));
     // breakdown risk when health is under the threshold
     if (m.health < D.MAINT.breakdownBelow && rnd(s) < D.MAINT.breakdownChance) {
       m.downDays = D.MAINT.downMin + (rnd(s) < 0.5 ? 0 : D.MAINT.downMax - D.MAINT.downMin); m.status = "broken"; m.emergency++;
