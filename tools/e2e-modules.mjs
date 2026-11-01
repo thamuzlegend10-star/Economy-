@@ -8,7 +8,7 @@ const go = async (m, sb) => { await p.click(`[data-main="${m}"]`); if (sb) await
 const st = () => p.evaluate(() => { const s = window.__economy.state; return { machines: s.fx.machines.length, job: s.fx.machines[0] && s.fx.machines[0].job, prs: s.fx.prs.length, pos: s.fx.pos.length, staff: s.hr.staff.retail.n, camp: s.mkt.campaigns.length, web: s.ecom.active, credit: s.bank.credit.bal, cash: Math.round(s.ledger.bal.cash) }; });
 await p.goto("http://localhost:8765/index.html"); await p.waitForTimeout(300);
 await p.click("#mNew"); await p.fill("#sSec", "30"); await p.fill("#sDays", "30"); await p.selectOption("#sCap", "150000"); await p.click("#sStart"); await p.waitForTimeout(200);
-await go("factory", "machines"); await p.click('[data-act="buyMachine"][data-id="std"]'); await p.waitForTimeout(150);
+await go("factory", "machines"); await p.click('[data-act="rentFactory"]'); await p.waitForTimeout(120); await p.click('[data-act="buyMachine"][data-id="std"]'); await p.waitForTimeout(150);
 await p.selectOption("#mj-1-juice", "orange"); await p.waitForTimeout(150);
 await go("factory", "raw"); await p.selectOption('[data-f="vendor"]', "agro"); await p.selectOption('[data-f="rq.orangePulp"]', "5000"); await p.selectOption('[data-f="rq.water"]', "10000");
 await p.click('[data-act="prCreate"]'); await p.waitForTimeout(150); await p.click('[data-act="prApprove"]'); await p.waitForTimeout(150);

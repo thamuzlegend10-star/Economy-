@@ -10,7 +10,7 @@ import * as K from "./market.js";
 import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
 
-export const newForms = () => ({ vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {} });
+export const newForms = () => ({ vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250 });
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const r = (res, msg) => (res && res.ok ? { ok: true, msg } : { ok: false, error: (res && res.error) || "Not possible." });
 
@@ -27,6 +27,7 @@ export function act(s, f, name, a = {}) {
   switch (name) {
     // factory
     case "buyMachine": return r(F.buyMachine(s, { type: id }), "Machine bought and its operators hired.");
+    case "rentFactory": return r(F.rentFactory(s, f.farea), "Factory space rented.");
     case "setjob": return r(F.setRun(s, { machine: n, juice: a.juice, qty: num(a.qty) }), a.qty > 0 ? "Production run set." : "Production stopped.");
     case "pm": return r(F.preventiveMaintenance(s, n), "Machine serviced.");
     case "prCreate": { const x = F.createPR(s, { vendor: f.vendor, terms: f.terms, lines: rawLines(f) }); return r(x, "Requisition created. Approve it to place the order."); }

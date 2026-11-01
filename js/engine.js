@@ -409,6 +409,7 @@ export function validateSave(raw) {
   if (o && o.v === 12) { o.v = 13; o.fx = newFactory(); }
   if (o && o.v === 13) { o.v = 14; o.b2b = newB2B(o.seed); o.mrp = newMrp(); }
   if (o && o.v === 14) { o.v = 15; Object.assign(o, { hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi() }); }
+  if (o && o.v === 15) { o.v = 16; const need = o.fx.machines.reduce((a, m) => a + ((D.MACHINES.find(x => x.id === m.type) || {}).space || 0), 0); o.fx.area = need ? Math.max(D.FACTORY.minArea, Math.ceil(need / 50) * 50) : 0; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

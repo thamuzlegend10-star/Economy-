@@ -5,7 +5,7 @@ import * as F from "../js/factory.js";
 import * as D from "../js/data.js";
 import { balance } from "../js/ledger.js";
 
-const mk = (o = {}) => E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 40, capital: 200000, seed: 11, ...o });
+const mk = (o = {}) => { const s = E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 40, capital: 200000, seed: 11, ...o }); F.rentFactory(s, 500); return s; };
 const runDay = s => { const d = s.day; while (!s.ended && s.day === d) E.tick(s, 0.5); };
 const stock = s => {
   const a = F.placeRawOrder(s, { vendor: "agro", lines: [{ rid: "appleConc", qty: 600 }, { rid: "orangePulp", qty: 600 }, { rid: "melonSyrup", qty: 600 }, { rid: "water", qty: 6000 }], terms: "cod" });
@@ -123,4 +123,53 @@ test("a long game with a working factory stays reconciled and deterministic", ()
   const run = () => { const s = mk({ days: 25 }); stock(s); const m = F.buyMachine(s, { type: "std" }).machine; F.setRun(s, { machine: m.id, juice: "melon", qty: 800 });
     for (let i = 0; i < 18 && !s.ended; i++) { if (i % 6 === 5) F.preventiveMaintenance(s, m.id); runDay(s); assert.ok(E.reconcile(s).ok, JSON.stringify(E.reconcile(s).problems)); } return s; };
   const a = run(), b = run(); assert.equal(JSON.stringify(a.ledger.bal), JSON.stringify(b.ledger.bal)); assert.equal(JSON.stringify(a.fx), JSON.stringify(b.fx));
+});
+
+// ---------- step B: factory building, floor space, conversion costs, morale ----------
+import * as H from "../js/hr.js";
+const bare = () => E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 40, capital: 200000, seed: 11 });
+
+test("machines need floor space: no factory, no machine; space is used up and freed by renting more", () => {
+  const s = bare(); const r = F.buyMachine(s, { type: "std" }); assert.equal(r.ok, false); assert.match(r.error, /factory space/i);
+  assert.equal(F.rentFactory(s, 10).ok, true); assert.equal(s.fx.area, D.FACTORY.minArea);           // first rental is at least the minimum
+  assert.ok(F.buyMachine(s, { type: "std" }).ok); assert.ok(F.buyMachine(s, { type: "std" }).ok); assert.equal(F.factorySpaceFree(s), D.FACTORY.minArea - 2 * D.MACHINES[0].space);
+  assert.equal(F.buyMachine(s, { type: "fast" }).ok, false); assert.ok(F.rentFactory(s, 250).ok); assert.ok(F.buyMachine(s, { type: "fast" }).ok);
+  assert.equal(F.rentFactory(s, 99999).ok, false); assert.ok(E.reconcile(s).ok);
+});
+
+test("factory rent and utilities are paid every day by area", () => {
+  const s = bare(); F.rentFactory(s, 200); const before = balance(s.ledger, "rent") + balance(s.ledger, "utilities"); runDay(s);
+  const paid = balance(s.ledger, "rent") + balance(s.ledger, "utilities") - before - E.dailyRent(s.location, s.area);
+  assert.ok(Math.abs(paid - (F.factoryRent(s) + F.factoryUtilities(s))) < 0.02, "paid " + paid);
+});
+
+test("on a producing day, wages, rent and utilities go into the cost of the goods, not the expenses", () => {
+  const s = mk(); stock(s); const m = F.buyMachine(s, { type: "std" }).machine; F.setRun(s, { machine: m.id, juice: "apple", qty: 1000 });
+  const labourExp = balance(s.ledger, "cogs_labor"), rentExp = balance(s.ledger, "rent"), mat0 = F.bomCost("apple", s);
+  runDay(s); const made = s.fx.today.made.apple; assert.ok(made > 800);
+  assert.equal(Math.round((balance(s.ledger, "cogs_labor") - labourExp) * 100), 0);                       // no labour expense that day
+  assert.ok(balance(s.ledger, "rent") - rentExp < 1000 && s.fx.today.conv > 0);
+  const unit = s.fx.fg.val.apple / s.fx.fg.qty.apple; assert.ok(unit > mat0 + 0.01, `unit ${unit} should exceed materials ${mat0}`);
+  assert.ok(E.reconcile(s).ok);
+});
+
+test("on an idle day the same costs are expenses", () => {
+  const s = mk(); const m = F.buyMachine(s, { type: "std" }).machine; runDay(s);
+  assert.ok(balance(s.ledger, "cogs_labor") > 0); assert.equal(s.fx.fg.qty.apple, 0); assert.equal(balance(s.ledger, "inv_fg"), 0); assert.ok(E.reconcile(s).ok); void m;
+});
+
+test("goods carry their conversion cost into cost of goods sold when delivered to a B2B buyer", async () => {
+  const B = await import("../js/b2b.js"); const s = mk(); stock(s); const m = F.buyMachine(s, { type: "std" }).machine; F.setRun(s, { machine: m.id, juice: "orange", qty: 1000 }); for (let i = 0; i < 2; i++) runDay(s);
+  const qty = 500, value = s.fx.fg.val.orange / s.fx.fg.qty.orange * qty; s.b2b.active.push({ id: 700, buyer: "hotel", pid: "orange", qty, price: 2, due: s.day + 5, penalty: 0.1, status: "active", awarded: s.day, lateDays: 0, fined: 0 });
+  const cogs = balance(s.ledger, "cogs"); assert.ok(B.deliver(s, 700).ok); assert.ok(Math.abs(balance(s.ledger, "cogs") - cogs - value) < 0.05); assert.ok(E.reconcile(s).ok);
+});
+
+test("low morale lowers factory output", () => {
+  const out = mor => { const s = mk(); F.buyMachine(s, { type: "std" }); s.hr.morale = mor; return H.crew(s).out; };
+  assert.ok(out(100) > out(20)); assert.ok(Math.abs(out(100) - 1) < 1e-9);
+});
+
+test("v15 saves with machines get a factory big enough for them", () => {
+  const s = mk(); F.buyMachine(s, { type: "fast" }); const raw = JSON.parse(JSON.stringify(s)); delete raw.fx.area; raw.v = 15;
+  const r = E.validateSave(raw); assert.ok(r.ok, r.error); assert.ok(r.state.fx.area >= D.MACHINES[1].space);
 });

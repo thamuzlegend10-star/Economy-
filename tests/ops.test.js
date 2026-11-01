@@ -9,7 +9,7 @@ import * as Kp from "../js/kpi.js";
 import * as D from "../js/data.js";
 import { balance, post } from "../js/ledger.js";
 
-const mk = (o = {}) => E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 200000, seed: 21, ...o });
+const mk = (o = {}) => { const s = E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 200000, seed: 21, ...o }); F.rentFactory(s, 500); return s; };
 const runDay = s => { const d = s.day; while (!s.ended && s.day === d) E.tick(s, 0.5); };
 const days = (s, n) => { for (let i = 0; i < n && !s.ended; i++) { runDay(s); assert.ok(E.reconcile(s).ok, JSON.stringify(E.reconcile(s).problems)); } };
 const giveWh = (s, pid, qty) => { const v = Math.round(D.PRODUCTS.find(p => p.id === pid).cost * qty * 100) / 100; s.wh.area = Math.max(s.wh.area, 500); s.wh.qty[pid] += qty; s.wh.val[pid] = Math.round((s.wh.val[pid] + v) * 100) / 100;
@@ -131,9 +131,9 @@ test("market share is a sensible percentage and competitor prices are tracked fo
 });
 
 // ---------- whole-game integration ----------
-test("v14 saves migrate to v15 with all the new systems empty", () => {
+test("v14 saves migrate up to the current version with all the new systems empty", () => {
   const s = mk(); const raw = JSON.parse(JSON.stringify(s)); for (const k of ["hr", "mkt", "ecom", "srv", "bank", "kpi"]) delete raw[k]; raw.v = 14;
-  const r = E.validateSave(raw); assert.ok(r.ok, r.error); assert.equal(r.state.v, 15); assert.equal(r.state.bank.loans.length, 0); assert.equal(r.state.hr.staff.retail.n, 0);
+  const r = E.validateSave(raw); assert.ok(r.ok, r.error); assert.equal(r.state.v, D.SAVE_VERSION); assert.equal(r.state.bank.loans.length, 0); assert.equal(r.state.hr.staff.retail.n, 0);
 });
 test("a busy 30-day game using every module stays balanced and deterministic", () => {
   const run = () => { const s = mk({ capital: 250000, days: 35 }); E.rentWarehouse(s, 2500); giveWh(s, "noodles", 60000);

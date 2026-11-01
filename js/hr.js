@@ -15,6 +15,7 @@ export function newHr(seed = 0) {
 export const ensureHr = s => (s.hr = s.hr || newHr(s.seed));
 export const headcount = s => D.HR_ROLES.reduce((a, r) => a + ensureHr(s).staff[r.id].n, 0);
 export const wageOf = (s, role) => c(ROLE[role].wage * ensureHr(s).wageMult * (0.9 + 0.1 * ensureHr(s).staff[role].skill));
+export const factoryPayroll = s => c(ensureHr(s).staff.factory.n * wageOf(s, "factory"));
 export const dailyPayroll = s => c(D.HR_ROLES.reduce((a, r) => a + ensureHr(s).staff[r.id].n * wageOf(s, r.id), 0));
 
 export function hire(s, role, n = 1) {
@@ -38,7 +39,7 @@ export const operatorsNeeded = s => (s.fx ? s.fx.machines.reduce((a, m) => a + D
 export function crew(s) {                  // factory output and wear factors
   const need = operatorsNeeded(s); if (!need) return { out: 1, wear: 1, coverage: 1 };
   const h = ensureHr(s), st = h.staff.factory, coverage = Math.min(1, st.n / need);
-  return { coverage, out: (0.5 + 0.5 * coverage) * (0.9 + 0.1 * clamp(st.skill, 0.5, 1.6)), wear: clamp(1.2 - 0.2 * st.skill, 0.6, 1.3) };
+  return { coverage, out: (0.5 + 0.5 * coverage) * (0.9 + 0.1 * clamp(st.skill, 0.5, 1.6)) * (1 - D.HR_EFFECTS.moraleOutput + D.HR_EFFECTS.moraleOutput * h.morale / 100), wear: clamp(1.2 - 0.2 * st.skill, 0.6, 1.3) };
 }
 export const transferDiscount = s => D.HR_EFFECTS.transferCut * Math.min(1, ensureHr(s).staff.warehouse.n / 2) * (0.5 + ensureHr(s).morale / 200);
 export const salesEdge = s => D.HR_EFFECTS.salesEdge * Math.min(1, ensureHr(s).staff.sales.n / 2) * clamp(ensureHr(s).staff.sales.skill, D.HR_EFFECTS.skillMin, D.HR_EFFECTS.skillMax);
@@ -47,9 +48,9 @@ export const serviceCapacity = s => ensureHr(s).staff.service.n * D.SRV.perStaff
 export function hrDay(s) {
   const h = ensureHr(s), payroll = dailyPayroll(s);
   if (payroll > 0) {
-    const op = c(h.staff.factory.n * wageOf(s, "factory")), rest = c(payroll - op);
-    for (const [acct, amt, memo] of [["cogs_labor", op, "Factory wages"], ["wages", rest, "Wages"]]) payOut(s, acct, amt, `${memo} for day ${s.day}`);
-    h.paidTotal = c(h.paidTotal + payroll);
+    const rest = c(payroll - factoryPayroll(s));            // factory wages are paid by the factory (they become part of the goods made)
+    if (rest > 0) payOut(s, "wages", rest, `Wages for day ${s.day}`);
+    h.paidTotal = c(h.paidTotal + rest);
   }
   const people = headcount(s);
   if (h.training > 0 && people > 0) {

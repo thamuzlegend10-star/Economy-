@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -200,6 +200,9 @@ export const SCENES = [
 ];
 
 // Effect sizes of staff on the rest of the business (tunable). Everything is neutral until people are hired.
-export const HR_EFFECTS = { retailBoost: 0.10, transferCut: 0.15, salesEdge: 0.06, moraleDrift: 0.1, skillMin: 0.5, skillMax: 1.6 };
+export const HR_EFFECTS = { moraleOutput: 0.15, retailBoost: 0.10, transferCut: 0.15, salesEdge: 0.06, moraleDrift: 0.1, skillMin: 0.5, skillMax: 1.6 };
 // Business warning thresholds used by the warnings panel.
 export const WARN = { cashLow: 3000, csiLow: 60, moraleLow: 40, healthLow: 40, storageHigh: 0.9, stockDays: 1.5 };
+
+// Factory building: rented floor area. Machines need floor space. Rent and utilities are paid every day and become part of the cost of the goods made that day.
+export const FACTORY = { minArea: 100, maxArea: 5000, areaSteps: [100, 250, 500, 1000, 2500], rentPerM2: 1.1, utilitiesPerM2: 0.12 };

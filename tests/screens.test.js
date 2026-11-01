@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as E from "../js/engine.js";
+import * as F from "../js/factory.js";
 import * as D from "../js/data.js";
 import * as A from "../js/actions.js";
 import * as SC from "../js/screens.js";
 import * as UI from "../js/ui.js";
 import { balance } from "../js/ledger.js";
 
-const mk = (o = {}) => E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 200000, seed: 5, ...o });
+const mk = (o = {}) => { const s = E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 200000, seed: 5, ...o }); F.rentFactory(s, 500); return s; };
 const runDay = s => { const d = s.day; while (!s.ended && s.day === d) E.tick(s, 0.5); };
 const bad = html => /undefined|NaN|\[object|Infinity|null</.test(html);
 const ok = r => { assert.ok(r.ok, r.error); return r; };

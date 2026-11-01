@@ -26,7 +26,7 @@ const itemName = id => (E.PRODUCT[id] || F.JUICE[id] || { name: id }).name;
 const stat = (label, value, sub = "", c = "") => `<div class="stat"><small>${label}</small><b class="${c}">${value}</b>${sub ? `<small class="sub">${sub}</small>` : ""}</div>`;
 
 // ================= FACTORY =================
-export function factoryMachines(s) {
+export function factoryMachines(s, f = { farea: 250 }) {
   const fx = F.ensureFactory(s), jq = [0, 25, 50, 75, 100];
   const types = D.MACHINES.map(t => { const q = F.quoteMachine(s, t.id);
     return `<div class="card">${head(t.name, `${num(t.perDay)} bottles / day`)}${kv([["Price + setup", money(t.price + t.setup)], ["Depreciation", money2((t.price + t.setup) / t.life) + " / day"], ["Operators needed", t.operators], ["Wear", dec(t.wear) + " health / day"], ["Service", money(t.pmCost)]])}
@@ -39,7 +39,11 @@ export function factoryMachines(s) {
       <div class="row">${btn("pm", `Service · ${money(t.pmCost)}`, { id: m.id, ghost: true, dis: m.downDays > 0 })}<small class="muted">Stops about ${Math.round(t.pmDays * 24)} h, restores health</small></div></div>`; }).join("");
   const fg = D.JUICES.map(j => `<tr><td class="l"><span class="dot" style="background:${j.color}"></span> ${esc(j.name.replace(" (1 L)", ""))}</td><td>${num((fx.today && fx.today.made[j.id]) || 0)}</td><td>${num(fx.fg.qty[j.id])}</td><td>${fx.fg.qty[j.id] ? money2(fx.fg.val[j.id] / fx.fg.qty[j.id]) : "-"}</td></tr>`).join("");
   const cw = H.crew(s);
-  return `<div class="card">${head("Factory", "Bottles juice from raw materials")}<small class="muted">Each bottle needs the recipe's raw materials. Machines lose health as they run. Below ${D.MAINT.breakdownBelow}% they can break down: emergency repair costs ${D.MAINT.emergencyMult}× and the line stops 1 to 2 days. Operators come with the machine; with too few, output drops.</small>
+  const fa = F.ensureFactory(s).area, room = D.FACTORY.maxArea - fa;
+  const building = `<div class="card">${head("Factory building", fa ? num(fa) + " m²" : "not rented")}${kv([["Rent", `${money2(F.factoryRentPerM2(s))} / m² / day`], ["Utilities", `${money2(D.FACTORY.utilitiesPerM2)} / m² / day`], ["Floor space used", `${num(F.machineSpace(s))} of ${num(fa)} m²`], ["Running cost", money2(F.factoryRent(s) + F.factoryUtilities(s)) + " / day"]])}
+      <div class="row">${sel("farea", D.FACTORY.areaSteps.filter(x => x <= room || !room).map(x => [x, x + " m²"]), f.farea)}${btn("rentFactory", fa ? "Rent more" : "Rent factory", { dis: room <= 0, mini: false })}</div>
+      <small class="muted">Machines need floor space. Wages, rent and utilities of a day that made goods are added to the cost of those goods. On an idle day they are an expense.</small></div>`;
+  return `${building}<div class="card">${head("Factory", "Bottles juice from raw materials")}<small class="muted">Each bottle needs the recipe's raw materials. Machines lose health as they run. Below ${D.MAINT.breakdownBelow}% they can break down: emergency repair costs ${D.MAINT.emergencyMult}× and the line stops 1 to 2 days. Operators come with the machine; with too few, output drops.</small>
       ${kv([["Operators", `${num(s.hr.staff.factory.n)} of ${num(H.operatorsNeeded(s))}`], ["Crew output", pct(cw.out)], ["Goods in storage", num(F.fgSpace(s)) + " space"]])}</div>
     ${own || `<div class="card"><small class="muted">You have no machines yet. Buy one below.</small></div>`}
     <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">Juice</th><th>Made today</th><th>In stock</th><th>Cost each</th></tr></thead><tbody>${fg}</tbody></table></div>

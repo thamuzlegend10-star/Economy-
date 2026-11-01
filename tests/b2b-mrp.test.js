@@ -7,7 +7,7 @@ import * as M from "../js/mrp.js";
 import * as D from "../js/data.js";
 import { balance } from "../js/ledger.js";
 
-const mk = (o = {}) => E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 200000, seed: 5, ...o });
+const mk = (o = {}) => { const s = E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 200000, seed: 5, ...o }); F.rentFactory(s, 500); return s; };
 const runDay = s => { const d = s.day; while (!s.ended && s.day === d) E.tick(s, 0.5); };
 const until = (s, f, max = 40) => { for (let i = 0; i < max && !f(s) && !s.ended; i++) runDay(s); return f(s); };
 const giveWh = (s, pid, qty) => { const v = Math.round(D.PRODUCTS.find(p => p.id === pid).cost * qty * 100) / 100; s.wh.area = 500; s.wh.qty[pid] += qty; s.wh.val[pid] = Math.round((s.wh.val[pid] + v) * 100) / 100;
