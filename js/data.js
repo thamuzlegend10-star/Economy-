@@ -50,3 +50,151 @@ export const WH_SUPPLIERS = [
 ];
 // Moving goods from the warehouse to the shop: one trip fee plus a charge per space unit. Takes one day.
 export const TRANSFER = { fee: 120, rate: 0.0006, days: 1 };
+
+// =====================================================================================
+// MonsoonSIM spec, Phase 1: data for manufacturing, MRP, B2B, HR, marketing, e-commerce,
+// banking, carriers and scoring. Pure data. The engine reads it from Phase 2 on.
+// =====================================================================================
+
+// ---------- Raw materials (what factories buy) ----------
+// unit is how it is counted. space is storage per unit (same scale as PRODUCTS.space). cost is the base price per unit.
+export const RAW = [
+  { id: "appleConc",   name: "Apple concentrate",  unit: "L",      cost: 2.00,  space: 0.4,  color: "#9ad45a" },
+  { id: "orangePulp",  name: "Orange pulp",        unit: "L",      cost: 1.60,  space: 0.4,  color: "#ffa94d" },
+  { id: "melonSyrup",  name: "Melon syrup",        unit: "L",      cost: 2.40,  space: 0.4,  color: "#7fe0a8" },
+  { id: "water",       name: "Treated water",      unit: "L",      cost: 0.002, space: 0.1,  color: "#7cc4ff" },
+  { id: "bottles",     name: "Bottles (1 L)",      unit: "pcs",    cost: 0.12,  space: 0.15, color: "#b9c2d6" },
+  { id: "caps",        name: "Caps and labels",    unit: "pcs",    cost: 0.05,  space: 0.02, color: "#e8e1c8" },
+];
+
+// ---------- Manufactured finished goods (juices). Each unit is one 1 L bottle. ----------
+// bom: raw material units needed for one bottle. Same fields as PRODUCTS so shelves, pricing and demand can treat them alike.
+export const JUICES = [
+  { id: "apple",  name: "Apple juice (1 L)",  cat: "drinks", ref: 1.90, base: 800, elast: 1.9, space: 1, step: 0.05, color: "#9ad45a", note: "Steady seller",
+    bom: { appleConc: 0.20, water: 0.80, bottles: 1, caps: 1 } },
+  { id: "orange", name: "Orange juice (1 L)", cat: "drinks", ref: 1.90, base: 850, elast: 1.8, space: 1, step: 0.05, color: "#ffa94d", note: "Best seller",
+    bom: { orangePulp: 0.25, water: 0.75, bottles: 1, caps: 1 } },
+  { id: "melon",  name: "Melon juice (1 L)",  cat: "drinks", ref: 2.10, base: 450, elast: 1.6, space: 1, step: 0.05, color: "#7fe0a8", note: "Niche, better margin",
+    bom: { melonSyrup: 0.15, water: 0.85, bottles: 1, caps: 1 } },
+];
+
+// ---------- Machines ----------
+// perDay: bottles a machine can make per day at 100% health. life: days to depreciate to zero (straight line).
+// wear: health points lost per day running. pmCost: preventive maintenance price. pmDays: downtime of a service (4 to 8 hours).
+// operators: staff needed to run it. breakdownBelow: health under which a breakdown can happen. Emergency repair costs 3x pmCost and stops the line 1 to 2 days.
+export const MACHINES = [
+  { id: "std",  name: "Standard machine",   perDay: 1000, price: 12000, setup: 800,  life: 300, wear: 1.2, pmCost: 450,  pmDays: 0.25, operators: 1, space: 40 },
+  { id: "fast", name: "High-speed machine", perDay: 3000, price: 32000, setup: 1800, life: 300, wear: 2.0, pmCost: 1100, pmDays: 0.33, operators: 2, space: 90 },
+];
+export const MAINT = { breakdownBelow: 30, breakdownChance: 0.25, emergencyMult: 3, downMin: 1, downMax: 2, restoreTo: 100, startHealth: 100 };
+
+// ---------- Procurement: payment terms, requisitions ----------
+// price multiplies the supplier price. days is how long the invoice stays open.
+export const TERMS = [
+  { id: "cod",  name: "Cash on delivery", days: 0,  price: 1.00 },
+  { id: "net7",  name: "Net 7",           days: 7,  price: 1.01 },
+  { id: "net14", name: "Net 14",          days: 14, price: 1.02 },
+  { id: "net30", name: "Net 30",          days: 30, price: 1.035 },
+];
+export const PR = { approveDelayDays: 0 };   // a requisition is approved by the player, then becomes a purchase order
+
+// Raw material vendors: same shape as SUPPLIERS but they sell RAW items, priced by RAW.cost x price.
+export const RAW_VENDORS = [
+  { id: "agro",   name: "AgroPulp Co.",       desc: "Fruit concentrates, fair price.",   price: 1.00, reliability: 0.94, fee: 60,  rate: 0.00003, speed: 700, prep: 0.7, sells: ["appleConc", "orangePulp", "melonSyrup", "water"],
+    hubs: [{ n: "Jakarta", lat: -6.2, lon: 106.8 }, { n: "Singapore", lat: 1.35, lon: 103.8 }] },
+  { id: "packco", name: "PackCo Packaging",   desc: "Bottles and caps, low minimums.",   price: 1.00, reliability: 0.97, fee: 30,  rate: 0.00002, speed: 600, prep: 0.3, sells: ["bottles", "caps"],
+    hubs: [{ local: true, n: "Your district" }] },
+  { id: "globalr", name: "Global Raw Supply", desc: "Everything, cheapest, often late.", price: 0.90, reliability: 0.85, fee: 220, rate: 0.000018, speed: 900, prep: 1.2, sells: ["appleConc", "orangePulp", "melonSyrup", "water", "bottles", "caps"],
+    hubs: [{ n: "Tokyo", lat: 35.7, lon: 139.8 }, { n: "New York", lat: 40.7, lon: -74 }] },
+];
+
+// ---------- Warehouse overflow and internal logistics ----------
+export const OVERFLOW = { perSpacePerDay: 0.02 };    // dollars per space unit above 100% capacity, per day
+// Carriers for moving goods between sites. mult scales TRANSFER fee and rate. days is the lead time.
+export const CARRIERS = [
+  { id: "std",     name: "Standard freight", mult: 1.0, days: 2 },
+  { id: "express", name: "Express",          mult: 1.8, days: 1 },
+  { id: "courier", name: "Direct courier",   mult: 2.6, days: 0.5 },
+];
+
+// ---------- MRP ----------
+export const MRP = { horizonDays: 7, safetyDays: 2, orderCost: 80, holdRate: 0.0008 };   // holdRate: share of unit value per day, used for EOQ
+
+// ---------- B2B ----------
+// Institutional buyers post tenders. qty is drawn from [min,max], ceiling is a multiple of the product reference price.
+export const B2B = {
+  buyers: [
+    { id: "hotel",  name: "Grand Harbour Hotels", want: ["apple", "orange", "milk"],      qty: [4000, 20000],  ceiling: 1.05, penalty: 0.12, dueDays: [4, 8] },
+    { id: "uni",    name: "City University",       want: ["noodles", "milk", "earbuds"],  qty: [3000, 25000],  ceiling: 0.98, penalty: 0.10, dueDays: [5, 10] },
+    { id: "airline", name: "SkyLine Catering",     want: ["orange", "melon", "apple"],    qty: [6000, 30000],  ceiling: 1.10, penalty: 0.15, dueDays: [3, 7] },
+    { id: "chain",  name: "QuickMart Chain",       want: ["noodles", "apple", "earbuds"], qty: [10000, 50000], ceiling: 0.92, penalty: 0.08, dueDays: [6, 12] },
+  ],
+  tendersPerDay: [0, 2],                    // new tenders opened each day, inclusive
+  openDays: 2,                              // bidding stays open this many days
+  rivals: [
+    { id: "rA", name: "Northwind Supply", aggression: 0.86, reliability: 0.92 },
+    { id: "rB", name: "BlueCrate Ltd.",   aggression: 0.92, reliability: 0.85 },
+    { id: "rC", name: "Atlas Trading",    aggression: 0.80, reliability: 0.96 },
+  ],
+  // Winner score: lower price wins, reputation and reliability add weight. Weights sum to 1.
+  weights: { price: 0.6, reputation: 0.25, reliability: 0.15 },
+  fixedDeals: { perDay: [0, 1], discount: 0.04 },
+  latePenaltyPerDay: 0.02, reputationLoss: 8, reputationGain: 3,
+};
+
+// ---------- Human capital ----------
+// wage is dollars per person per day at wage multiplier 1. speed is the contribution at skill 1.
+export const HR_ROLES = [
+  { id: "retail",    name: "Cashiers and clerks",  wage: 38, per: "store lanes", note: "Checkout speed, customer satisfaction" },
+  { id: "warehouse", name: "Warehouse handlers",   wage: 42, per: "dock",        note: "Load speed, transfer lead time" },
+  { id: "factory",   name: "Machine operators",    wage: 55, per: "machine",     note: "Factory output, machine wear" },
+  { id: "sales",     name: "Sales representatives", wage: 70, per: "team",       note: "B2B win rate, retention" },
+  { id: "service",   name: "Service staff",        wage: 45, per: "desk",        note: "Resolves support tickets" },
+];
+export const HR = { wageMult: { min: 0.6, max: 1.6, def: 1.0 }, trainingBudget: { min: 0, max: 2000, def: 0 },
+  morale: { start: 70, min: 0, max: 100 }, turnoverBase: 0.004, skillStart: 1.0, trainingPerSkill: 400 };
+
+// ---------- Marketing ----------
+// reach is awareness points per 1000 dollars spent. decay is the share of awareness lost per day.
+export const MKT_CHANNELS = [
+  { id: "social",     name: "Social media", reach: 4.0, decay: 0.08, minBudget: 50,  note: "Cheap, short memory" },
+  { id: "search",     name: "Search ads",   reach: 3.0, decay: 0.12, minBudget: 50,  note: "Good for ready-to-buy shoppers" },
+  { id: "billboard",  name: "Billboards",   reach: 2.2, decay: 0.03, minBudget: 300, note: "Slow burn, long memory" },
+  { id: "radio",      name: "Radio",        reach: 2.6, decay: 0.05, minBudget: 200, note: "Broad local reach" },
+  { id: "influencer", name: "Influencers",  reach: 5.0, decay: 0.15, minBudget: 500, note: "Big spike, fades fast" },
+];
+export const MKT = { maxAwareness: 100, trafficLift: 0.35, priceSensitivityCut: 0.15, duration: { min: 1, max: 30, def: 7 } };
+
+// ---------- E-commerce ----------
+export const ECOM = { setupFee: 1500, hostingPerDay: 25, gatewayRate: 0.029, cpc: 0.35, baseConversion: 0.018, baseTraffic: 900,
+  pickPackPerOrder: 0.9, parcelPerOrder: 2.6, parcelDays: 2, escrowReleaseDays: 2, catalogMax: 6 };
+
+// ---------- Banking ----------
+// Rates are per day, compounding daily.
+export const BANK = {
+  overdraft: { limit: 20000, rate: 0.0009 },
+  credit:    { limit: 60000, rate: 0.0006, termDays: 30 },
+  equipment: { rate: 0.0004, termsDays: [60, 120, 240], maxShareOfPrice: 0.8 },
+  longTerm:  { rate: 0.0003, minAmount: 25000 },
+  taxRate: 0.18,
+};
+
+// ---------- Service and customer satisfaction ----------
+export const SRV = { csiStart: 80, ticketRate: 0.004, perStaffPerDay: 40, lateDeliveryHit: 0.5, defectHit: 1.5, stockoutHit: 0.01, repGain: 0.02 };
+
+// ---------- Scoring matrix: key, label, default weight. Weights are re-normalised so they sum to 1. ----------
+export const KPIS = [
+  { id: "netProfit",   name: "Net profit",           unit: "$", weight: 0.25 },
+  { id: "revenue",     name: "Total revenue",        unit: "$", weight: 0.10 },
+  { id: "roa",         name: "Return on assets",     unit: "%", weight: 0.15 },
+  { id: "serviceLevel", name: "Service level",       unit: "%", weight: 0.15 },
+  { id: "marketShare", name: "Market share",         unit: "%", weight: 0.10 },
+  { id: "csi",         name: "Customer satisfaction", unit: "pts", weight: 0.10 },
+  { id: "morale",      name: "Staff morale",         unit: "%", weight: 0.05 },
+  { id: "solvency",    name: "Cash and solvency",    unit: "x", weight: 0.10 },
+];
+
+// ---------- Scenes ----------
+export const SCENES = [
+  { id: "store", name: "Store" }, { id: "warehouse", name: "Warehouse" }, { id: "factory", name: "Factory" }, { id: "district", name: "District" },
+];
