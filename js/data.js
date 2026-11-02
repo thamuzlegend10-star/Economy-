@@ -199,7 +199,7 @@ export const KPIS = [
 
 // ---------- Scenes ----------
 export const SCENES = [
-  { id: "store", name: "Store" }, { id: "warehouse", name: "Warehouse" }, { id: "factory", name: "Factory" }, { id: "district", name: "District" },
+  { id: "store", name: "Store" }, { id: "warehouse", name: "Warehouse" }, { id: "city", name: "City" }, { id: "factory", name: "Factory" }, { id: "yard", name: "Yard" }, { id: "bank", name: "Bank" },
 ];
 
 // Effect sizes of staff on the rest of the business (tunable). Everything is neutral until people are hired.

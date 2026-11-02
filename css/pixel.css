@@ -175,8 +175,8 @@ html, body, * { scrollbar-width:none; -ms-overflow-style:none; }
 *::-webkit-scrollbar { display:none; width:0; height:0; }
 
 /* Scene switcher on the picture */
-.scene-tabs { position:absolute; left:8px; bottom:8px; display:flex; gap:4px; }
-.scene-tabs button { min-height:28px; padding:2px 8px; font-size:.72rem; background:rgba(10,14,25,.85); color:var(--fg); border-color:var(--px-hi); }
+.scene-tabs { position:absolute; left:8px; right:8px; bottom:8px; display:flex; flex-wrap:wrap; gap:4px; }
+.scene-tabs button { min-height:28px; padding:2px 7px; font-size:.72rem; background:rgba(10,14,25,.85); color:var(--fg); border-color:var(--px-hi); }
 .scene-tabs button.on { background:var(--brass); color:var(--brass-ink); border-color:var(--px-edge); }
 
 /* Module screens: factory, B2B, HR, marketing, e-commerce, bank, statements, scoring */

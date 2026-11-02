@@ -1,7 +1,8 @@
 // The scenes. They only DRAW what the engine already did: shoppers appear for real sales and real missed sales, trucks for real
-// deliveries and transfers, shelves and racks show real stock. Three views: Store interior, Warehouse yard, City district.
+// deliveries and transfers, shelves and racks show real stock. Six views: Store interior, Warehouse yard, City district, Factory floor, Truck yard, Bank.
 import * as E from "./engine.js";
-import { PRODUCTS } from "./data.js";
+import { PRODUCTS, MACHINES, RAW, BANK } from "./data.js";
+import { balance } from "./ledger.js";
 import { getLocation } from "./locations.js";
 
 const W = 640, H = 320, FONT = '"Pixelify Sans", ui-monospace, monospace';
@@ -125,9 +126,75 @@ export function createScene(canvas, { getState }) {
     txt(ctx, `${L.name}`, 12, 12, 12, "#f2a93b", "left", 700); txt(ctx, `${s.orders.length} truck${s.orders.length === 1 ? "" : "s"} on the road`, W - 10, 12, 11, "#9aa7c4", "right");
   }
 
+
+  const money = n => "$" + Math.round(n).toLocaleString("en-US");
+  const bar = (x, y, w, h, v, color, back = "#10172b") => { px(ctx, x, y, w, h, back); px(ctx, x + 1, y + 1, Math.max(0, Math.round((w - 2) * Math.min(1, Math.max(0, v)))), h - 2, color); };
+  const STATUS = { running: "#6fd3a0", idle: "#6b7390", broken: "#f0647a" };
+
+  // Factory floor: one cell per real machine (colour = status, bar = health), raw material tanks on the left, finished bottles on the right.
+  function drawFactory(s) {
+    const fx = s.fx; px(ctx, 0, 0, W, H, "#1b2236"); px(ctx, 0, 0, W, 60, "#26324f"); for (let x = 0; x < W; x += 64) px(ctx, x + 8, 12, 48, 26, "#121a2c");
+    txt(ctx, fx.area ? `FACTORY  ${fx.area} m²` : "NO FACTORY YET", 12, 12, 12, "#f2a93b", "left", 700);
+    if (!fx.area) { px(ctx, 120, 90, 400, 150, "#171d30"); txt(ctx, "Empty lot", 320, 150, 16, "#9aa7c4"); txt(ctx, "Rent space in Factory, Machines", 320, 180, 11, "#9aa7c4"); return; }
+    px(ctx, 0, 60, W, 260, "#2a2f3f"); for (let y = 70; y < H; y += 26) px(ctx, 0, y, W, 1, "#323849");
+    RAW.slice(0, 6).forEach((r, i) => {                                      // raw material tanks, 3 per row
+      const x = 10 + (i % 3) * 36, y = 74 + Math.floor(i / 3) * 90, q = fx.raw.qty[r.id] || 0, fill = Math.min(1, q / (r.id === "bottles" || r.id === "caps" ? 20000 : 5000));
+      px(ctx, x, y, 30, 56, "#10172b"); px(ctx, x + 2, y + 2 + Math.round(52 * (1 - fill)), 26, Math.round(52 * fill), r.color || "#6aa9ff"); px(ctx, x, y + 56, 30, 3, "#6b7390");
+      txt(ctx, r.id.replace(/Conc$/, "").toUpperCase().slice(0, 6), x + 15, y + 68, 6, q > 0 ? "#9aa7c4" : "#f0647a");
+    });
+    const ms = fx.machines.slice(0, 6);
+    if (!ms.length) txt(ctx, "No machines bought yet", 330, 190, 14, "#9aa7c4");
+    ms.forEach((m, i) => {
+      const x = 126 + (i % 3) * 138, y = 84 + Math.floor(i / 3) * 112, col = STATUS[m.status] || STATUS.idle, t = MACHINES.find(z => z.id === m.type);
+      px(ctx, x, y, 120, 84, "#10172b"); px(ctx, x + 4, y + 4, 112, 50, "#1d2742"); px(ctx, x + 4, y + 4, 112, 6, col);
+      for (let k = 0; k < 7; k++) { const on = m.status === "running" ? (Math.floor(st.t * 6) + k) % 3 === 0 : false; px(ctx, x + 10 + k * 15, y + 36, 9, 10, on ? "#ffd36b" : "#2c3a5e"); }  // conveyor lights chase while running
+      if (m.status === "broken" && Math.sin(st.t * 8) > 0) txt(ctx, "!", x + 60, y + 28, 22, "#f0647a", "center", 700);
+      txt(ctx, m.name.toUpperCase(), x + 60, y + 62, 8, "#e9edf7"); bar(x + 8, y + 70, 104, 7, m.health / 100, m.health < 40 ? "#f0647a" : m.health < 70 ? "#f2a93b" : "#6fd3a0", "#05070d");
+      if (m.status === "broken") for (let k = 0; k < 3; k++) { const a = ((st.t * 0.6 + k / 3) % 1); ctx.globalAlpha = 1 - a; px(ctx, x + 40 + k * 14 + Math.sin(st.t * 3 + k) * 4, y - 4 - a * 26, 8, 8, "#6b7390"); ctx.globalAlpha = 1; }
+    });
+    const made = fx.today ? Object.values(fx.today.made || {}).reduce((a, b) => a + b, 0) : 0, stock = Object.values(fx.fg.qty).reduce((a, b) => a + b, 0), crew = s.hr ? s.hr.staff.factory.n : 0;
+    px(ctx, 548, 74, 80, 150, "#10172b"); txt(ctx, "BOTTLES", 588, 86, 9, "#9aa7c4");
+    const rows = Math.min(10, Math.ceil(stock / 2000)); for (let r = 0; r < rows; r++) px(ctx, 558, 184 - r * 8, 60, 6, "#6fd3a0");
+    txt(ctx, `${stock.toLocaleString("en-US")} in stock`, 588, 206, 8, "#e9edf7"); txt(ctx, `${made.toLocaleString("en-US")} made today`, 588, 216, 8, "#9aa7c4");
+    txt(ctx, `${crew} operator${crew === 1 ? "" : "s"}`, 628, 12, 11, "#9aa7c4", "right");
+  }
+
+  // Truck yard: one bay per owned truck. Parked, driving out and back, or broken down, with health and the driver count.
+  function drawYard(s) {
+    const f = s.fleet, drivers = s.hr ? s.hr.staff.driver.n : 0, out = f.trucks.filter(k => k.status === "out").length;
+    px(ctx, 0, 0, W, H, "#22352f"); px(ctx, 0, 0, W, 70, "#26324f"); px(ctx, 0, 70, W, 250, "#2a2f3f"); px(ctx, 0, 250, W, 40, "#3a3f4f"); for (let x = 0; x < W; x += 40) px(ctx, x + 8, 268, 22, 3, "#d9d3b8");
+    px(ctx, 20, 14, 120, 46, "#171d30"); txt(ctx, "TRUCK YARD", 80, 38, 11, "#f2a93b", "center", 700);
+    txt(ctx, `${f.trucks.length} truck${f.trucks.length === 1 ? "" : "s"} · ${drivers} driver${drivers === 1 ? "" : "s"} · ${out} on the road`, W - 10, 12, 11, "#9aa7c4", "right");
+    if (!f.trucks.length) { txt(ctx, "No trucks yet", 320, 160, 16, "#9aa7c4"); txt(ctx, "Buy one in Shipping, My Fleet", 320, 186, 11, "#9aa7c4"); return; }
+    f.trucks.slice(0, 8).forEach((k, i) => {
+      const bx = 16 + (i % 4) * 154, by = 92 + Math.floor(i / 4) * 80, col = k.type === "van" ? "#6aa9ff" : "#f2a93b";
+      px(ctx, bx, by, 146, 62, "#171d30"); for (let z = 0; z < 6; z++) px(ctx, bx + 4 + z * 24, by + 58, 14, 2, "#f2a93b");
+      if (k.status === "out") { const p = (st.t * 0.25 + i * 0.37) % 1, x = -70 + (W + 140) * p; truck(x, 262, col, 1); txt(ctx, "empty bay", bx + 73, by + 28, 9, "#6b7390"); }
+      else { truck(bx + 10, by + 50, col, 1); if (k.status === "down") { if (Math.sin(st.t * 6) > 0) txt(ctx, "!", bx + 40, by + 4, 18, "#f0647a", "center", 700); } }
+      txt(ctx, `${k.name.toUpperCase()} · ${k.status === "down" ? "BROKEN" : k.status === "out" ? "ON ROAD" : "READY"}`, bx + 73, by + 8, 8, k.status === "down" ? "#f0647a" : "#e9edf7");
+      bar(bx + 90, by + 40, 50, 6, k.health / 100, k.health < 30 ? "#f0647a" : k.health < 60 ? "#f2a93b" : "#6fd3a0", "#05070d");
+    });
+  }
+
+  // Bank: the vault shows cash, the meters show how much credit, loans, overdraft and tax you owe.
+  function drawBank(s) {
+    const cash = balance(s.ledger, "cash"), od = balance(s.ledger, "overdraft"), b = s.bank, cr = b ? b.credit.bal : 0, loans = b ? b.loans.reduce((a, l) => a + l.balance, 0) : 0, tax = balance(s.ledger, "tax_payable");
+    px(ctx, 0, 0, W, H, "#1b2236"); px(ctx, 0, 250, W, 70, "#3a3f4f");
+    px(ctx, 40, 40, 250, 210, "#2c3a5e"); px(ctx, 30, 30, 270, 14, "#f2a93b"); for (let i = 0; i < 4; i++) px(ctx, 60 + i * 56, 56, 30, 150, "#e4dfd0"); px(ctx, 40, 206, 250, 10, "#9aa7c4"); px(ctx, 130, 216, 70, 34, "#10172b");
+    txt(ctx, "BANK", 165, 20, 12, "#f2a93b", "center", 700);
+    px(ctx, 330, 50, 140, 150, "#10172b"); px(ctx, 338, 58, 124, 134, "#232c47"); const open = cash > 0; px(ctx, 396, 112, 8, 8, open ? "#6fd3a0" : "#f0647a");
+    txt(ctx, "VAULT", 400, 74, 10, "#9aa7c4"); txt(ctx, money(cash), 400, 150, cash > 99999 ? 14 : 18, cash >= 0 ? "#e9edf7" : "#f0647a", "center", 700);
+    for (let i = 0; i < Math.min(6, Math.floor(Math.max(0, cash) / 10000)); i++) px(ctx, 346 + i * 18, 172, 14, 12, "#6fd3a0");
+    const meters = [["Overdraft", od, BANK.overdraft.limit, "#f0647a"], ["Credit line", cr, BANK.credit.limit, "#f2a93b"], ["Loans", loans, Math.max(loans, 50000), "#6aa9ff"], ["Tax due", tax, Math.max(tax, 5000), "#c79bff"]];
+    meters.forEach(([n, v, lim, col], i) => { const y = 56 + i * 46; txt(ctx, n.toUpperCase(), 490, y, 9, "#9aa7c4", "left"); bar(490, y + 8, 140, 10, lim ? v / lim : 0, col); txt(ctx, money(v), 630, y + 30, 10, v > 0 ? "#e9edf7" : "#6b7390", "right"); });
+    txt(ctx, od > 0 ? "OVERDRAFT: repay now" : "ACCOUNT OK", 330, 222, 11, od > 0 ? "#f0647a" : "#6fd3a0", "left", 700);
+    txt(ctx, `${b ? b.loans.length : 0} loan${b && b.loans.length === 1 ? "" : "s"} open`, 330, 238, 10, "#9aa7c4", "left");
+  }
+
+  const VIEWS = { store: drawStore, warehouse: drawWarehouse, city: drawCity, factory: drawFactory, yard: drawYard, bank: drawBank };
   function draw(s) {
     ctx.setTransform(canvas.width / W, 0, 0, canvas.width / W, 0, 0); ctx.imageSmoothingEnabled = false;
-    (st.view === "warehouse" ? drawWarehouse : st.view === "city" ? drawCity : drawStore)(s);
+    (VIEWS[st.view] || drawStore)(s);
     if (s.ended) { px(ctx, 0, 0, W, H, "rgba(5,8,20,.6)"); txt(ctx, s.ended.reason === "bankrupt" ? "BANKRUPT" : "FINISHED", W / 2, H / 2, 22, "#f2a93b", "center", 700); }
   }
   let last = performance.now();
@@ -135,7 +202,7 @@ export function createScene(canvas, { getState }) {
   requestAnimationFrame(frame);
   return {
     reset() { st.shoppers = []; st.pings = []; st.inbound = []; st.outbound = []; st.cursor = null; st.saleQty = {}; st.lostSeen = null; },
-    setView(v) { if (["store", "warehouse", "city"].includes(v)) st.view = v; },
+    setView(v) { if (VIEWS[v]) st.view = v; },
     get view() { return st.view; },
   };
 }
