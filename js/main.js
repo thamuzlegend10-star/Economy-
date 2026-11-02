@@ -118,12 +118,12 @@ $("spDlg").addEventListener("click", e => {
 });
 const PB = () => (ui.poMode === "wh" ? ui.whbuy : ui.buy);
 function renderTr() { if (s) $("trBody").innerHTML = UI.transferForm(s, ui.tr); }
-$("trDlg").addEventListener("change", e => { const t = e.target, pid = t.dataset && t.dataset.pid; if (!pid || !t.id.startsWith("trQty-")) return; ui.tr.qty[pid] = t.value === "all" ? s.wh.qty[pid] : Number(t.value); renderTr(); });
+$("trDlg").addEventListener("change", e => { const t = e.target, pid = t.dataset && t.dataset.pid; if (t.id === "trCarrier") { ui.tr.carrier = t.value; renderTr(); return; } if (!pid || !t.id.startsWith("trQty-")) return; ui.tr.qty[pid] = t.value === "all" ? s.wh.qty[pid] : Number(t.value); renderTr(); });
 $("trDlg").addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || !s) return;
   if (t.id === "trX" || t.id === "trCancel") $("trDlg").close();
   else if (t.id === "trSubmit") {
-    const r = E.sendToRetail(s, { lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: ui.tr.qty[p.id] || 0 })) });
+    const r = E.sendToRetail(s, { carrier: ui.tr.carrier, lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: ui.tr.qty[p.id] || 0 })) });
     if (!r.ok) { toast(r.error, "err"); renderTr(); return; }
     $("trDlg").close(); toast(`Sent to the shop. Arrives day ${r.eta}.`, "ok"); save(); goto("shipping", "tx");
   }
@@ -133,6 +133,7 @@ function renderPo() { if (s) { $("poTitle").textContent = ui.poMode === "wh" ? "
 $("poDlg").addEventListener("change", e => {
   const t = e.target, pid = t.dataset && t.dataset.pid, B = PB(), wh = ui.poMode === "wh", ch = wh ? D.WH_QTY : D.QTY_CHOICES, lo = wh ? D.WH.minQty : 1, hi = wh ? D.WH.maxQty : D.MAX_QTY;
   if (t.id === "poSup") B.sup = t.value;
+  else if (t.id === "poCarrier") B.carrier = t.value;
   else if (pid && t.id.startsWith("poQty-")) { if (t.value === "custom") { const n = B.qty[pid]; B.qty[pid] = n > 0 && !ch.includes(n) ? n : (wh ? D.WH.minQty : 500); } else B.qty[pid] = Number(t.value); }
   else if (pid && t.id.startsWith("poCustom-")) { const v = Math.round(Number(t.value)); B.qty[pid] = v >= 1 ? Math.min(hi, Math.max(lo, v)) : 0; }
   else return;
@@ -142,7 +143,7 @@ $("poDlg").addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || !s) return;
   if (t.id === "poX" || t.id === "poCancel") $("poDlg").close();
   else if (t.id === "poSubmit") {
-    const B = PB(), r = E.placeOrders(s, { supplier: B.sup, dest: ui.poMode === "wh" ? "wh" : "retail", lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: B.qty[p.id] || 0 })) });
+    const B = PB(), r = E.placeOrders(s, { supplier: B.sup, dest: ui.poMode === "wh" ? "wh" : "retail", carrier: B.carrier, lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: B.qty[p.id] || 0 })) });
     if (!r.ok) { toast(r.error, "err"); renderPo(); return; }
     $("poDlg").close(); toast(`Ordered ${r.orders.length} item${r.orders.length > 1 ? "s" : ""}. Arrives day ${r.eta}.`, "ok"); save(); goto("shipping", "tx");
   }

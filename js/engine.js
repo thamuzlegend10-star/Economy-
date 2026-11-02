@@ -6,6 +6,7 @@ import * as D from "./data.js";
 import { newFactory, factoryArrivals, factoryDay, rawUnitsUsedSpace, fgSpace } from "./factory.js";
 import { newB2B, b2bDay } from "./b2b.js";
 import { newMrp, mrpDay } from "./mrp.js";
+import { ensureFleet, newFleet as newFleetState, planTrip, dispatch, fleetDay } from "./fleet.js";
 import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
 import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut, csiFactor } from "./market.js";
 import { newBank, bankDay } from "./bank.js";
@@ -44,7 +45,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
+    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
   for (const sp of ALL_SUP) { s.supIdx[sp.id] = 1; }
@@ -154,7 +155,7 @@ export function quote(s, supId, pid, qty) {
 
 // A purchase order can carry several products from one supplier. It is all-or-nothing: one quote, one payment, one shipping fee,
 // and one shipment record per product (so each product's delivery shows on its own line).
-export function quoteMulti(s, supId, lines, dest = "retail") {
+export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired") {
   const wh = dest === "wh", sp = SUPPLIER[supId];
   if (!sp || (wh ? !D.WH_SUPPLIERS.includes(sp) : !D.SUPPLIERS.includes(sp))) return err("Unknown supplier.");
   if (wh && s.wh.area <= 0) return err("Rent a warehouse first.");
@@ -177,26 +178,32 @@ export function quoteMulti(s, supId, lines, dest = "retail") {
     const ship = c(sp.rate * km * l.qty * p.space * L.logistics);
     return { pid: l.pid, qty: l.qty, discount: disc, baseUnit, unit, goods, ship, space: l.qty * p.space };
   });
-  const fee = c(sp.fee * L.logistics), goods = c(out.reduce((a, l) => a + l.goods, 0)), ship = c(fee + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship);
+  let fee = c(sp.fee * L.logistics), goods = c(out.reduce((a, l) => a + l.goods, 0)), ship = c(fee + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship);
   const space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = wh ? whFree(s) : spaceFree(s);
+  let plan = null, dd = days;
+  if (carrier === "own") {
+    plan = planTrip(s, { km, space, prep: sp.prep });
+    if (!plan.ok) errors.push(plan.error); else { dd = plan.days; fee = 0; ship = plan.fuel; total = c(goods + ship); for (const l of out) l.ship = c(plan.fuel * l.space / (space || 1)); }
+  }
   if (total > cash + 0.004) errors.push(`Not enough cash: need $${total.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
   if (space > free) errors.push(`Not enough ${wh ? "warehouse " : ""}storage: this needs ${Math.round(space).toLocaleString("en-US")} space, ${Math.max(0, Math.floor(free)).toLocaleString("en-US")} free (stock and shipments on the way count). Rent more space or order less.`);
-  return { supplier: supId, dest, km, days, eta: s.day + days, lines: out, fee, goods, ship, total, space, reliability: sp.reliability, errors, ok: !errors.length };
+  return { supplier: supId, dest, carrier, plan, km, days: dd, eta: s.day + dd, lines: out, fee, goods, ship, total, space, reliability: sp.reliability, errors, ok: !errors.length };
 }
 
-export function placeOrders(s, { supplier, lines, dest = "retail" } = {}) {
+export function placeOrders(s, { supplier, lines, dest = "retail", carrier = "hired" } = {}) {
   if (s.ended) return err("The game is over.");
-  const q = quoteMulti(s, supplier, lines, dest);
+  const q = quoteMulti(s, supplier, lines, dest, carrier);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
-  const late = rnd(s) > SUPPLIER[supplier].reliability ? 1 : 0, made = [];
+  const own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "supplier pickup") : 0;
+  const late = (rnd(s) > SUPPLIER[supplier].reliability ? 1 : 0) + haul, made = [];
   q.lines.forEach((l, i) => {
-    const o = { id: ++s.orderSeq, sup: supplier, dest, pid: l.pid, qty: l.qty, unit: l.unit, goods: l.goods, ship: c(l.ship + (i === 0 ? q.fee : 0)), placed: s.day, eta: q.eta + late, delayed: late === 1, km: q.km };
+    const o = { id: ++s.orderSeq, sup: supplier, dest, pid: l.pid, qty: l.qty, unit: l.unit, goods: l.goods, ship: c(l.ship + (i === 0 ? q.fee : 0)), placed: s.day, eta: q.eta + late, delayed: late > 0, km: q.km, carrier: q.carrier };
     s.orders.push(o); s.stats.orders++; s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
   });
-  post(s.ledger, s.day, `Purchase order ${made.map(o => "#" + o.id).join(", ")} from ${SUPPLIER[supplier].name}${dest === "wh" ? " (to warehouse)" : ""}`, [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, { acct: "cash", cr: q.total }], "order:" + made[0].id);
+  post(s.ledger, s.day, `Purchase order ${made.map(o => "#" + o.id).join(", ")} from ${SUPPLIER[supplier].name}${dest === "wh" ? " (to warehouse)" : ""}`, own ? [{ acct: "transit", dr: q.goods }, { acct: "cash", cr: q.goods }] : [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, { acct: "cash", cr: q.total }], "order:" + made[0].id);
   s.today.ship = c(s.today.ship + q.ship);
-  log(s, `Ordered ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} for $${q.total.toFixed(2)}${dest === "wh" ? " to the warehouse" : ""}. Arrives day ${q.eta + late}${late ? " (delayed a day)" : ""}.`);
+  log(s, `Ordered ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} for $${q.total.toFixed(2)}${dest === "wh" ? " to the warehouse" : ""}. Arrives day ${q.eta + late}${late ? " (delayed)" : ""}${own ? " by your own truck" : ""}.`);
   return ok({ orders: made, order: made[0], total: q.total, eta: q.eta + late });
 }
 
@@ -248,7 +255,7 @@ export function rentWarehouse(s, extra) {
   return ok({ area: s.wh.area, rent: q.newRent });
 }
 // Send goods from the warehouse to the shop. One trip fee plus a charge per space unit; arrives after one day; all-or-nothing.
-export function quoteTransfer(s, lines) {
+export function quoteTransfer(s, lines, carrier = "hired") {
   if (s.wh.area <= 0) return err("Rent a warehouse first.");
   const seen = new Set(), items = [];
   for (const l of Array.isArray(lines) ? lines : []) {
@@ -263,26 +270,31 @@ export function quoteTransfer(s, lines) {
     const value = !have ? 0 : l.qty >= have ? s.wh.val[l.pid] : c(s.wh.val[l.pid] / have * l.qty);
     return { pid: l.pid, qty: l.qty, value, fee: c(D.TRANSFER.rate * l.qty * p.space * (1 - transferDiscount(s))), space: l.qty * p.space };
   });
-  const trip = c(D.TRANSFER.fee * (1 - transferDiscount(s))), fee = c(trip + out.reduce((a, l) => a + l.fee, 0)), space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = spaceFree(s);
+  let trip = c(D.TRANSFER.fee * (1 - transferDiscount(s))), fee = c(trip + out.reduce((a, l) => a + l.fee, 0)); const space = out.reduce((a, l) => a + l.space, 0), cash = balance(s.ledger, "cash"), free = spaceFree(s);
+  let plan = null, days = D.TRANSFER.days;
+  if (carrier === "own") {
+    plan = planTrip(s, { km: D.TRANSPORT.localKm, space });
+    if (!plan.ok) errors.push(plan.error); else { days = plan.days; trip = plan.fuel; fee = plan.fuel; for (const l of out) l.fee = 0; }
+  }
   if (fee > cash + 0.004) errors.push(`Not enough cash for the transfer fee: need $${fee.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
   if (space > free) errors.push(`Not enough space in the shop: this needs ${Math.round(space).toLocaleString("en-US")} space, ${Math.max(0, Math.floor(free)).toLocaleString("en-US")} free. Rent more shop space or send less.`);
-  return { lines: out, fee, trip, space, days: D.TRANSFER.days, eta: s.day + D.TRANSFER.days, value: c(out.reduce((a, l) => a + l.value, 0)), errors, ok: !errors.length };
+  return { lines: out, carrier, plan, fee, trip, space, days, eta: s.day + days, value: c(out.reduce((a, l) => a + l.value, 0)), errors, ok: !errors.length };
 }
-export function sendToRetail(s, { lines } = {}) {
+export function sendToRetail(s, { lines, carrier = "hired" } = {}) {
   if (s.ended) return err("The game is over.");
-  const q = quoteTransfer(s, lines);
+  const q = quoteTransfer(s, lines, carrier);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
-  const made = [];
+  const own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "warehouse to shop") : 0, made = [];
   q.lines.forEach((l, i) => {
-    const o = { id: ++s.orderSeq, sup: "wh", kind: "transfer", dest: "retail", pid: l.pid, qty: l.qty, unit: l.qty ? c(l.value / l.qty) : 0, goods: l.value, ship: c(l.fee + (i === 0 ? q.trip : 0)), placed: s.day, eta: q.eta, delayed: false, km: 0 };
+    const o = { id: ++s.orderSeq, sup: "wh", kind: "transfer", dest: "retail", pid: l.pid, qty: l.qty, unit: l.qty ? c(l.value / l.qty) : 0, goods: l.value, ship: c(l.fee + (i === 0 ? q.trip : 0)), placed: s.day, eta: q.eta + haul, delayed: haul > 0, km: 0, carrier: q.carrier };
     s.wh.qty[l.pid] -= l.qty; s.wh.val[l.pid] = c(s.wh.val[l.pid] - l.value); s.orders.push(o); s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
   });
-  post(s.ledger, s.day, `Transfer ${made.map(o => "#" + o.id).join(", ")} from the warehouse to the shop`, [{ acct: "transit", dr: q.value }, { acct: "inventory", cr: q.value }, { acct: "delivery", dr: q.fee }, { acct: "cash", cr: q.fee }], "transfer:" + made[0].id);
+  post(s.ledger, s.day, `Transfer ${made.map(o => "#" + o.id).join(", ")} from the warehouse to the shop`, own ? [{ acct: "transit", dr: q.value }, { acct: "inventory", cr: q.value }] : [{ acct: "transit", dr: q.value }, { acct: "inventory", cr: q.value }, { acct: "delivery", dr: q.fee }, { acct: "cash", cr: q.fee }], "transfer:" + made[0].id);
   s.today.ship = c(s.today.ship + q.fee);
   for (const o of made) s.feed.push({ id: ++s.feedSeq, kind: "out", pid: o.pid, qty: o.qty });
-  log(s, `Sent ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} to the shop for $${q.fee.toFixed(2)}. Arrives day ${q.eta}.`);
-  return ok({ orders: made, fee: q.fee, eta: q.eta });
+  log(s, `Sent ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} to the shop for $${q.fee.toFixed(2)}. Arrives day ${q.eta + haul}.`);
+  return ok({ orders: made, fee: q.fee, eta: q.eta + haul });
 }
 
 // ---------- renting more space ----------
@@ -352,7 +364,7 @@ function closeDay(s) {
   const lines = [{ acct: "rent", dr: rent }];
   if (pay > 0) lines.push({ acct: "cash", cr: pay }); if (over > 0) lines.push({ acct: "overdraft", cr: over });
   post(s.ledger, day, `Rent for day ${day}`, lines, "rent:" + day); s.today.rent = rent;
-  factoryDay(s); hrDay(s); mktDay(s); ecomDay(s); overflowDay(s); bankDay(s); srvDay(s);
+  factoryDay(s); hrDay(s); mktDay(s); ecomDay(s); overflowDay(s); bankDay(s); srvDay(s); fleetDay(s);
   const od = balance(s.ledger, "overdraft"), cashNow = balance(s.ledger, "cash"), repay = c(Math.min(od, Math.max(0, cashNow)));
   if (repay > 0) post(s.ledger, day, "Overdraft repaid from cash", [{ acct: "overdraft", dr: repay }, { acct: "cash", cr: repay }]);
   s.overdraftDays = balance(s.ledger, "overdraft") > 0 ? s.overdraftDays + 1 : 0;
@@ -381,8 +393,8 @@ export function reconcile(s) {
   const fx = s.fx, fxv = o => c(Object.values(o.val).reduce((a, v) => a + v, 0));
   if (Math.abs(fxv(fx.raw) - balance(s.ledger, "inv_raw")) > 0.05) problems.push("Raw material value differs from the ledger.");
   if (Math.abs(fxv(fx.fg) - balance(s.ledger, "inv_fg")) > 0.05) problems.push("Factory finished goods differ from the ledger.");
-  if (Math.abs(c(fx.machines.reduce((a, m) => a + m.cost, 0)) - balance(s.ledger, "machinery")) > 0.05) problems.push("Machinery differs from the ledger.");
-  if (Math.abs(c(fx.machines.reduce((a, m) => a + m.deprec, 0)) + balance(s.ledger, "acc_deprec")) > 0.05) problems.push("Depreciation differs from the ledger.");
+  if (Math.abs(c(fx.machines.reduce((a, m) => a + m.cost, 0) + ensureFleet(s).trucks.reduce((a, k) => a + k.cost, 0)) - balance(s.ledger, "machinery")) > 0.05) problems.push("Machinery differs from the ledger.");
+  if (Math.abs(c(fx.machines.reduce((a, m) => a + m.deprec, 0) + ensureFleet(s).trucks.reduce((a, k) => a + k.deprec, 0)) + balance(s.ledger, "acc_deprec")) > 0.05) problems.push("Depreciation differs from the ledger.");
   if (Math.abs(c(fx.payables.reduce((a, p) => a + p.amount, 0)) - balance(s.ledger, "payables")) > 0.05) problems.push("Supplier invoices differ from the ledger.");
   const bk = s.bank; if (Math.abs(c(bk.credit.bal) - balance(s.ledger, "credit")) > 0.05) problems.push("Credit line differs from the ledger.");
   if (Math.abs(c(bk.loans.reduce((a, l) => a + l.balance, 0)) - balance(s.ledger, "longdebt")) > 0.05) problems.push("Loans differ from the ledger.");
@@ -410,6 +422,7 @@ export function validateSave(raw) {
   if (o && o.v === 13) { o.v = 14; o.b2b = newB2B(o.seed); o.mrp = newMrp(); }
   if (o && o.v === 14) { o.v = 15; Object.assign(o, { hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi() }); }
   if (o && o.v === 15) { o.v = 16; const need = o.fx.machines.reduce((a, m) => a + ((D.MACHINES.find(x => x.id === m.type) || {}).space || 0), 0); o.fx.area = need ? Math.max(D.FACTORY.minArea, Math.ceil(need / 50) * 50) : 0; }
+  if (o && o.v === 16) { o.v = 17; o.fleet = newFleetState(o.seed); if (o.hr && o.hr.staff && !o.hr.staff.driver) o.hr.staff.driver = { n: 0, skill: D.HR.skillStart }; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

@@ -10,6 +10,7 @@ import * as K from "./market.js";
 import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
 import * as Fc from "./forecast.js";
+import * as Fl from "./fleet.js";
 
 export const newForms = () => ({ vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, q: { juice: "apple", qty: 1000 } });
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -35,10 +36,12 @@ export function act(s, f, name, a = {}) {
     case "advMake": { const x = Fc.juiceAdvice(s, id); if (!x.qty) return { ok: false, error: "No production is advised for this juice right now." }; const ms = s.fx.machines.slice().sort((p, q) => F.batchDaysLeft(s, p) - F.batchDaysLeft(s, q)); if (!ms.length) return { ok: false, error: "Buy a machine first." }; return r(F.queueBatch(s, { machine: ms[0].id, juice: id, qty: x.qty }), `Queued ${x.qty.toLocaleString("en-US")} on ${ms[0].name}.`); }
     case "setjob": return r(F.setRun(s, { machine: n, juice: a.juice, qty: num(a.qty) }), a.qty > 0 ? "Production run set." : "Production stopped.");
     case "pm": return r(F.preventiveMaintenance(s, n), "Machine serviced.");
-    case "prCreate": { const x = F.createPR(s, { vendor: f.vendor, terms: f.terms, lines: rawLines(f) }); return r(x, "Requisition created. Approve it to place the order."); }
-    case "poNow": { const x = F.placeRawOrder(s, { vendor: f.vendor, terms: f.terms, lines: rawLines(f) }); if (x.ok) f.rq = {}; return r(x, `Ordered. Arrives day ${x.eta}.`); }
+    case "prCreate": { const x = F.createPR(s, { vendor: f.vendor, terms: f.terms, carrier: f.carrier, lines: rawLines(f) }); return r(x, "Requisition created. Approve it to place the order."); }
+    case "poNow": { const x = F.placeRawOrder(s, { vendor: f.vendor, terms: f.terms, carrier: f.carrier, lines: rawLines(f) }); if (x.ok) f.rq = {}; return r(x, `Ordered. Arrives day ${x.eta}.`); }
     case "prApprove": return r(F.approvePR(s, n), "Requisition approved and ordered.");
     case "prReject": return r(F.rejectPR(s, n), "Requisition rejected.");
+    case "buyTruck": return r(Fl.buyTruck(s, { type: id }), "Truck bought. Hire a driver in HR.");
+    case "svcTruck": return r(Fl.serviceTruck(s, n), "Truck serviced.");
     // MRP
     case "mrpAuto": M.ensureMrp(s).autoPO = !s.mrp.autoPO; return { ok: true, msg: s.mrp.autoPO ? "Auto purchasing is on." : "Auto purchasing is off." };
     case "mrpPlan": M.plan(s); return { ok: true, msg: "Plan refreshed." };

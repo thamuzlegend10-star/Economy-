@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -149,6 +149,7 @@ export const HR_ROLES = [
   { id: "warehouse", name: "Warehouse handlers",   wage: 42, per: "dock",        note: "Load speed, transfer lead time" },
   { id: "factory",   name: "Machine operators",    wage: 55, per: "machine",     note: "Factory output, machine wear" },
   { id: "sales",     name: "Sales representatives", wage: 70, per: "team",       note: "B2B win rate, retention" },
+  { id: "driver",    name: "Drivers",              wage: 48, per: "truck",       note: "One driver for each truck on the road" },
   { id: "service",   name: "Service staff",        wage: 45, per: "desk",        note: "Resolves support tickets" },
 ];
 export const HR = { wageMult: { min: 0.6, max: 1.6, def: 1.0 }, trainingBudget: { min: 0, max: 2000, def: 0 },
@@ -209,3 +210,11 @@ export const FACTORY = { minArea: 100, maxArea: 5000, areaSteps: [100, 250, 500,
 
 // Forecasting: z is the service level multiplier for safety stock (1.65 is about 95%). window is how many days of history are used.
 export const FORECAST = { window: 14, minPoints: 3, z: 1.65, minSafetyDays: 1, reviewDays: 7, errorWindow: 10, lateDayRisk: 1 };
+
+// Company trucks. capacity is storage space per load (same scale as product space). speed is km per day. fuelPerKm is dollars per km.
+// wear is health points lost per round trip. A truck under breakdownBelow can break down on departure.
+export const TRUCKS = [
+  { id: "van",   name: "Delivery van", capacity: 6000,  price: 14000, life: 400, speed: 700, fuelPerKm: 0.22, wear: 1.5, serviceCost: 300 },
+  { id: "truck", name: "Box truck",    capacity: 30000, price: 48000, life: 500, speed: 600, fuelPerKm: 0.55, wear: 2.0, serviceCost: 900 },
+];
+export const TRANSPORT = { loadDays: 0.25, localKm: 15, breakdownBelow: 30, breakdownChance: 0.25, repairMult: 3, downMin: 1, downMax: 2, restoreTo: 100, tripLog: 30 };

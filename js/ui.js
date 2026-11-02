@@ -2,6 +2,7 @@
 import * as E from "./engine.js";
 import * as D from "./data.js";
 import { getLocation } from "./locations.js";
+import * as Fl from "./fleet.js";
 
 export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -32,7 +33,7 @@ export const NAV = [
   { id: "retail", label: "Retail", subs: [["location", "Location"], ["procurement", "Procurement"], ["store", "Store"], ["price", "Retail Sales & Price"], ["tx", "Transactions"]] },
   { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock & Storage"], ["procure", "Bulk Procurement"], ["send", "Send to Retail"], ["b2b", "Send to B2B"]] },
   { id: "factory", label: "Factory", subs: [["machines", "Machines"], ["raw", "Raw & Purchasing"], ["mrp", "MRP"]] },
-  { id: "shipping", label: "Shipping", subs: [["co", "Transport Company"], ["tx", "Transactions"]] },
+  { id: "shipping", label: "Shipping", subs: [["co", "Transport Company"], ["fleet", "My Fleet"], ["tx", "Transactions"]] },
   { id: "b2b", label: "B2B", subs: [["market", "Market"], ["contracts", "Contracts"]] },
   { id: "hr", label: "HR", subs: [] },
   { id: "marketing", label: "Marketing", subs: [] },
@@ -100,7 +101,8 @@ export function warehouse(s, sub = "stock") {
 export function transferForm(s, tr) {
   const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
   const lines = D.PRODUCTS.map(p => ({ pid: p.id, qty: tr.qty[p.id] || 0 }));
-  const q = E.quoteTransfer(s, lines);
+  const q = E.quoteTransfer(s, lines, tr.carrier || "hired");
+  const carr = `<label class="fld"><span>Carrier</span><select id="trCarrier"><option value="hired" ${tr.carrier !== "own" ? "selected" : ""}>Transport company</option><option value="own" ${tr.carrier === "own" ? "selected" : ""}>My own trucks (${Fl.ensureFleet(s).trucks.length})</option></select></label>`;
   const rows = D.PRODUCTS.map(p => {
     const have = s.wh.qty[p.id], n = tr.qty[p.id] || 0, picks = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000].filter(v => v < have);
     const cur = n === have && have > 0 ? "all" : n;
@@ -109,14 +111,14 @@ export function transferForm(s, tr) {
   }).join("");
   const sum = q.error ? `<div class="muted small">${esc(q.error)}</div>` : `<div class="quote">
       ${q.lines.map(l => `<div class="ln"><span>${esc(E.PRODUCT[l.pid].name)} ${num(l.qty)}</span><b>${money2(l.fee)}</b></div>`).join("")}
-      <div class="ln"><span>Trip fee</span><b>${money2(D.TRANSFER.fee)}</b></div>
-      <div class="ln tot"><span>Shipping fee, paid now</span><b>${money2(q.fee)}</b></div>
+      ${q.carrier === "own" ? "" : `<div class="ln"><span>Trip fee</span><b>${money2(D.TRANSFER.fee)}</b></div>`}
+      <div class="ln tot"><span>${q.carrier === "own" ? "Fuel, paid now" : "Shipping fee, paid now"}</span><b>${money2(q.fee)}</b></div>
       <div class="ln"><span>Arrives</span><b>${dayWord(q.days)}, day ${q.eta}</b></div>
       <div class="ln"><span>Shop space needed</span><b>${num(q.space)} of ${num(Math.max(0, E.spaceFree(s)))} free</b></div></div>
     ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}`;
   return `<label class="fld"><span>From</span><select disabled><option>My warehouse · ${num(s.wh.area)} m²</option></select></label>
     <label class="fld"><span>To</span><select disabled><option>My shop · ${num(s.area)} m²</option></select></label>
-    <div class="fld"><span>Items and quantity</span>${rows}</div>${sum}
+    <div class="fld"><span>Items and quantity</span>${rows}</div>${carr}${sum}
     <div class="po-actions"><button class="ghost" id="trCancel" type="button">Cancel</button><button id="trSubmit" type="button" ${q.ok ? "" : "disabled"}>Send${q.fee ? " · " + money2(q.fee) : ""}</button></div>`;
 }
 
@@ -194,7 +196,8 @@ export function orderForm(s, b) {
   const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
   const sups = list0.map(x => { const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)); return opt(x.id, `${x.name} · ${num(km)} km · ${dayWord(days)}`, b.sup); }).join("");
   const lines = D.PRODUCTS.map(p => ({ pid: p.id, qty: b.qty[p.id] || 0 }));
-  const q = E.quoteMulti(s, b.sup, lines, wh ? "wh" : "retail");
+  const q = E.quoteMulti(s, b.sup, lines, wh ? "wh" : "retail", b.carrier || "hired");
+  const carr = `<label class="fld"><span>Carrier</span><select id="poCarrier"><option value="hired" ${b.carrier !== "own" ? "selected" : ""}>Transport company</option><option value="own" ${b.carrier === "own" ? "selected" : ""}>My own trucks (${Fl.ensureFleet(s).trucks.length})</option></select></label>`;
   const rows = D.PRODUCTS.map(p => {
     const n = b.qty[p.id] || 0, custom = n > 0 && !choices.includes(n);
     const cur = custom ? "custom" : n;
@@ -206,21 +209,22 @@ export function orderForm(s, b) {
   const sum = q.error ? `<div class="muted small">${esc(q.error)}</div>` : `<div class="quote">
       ${q.lines.map(l => `<div class="ln"><span>${esc(E.PRODUCT[l.pid].name)} ${num(l.qty)} × ${money2(l.unit)}${l.discount ? ` (bulk −${Math.round(l.discount * 100)}%)` : ""}</span><b>${money2(l.goods)}</b></div>`).join("")}
       <div class="ln"><span>Goods</span><b>${money2(q.goods)}</b></div>
-      <div class="ln"><span>Shipping (${num(q.km)} km, one fee)</span><b>${money2(q.ship)}</b></div>
+      <div class="ln"><span>${q.carrier === "own" ? `Fuel (${num(q.km)} km, own truck)` : `Shipping (${num(q.km)} km, one fee)`}</span><b>${money2(q.ship)}</b></div>
       <div class="ln tot"><span>Total, paid now</span><b>${money2(q.total)}</b></div>
       <div class="ln"><span>Estimated delivery</span><b>${dayWord(q.days)}, day ${q.eta}</b></div>
       <div class="ln"><span>Storage needed</span><b>${num(q.space)} of ${num(Math.max(0, wh ? E.whFree(s) : E.spaceFree(s)))} free</b></div></div>
     ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}
     <small class="note">${wh ? "Bulk discounts per product: 25,000+ units −4%, 50,000+ −8%, 100,000+ −12%, 200,000+ −16%, 500,000+ −20%. At least 25,000 of each product you order." : "Bulk discounts per product: 10,000+ units −3%, 30,000+ −6%, 75,000+ −10%, 125,000+ −13%."}${sp.reliability < 1 ? ` ${esc(sp.name)} is late about ${Math.round((1 - sp.reliability) * 100)}% of the time.` : ""}</small>`;
   return `<label class="fld"><span>Ship to</span><select id="poShip" disabled><option>${wh ? `My warehouse · ${num(s.wh.area)} m²` : `My shop · ${esc(E.siteLabel(s.location))} · ${num(s.area)} m²`}</option></select></label>
-    <label class="fld"><span>Supplier</span><select id="poSup">${sups}</select></label>
+    <label class="fld"><span>Supplier</span><select id="poSup">${sups}</select></label>${carr}
     <div class="fld"><span>Items and quantity</span>${rows}</div>
     ${sum}
     <div class="po-actions"><button class="ghost" id="poCancel" type="button">Cancel</button><button id="poSubmit" type="button" ${q.ok ? "" : "disabled"}>Submit${q.total ? " · " + money2(q.total) : ""}</button></div>`;
 }
 
 export function ship(s, ui = {}) {
-  const tab = ui.sub && ui.sub.shipping === "tx" ? "tx" : "co", sub = "";
+  const tab = ui.sub && ["tx", "fleet"].includes(ui.sub.shipping) ? ui.sub.shipping : "co", sub = "";
+  if (tab === "fleet") return fleetScreen(s);
   if (tab === "co") {
     const cards = D.SUPPLIERS.map(x => {
       const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)), fee = x.fee * getLocation(s.location).logistics, rate = x.rate * getLocation(s.location).logistics;
@@ -274,3 +278,15 @@ export const HELP = `<h4>More tabs</h4><p>Factory: buy machines, buy raw materia
 <h4>Deliveries and sales</h4><p>Trucks bring goods on their arrival day, and the goods go into inventory by themselves. Customers buy automatically while stock lasts. There is no shelf work and there are no staff.</p>
 <h4>Prices</h4><p>In Store, use - and + to change each price. Too high and fewer people buy. Too low and you earn little per unit.</p>
 <h4>Time</h4><p>One day lasts the number of real seconds you chose. The timer runs by itself. Use Pause if you need a break. If rent cannot be paid from cash, it becomes an overdraft, and three days of overdraft ends the game.</p>`;
+
+// My Fleet: buy trucks, see where each one is, service them, see drivers and recent trips.
+export function fleetScreen(s) {
+  const f = Fl.ensureFleet(s), drivers = s.hr.staff.driver.n, out = Fl.trucksOut(s);
+  const buy = D.TRUCKS.map(t => `<div class="card tco"><div class="tco-head">Truck</div><h4>${esc(t.name)}</h4><div class="kv1"><div><span>Price</span><b>${money(t.price)}</b></div><div><span>Carries</span><b>${num(t.capacity)} space</b></div><div><span>Speed</span><b>${num(t.speed)} km / day</b></div><div><span>Fuel</span><b>${money2(t.fuelPerKm)} / km</b></div></div><button data-act="buyTruck" data-id="${t.id}">Buy · ${money(t.price)}</button></div>`).join("");
+  const rows = f.trucks.map(k => { const st = k.status === "down" ? "Broken down" : k.status === "out" ? `On the road until day ${k.busyUntil}` : "Idle", cls = k.status === "down" ? "warn" : k.status === "out" ? "info" : "ok";
+    return `<tr><td>${esc(k.name)}</td><td><span class="tag ${cls}">${st}</span></td><td>${Math.round(k.health)}%</td><td>${num(k.km)} km</td><td>${money(k.cost - k.deprec)}</td><td><button class="mini" data-act="svcTruck" data-id="${k.id}" ${k.status === "idle" ? "" : "disabled"}>Service ${money(Fl.TRUCK[k.type].serviceCost)}</button></td></tr>`; }).join("");
+  const trips = f.trips.slice(-6).reverse().map(x => `<div class="kv1"><div><span>Day ${x.day} · ${esc(x.kind)} · ${num(x.km)} km · ${x.trucks.length} truck${x.trucks.length > 1 ? "s" : ""}</span><b>fuel ${money2(x.fuel)} · arrives day ${x.eta}${x.delay ? " (broke down)" : ""}</b></div></div>`).join("");
+  return `<div class="card"><b>My fleet</b><p class="muted">Your own trucks. Each needs a driver (HR). Fuel is paid per km, trucks wear out and break down below ${D.TRANSPORT.breakdownBelow}% health, so service them. Pick My own trucks as the carrier when you order or transfer.</p>
+    <div class="kv1"><div><span>Trucks</span><b>${f.trucks.length}</b></div><div><span>Drivers</span><b>${drivers} (${out} on the road)</b></div><div><span>Distance driven</span><b>${num(f.km)} km</b></div><div><span>Fuel paid</span><b>${money2(f.fuelPaid)}</b></div></div></div>
+    <div class="tcos">${buy}</div>${rows ? `<div class="card scroll"><table class="tbl"><thead><tr><th>Truck</th><th>Status</th><th>Health</th><th>Driven</th><th>Book value</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}${trips ? `<div class="card"><b>Recent trips</b>${trips}</div>` : ""}`;
+}

@@ -1,6 +1,7 @@
 // Factory layer (spec modules PRD, MNT, PMN raw side): raw materials, machines, production runs, maintenance, depreciation,
 // and two-stage raw purchasing (requisition -> approval -> purchase order) with payment terms.
 // Pure functions on the game state `s`. State lives in s.fx. All money goes through the ledger.
+import { planTrip, dispatch } from "./fleet.js";
 import { post, balance, round2 } from "./ledger.js";
 import { getLocation } from "./locations.js";
 import * as D from "./data.js";
@@ -125,7 +126,7 @@ function pay(s, acct, amount, memo, ref) {                    // pay from cash; 
 }
 
 // ---------- raw purchasing: PR -> approval -> PO ----------
-export function quoteRaw(s, { vendor, lines, terms = "cod" } = {}) {
+export function quoteRaw(s, { vendor, lines, terms = "cod", carrier = "hired" } = {}) {
   const v = VENDOR[vendor], tm = TERM[terms]; if (!v) return err("Unknown vendor."); if (!tm) return err("Unknown payment terms.");
   const seen = new Set(), items = [];
   for (const l of Array.isArray(lines) ? lines : []) {
@@ -140,15 +141,19 @@ export function quoteRaw(s, { vendor, lines, terms = "cod" } = {}) {
     const r = RAWM[l.rid], unit = Math.round(r.cost * v.price * tm.price * 10000) / 10000, goods = c(unit * l.qty);
     return { rid: l.rid, qty: l.qty, unit, goods, ship: c(v.rate * km * l.qty * r.space * L.logistics) };
   });
-  const goods = c(out.reduce((a, l) => a + l.goods, 0)), ship = c(v.fee * L.logistics + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship);
-  const q = { vendor, terms, km, days, eta: s.day + days, lines: out, goods, ship, total, dueDays: tm.days, errors: [], reliability: v.reliability };
+  const goods = c(out.reduce((a, l) => a + l.goods, 0)); let ship = c(v.fee * L.logistics + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship), plan = null, dd = days; const errs = [];
+  if (carrier === "own") {
+    plan = planTrip(s, { km, space: out.reduce((a, l) => a + l.qty * RAWM[l.rid].space, 0), prep: v.prep });
+    if (!plan.ok) errs.push(plan.error); else { dd = plan.days; ship = plan.fuel; total = c(goods + ship); }
+  }
+  const q = { vendor, terms, carrier, plan, km, days: dd, eta: s.day + dd, lines: out, goods, ship, total, dueDays: tm.days, errors: errs, reliability: v.reliability };
   const cash = balance(s.ledger, "cash"), now = c(ship + (tm.days === 0 ? goods : 0));        // freight is always paid now; goods only on COD
   if (now > cash + 0.004) q.errors.push(`Not enough cash: need $${now.toFixed(2)} now, have $${c(cash).toFixed(2)}.`);
   q.ok = !q.errors.length; return q;
 }
 export function createPR(s, spec) {
   const q = quoteRaw(s, spec); if (q.error) return err(q.error);
-  const fx = ensureFactory(s), pr = { id: ++fx.prSeq, day: s.day, status: "pending", spec: { vendor: spec.vendor, terms: spec.terms || "cod", lines: q.lines.map(l => ({ rid: l.rid, qty: l.qty })) }, estimate: q.total };
+  const fx = ensureFactory(s), pr = { id: ++fx.prSeq, day: s.day, status: "pending", spec: { vendor: spec.vendor, terms: spec.terms || "cod", carrier: spec.carrier || "hired", lines: q.lines.map(l => ({ rid: l.rid, qty: l.qty })) }, estimate: q.total };
   fx.prs.push(pr); return ok({ pr });
 }
 export function approvePR(s, id) {
@@ -164,12 +169,12 @@ export function rejectPR(s, id) {
 export function placeRawOrder(s, spec) {
   if (s.ended) return err("The game is over.");
   const q = quoteRaw(s, spec); if (q.error) return err(q.error); if (!q.ok) return err(q.errors[0]);
-  const fx = ensureFactory(s), tm = TERM[q.terms], late = rnd(s) > VENDOR[q.vendor].reliability ? 1 : 0;
-  const po = { id: ++fx.poSeq, vendor: q.vendor, terms: q.terms, lines: q.lines.map(l => ({ ...l })), goods: q.goods, ship: q.ship, placed: s.day, eta: q.eta + late, delayed: late === 1, due: tm.days ? s.day + tm.days : null };
+  const fx = ensureFactory(s), tm = TERM[q.terms], own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "raw pickup") : 0, late = (rnd(s) > VENDOR[q.vendor].reliability ? 1 : 0) + haul;
+  const po = { id: ++fx.poSeq, vendor: q.vendor, terms: q.terms, lines: q.lines.map(l => ({ ...l })), goods: q.goods, ship: q.ship, placed: s.day, eta: q.eta + late, delayed: late > 0, carrier: q.carrier, due: tm.days ? s.day + tm.days : null };
   fx.pos.push(po);
-  const lines = [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }];
-  if (tm.days === 0) lines.push({ acct: "cash", cr: q.total });
-  else { lines.push({ acct: "cash", cr: q.ship }); lines.push({ acct: "payables", cr: q.goods }); fx.payables.push({ id: ++fx.paySeq, po: po.id, amount: q.goods, due: po.due }); }
+  const lines = [{ acct: "transit", dr: q.goods }]; if (!own) lines.push({ acct: "delivery", dr: q.ship });
+  if (tm.days === 0) lines.push({ acct: "cash", cr: own ? q.goods : q.total });
+  else { if (!own) lines.push({ acct: "cash", cr: q.ship }); lines.push({ acct: "payables", cr: q.goods }); fx.payables.push({ id: ++fx.paySeq, po: po.id, amount: q.goods, due: po.due }); }
   post(s.ledger, s.day, `Raw purchase order #${po.id} from ${VENDOR[q.vendor].name} (${tm.name})`, lines, "rawpo:" + po.id);
   s.today.ship = c(s.today.ship + q.ship);
   log(s, `Raw order #${po.id}: ${po.lines.map(l => `${l.qty.toLocaleString("en-US")} ${RAWM[l.rid].unit} ${RAWM[l.rid].name}`).join(", ")}. Arrives day ${po.eta}.`);

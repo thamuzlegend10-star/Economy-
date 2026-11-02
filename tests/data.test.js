@@ -64,5 +64,5 @@ test("scoring weights cover 8 KPIs and sum to 1", () => {
 test("marketing has the five spec channels; four scenes are listed", () => {
   assert.deepEqual(D.MKT_CHANNELS.map(c => c.id), ["social", "search", "billboard", "radio", "influencer"]);
   assert.deepEqual(D.SCENES.map(s => s.id), ["store", "warehouse", "factory", "district"]);
-  assert.equal(D.HR_ROLES.length, 5);
+  assert.equal(D.HR_ROLES.length, 6);
 });

@@ -3,6 +3,7 @@
 import * as E from "./engine.js";
 import * as D from "./data.js";
 import * as F from "./factory.js";
+import * as Fl from "./fleet.js";
 import * as M from "./mrp.js";
 import * as B from "./b2b.js";
 import * as H from "./hr.js";
@@ -62,7 +63,7 @@ export function factoryRaw(s, f) {
   const stockRows = D.RAW.map(r => `<tr><td class="l"><span class="dot" style="background:${r.color}"></span> ${esc(r.name)}</td><td>${num(fx.raw.qty[r.id])} ${r.unit}</td><td>${num(inc[r.id])}</td><td>${per[r.id] ? num(per[r.id]) : "-"}</td></tr>`).join("");
   const qtys = [[0, "None"], ...[100, 500, 1000, 5000, 10000, 50000].map(x => [x, num(x)])];
   const lines = v.sells.map(rid => `<div class="poline"><div class="poname"><b>${esc(F.RAWM[rid].name)}</b><small>${money2(F.RAWM[rid].cost * v.price)} per ${F.RAWM[rid].unit}</small></div>${sel("rq." + rid, qtys, f.rq[rid] || 0)}</div>`).join("");
-  const ls = rawLines(f).filter(l => v.sells.includes(l.rid)), q = ls.length ? F.quoteRaw(s, { vendor: f.vendor, terms: f.terms, lines: ls }) : null;
+  const ls = rawLines(f).filter(l => v.sells.includes(l.rid)), q = ls.length ? F.quoteRaw(s, { vendor: f.vendor, terms: f.terms, carrier: f.carrier, lines: ls }) : null;
   const sum = !q ? `<small class="muted">Choose a quantity for at least one material.</small>` : q.error ? `<div class="err">${esc(q.error)}</div>` : `<div class="quote">${q.lines.map(l => `<div class="ln"><span>${esc(F.RAWM[l.rid].name)} ${num(l.qty)}</span><b>${money2(l.goods)}</b></div>`).join("")}
       <div class="ln"><span>Freight, paid now</span><b>${money2(q.ship)}</b></div><div class="ln tot"><span>Goods ${q.dueDays ? `(pay on day ${s.day + q.dueDays + 0})` : "(pay now)"}</span><b>${money2(q.goods)}</b></div>
       <div class="ln"><span>Arrives</span><b>day ${q.eta}</b></div></div>${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}`;
@@ -73,7 +74,7 @@ export function factoryRaw(s, f) {
     <div class="card">${head("Raw purchase", "Requisition, then order")}
       <label class="fld"><span>Vendor</span>${sel("vendor", D.RAW_VENDORS.map(x => [x.id, `${x.name} · ${pct(x.reliability)} on time`]), f.vendor, false)}</label>
       <label class="fld"><span>Payment terms</span>${sel("terms", D.TERMS.map(t => [t.id, t.name + (t.price > 1 ? ` · +${dec((t.price - 1) * 100)}% price` : "")]), f.terms, false)}</label>
-      ${lines}${sum}<div class="row">${btn("prCreate", "Create requisition", { ghost: true, dis: !q || !!q.error, mini: false })}${btn("poNow", "Order now", { dis: !q || !!q.error || !q.ok, mini: false })}</div></div>
+      <label class="fld"><span>Carrier</span>${sel("carrier", [["hired", "Vendor delivery"], ["own", `My own trucks (${Fl.ensureFleet(s).trucks.length})`]], f.carrier || "hired", false)}</label>${lines}${sum}<div class="row">${btn("prCreate", "Create requisition", { ghost: true, dis: !q || !!q.error, mini: false })}${btn("poNow", "Order now", { dis: !q || !!q.error || !q.ok, mini: false })}</div></div>
     ${prs || pos || due ? `<div class="card">${head("Open items")}${prs}${pos}${due}</div>` : ""}`;
 }
 
