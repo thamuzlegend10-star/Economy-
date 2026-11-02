@@ -19,7 +19,7 @@ test("buying a machine capitalises price plus setup and stays balanced", () => {
   const s = mk(), cash = balance(s.ledger, "cash");
   const r = F.buyMachine(s, { type: "std" }); assert.ok(r.ok);
   assert.equal(balance(s.ledger, "machinery"), D.MACHINES[0].price + D.MACHINES[0].setup);
-  assert.equal(balance(s.ledger, "cash"), cash - (D.MACHINES[0].price + D.MACHINES[0].setup));
+  assert.equal(Math.round((cash - balance(s.ledger, "cash")) * 100), Math.round((D.MACHINES[0].price + D.MACHINES[0].setup + s.hr.recruitPaid) * 100));   // plus the operators' recruitment fee
   assert.ok(E.reconcile(s).ok);
   const poor = mk({ capital: 10000 }); assert.equal(F.buyMachine(poor, { type: "fast" }).ok, false);
 });

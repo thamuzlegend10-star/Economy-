@@ -112,15 +112,19 @@ export function b2bContracts(s) {
 }
 
 // ================= HR =================
-export function hrScreen(s) {
-  const h = H.ensureHr(s), pay = H.dailyPayroll(s);
-  const rows = D.HR_ROLES.map(r => { const st = h.staff[r.id]; return `<div class="card"><div class="shophead"><b>${esc(r.name)}</b><small>${money2(H.wageOf(s, r.id))} / person / day</small></div><small class="muted">${esc(r.note)}</small>
-      <div class="row"><b class="bigno">${st.n}</b>${btn("hire", "Hire +1", { id: r.id })}${btn("fire", "Let go -1", { id: r.id, ghost: true, dis: !st.n })}<small class="muted">skill ${dec(st.skill, 2)}</small></div></div>`; }).join("");
+export function hrScreen(s, f = {}) {
+  const h = H.ensureHr(s), pay = H.dailyPayroll(s), td = f.tempDays || 14;
+  const rows = D.HR_ROLES.map(r => { const st = h.staff[r.id], need = H.needOf(s, r.id), tmp = H.tempN(s, r.id), cost = H.wageOf(s, r.id) * (st.n + tmp * D.HR.tempPremium), gap = need ? st.n - need : 0;
+    return `<div class="card"><div class="shophead"><b>${esc(r.name)}</b><small>${money2(H.wageOf(s, r.id))} / person / day</small></div><small class="muted">${esc(r.note)}</small>
+      <div class="row"><b class="bigno">${st.n}</b><small class="muted">${need ? `need ${need}${gap < 0 ? ` · short ${-gap}` : ""}` : "no fixed need"}${tmp ? ` · ${tmp} temp` : ""} · skill ${dec(st.skill, 2)} · ${money(cost)} / day</small></div>
+      <div class="row">${btn("hire", `Hire +1 · fee ${money(H.recruitFee(s, r.id))}`, { id: r.id })}${btn("hireTemp", `Temp +1 (${td} d)`, { id: r.id, ghost: true })}${btn("fire", `Let go -1 · ${money(H.wageOf(s, r.id) * D.HR.severanceDays)}`, { id: r.id, ghost: true, dis: !H.permN(s, r.id) })}</div></div>`; }).join("");
   const w = D.HR.wageMult, t = D.HR.trainingBudget, wopts = [0.6, 0.8, 1, 1.2, 1.4, 1.6].map(x => [x, `×${x.toFixed(1)}${x === 1 ? " (normal)" : ""}`]), topts = [0, 100, 250, 500, 1000, 2000].map(x => [x, x ? money(x) + " / day" : "None"]);
-  return `<div class="card">${head("People", `${num(H.headcount(s))} staff · payroll ${money(pay)} / day`)}${kv([["Morale", dec(h.morale, 0) + "%"], ["Quit so far", h.quits], ["Paid so far", money(h.paidTotal)]])}${meter(h.morale, h.morale < 40 ? "full" : h.morale < 60 ? "warn" : "")}
+  const temps = h.temps.map(x => `<div class="kv1"><div><span>${x.n} temp ${esc(H.ROLE[x.role].name.toLowerCase())}</span><b>ends day ${x.until}</b></div></div>`).join("");
+  return `<div class="card">${head("People", `${num(H.headcount(s))} staff · payroll ${money(pay)} / day`)}${kv([["Morale", dec(h.morale, 0) + "%"], ["Quit so far", h.quits], ["Paid so far", money(h.paidTotal)], ["Recruitment paid", money(h.recruitPaid)], ["Severance paid", money(h.severancePaid)]])}${meter(h.morale, h.morale < 40 ? "full" : h.morale < 60 ? "warn" : "")}
       <div class="two"><label class="fld"><span>Wage level</span><select data-hrf="wage">${wopts.map(([v, l]) => opt(v, l, h.wageMult)).join("")}</select></label>
       <label class="fld"><span>Training budget</span><select data-hrf="training">${topts.map(([v, l]) => opt(v, l, h.training)).join("")}</select></label></div>
-      <small class="muted">Pay and training lift morale and skill. Unhappy staff quit. Shop staff add up to 10% sales, handlers cut transfer fees, sales reps help in tenders, service staff clear tickets, operators run machines.</small></div>${rows}`;
+      <label class="fld"><span>Temp contract length</span>${sel("tempDays", D.HR.tempDays.map(x => [x, x + " days"]), td)}</label>
+      <small class="muted">Hiring costs ${D.HR.recruitDays} days of wage. Letting someone go costs ${D.HR.severanceDays} days of wage. Temps cost ${Math.round(D.HR.tempPremium * 100)}% more, never quit, and leave when the contract ends. Shop staff add up to 10% sales, handlers cut transfer fees, sales reps help in tenders, service staff clear tickets, operators run machines, drivers drive your trucks.</small></div>${temps ? `<div class="card">${head("Temp contracts")}${temps}</div>` : ""}${rows}`;
 }
 
 // ================= MARKETING =================

@@ -18,9 +18,9 @@ const giveWh = (s, pid, qty) => { const v = Math.round(D.PRODUCTS.find(p => p.id
 // ---------- HR ----------
 test("hiring costs daily wages, firing stops them, wages follow the wage level", () => {
   const s = mk(); assert.equal(H.dailyPayroll(s), 0); H.hire(s, "retail", 2); const w1 = H.dailyPayroll(s); assert.ok(w1 > 0);
-  days(s, 1); assert.ok(Math.abs(balance(s.ledger, "wages") - w1) < 0.02);
+  days(s, 1); assert.ok(Math.abs(balance(s.ledger, "wages") - w1 - s.hr.recruitPaid) < 0.02);
   H.setWageMult(s, 1.5); assert.ok(H.dailyPayroll(s) > w1 * 1.4); assert.equal(H.setWageMult(s, 99).wageMult, D.HR.wageMult.max);
-  assert.equal(H.fire(s, "retail", 5).ok, false); assert.ok(H.fire(s, "retail", 2).ok); assert.equal(H.dailyPayroll(s), 0);
+  assert.equal(H.fire(s, "retail", 5).ok, false); assert.ok(H.fire(s, "retail", 2).ok); assert.equal(H.dailyPayroll(s), 0); assert.ok(s.hr.severancePaid > 0);
 });
 test("buying a machine hires its operators; factory wages go to production labour", () => {
   const s = mk(); F.buyMachine(s, { type: "fast" }); assert.equal(s.hr.staff.factory.n, D.MACHINES[1].operators); days(s, 1); assert.ok(balance(s.ledger, "cogs_labor") > 0);

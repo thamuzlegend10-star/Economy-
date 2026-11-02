@@ -53,7 +53,8 @@ export function act(s, f, name, a = {}) {
     case "accept": return r(B.acceptDeal(s, n), "Deal accepted. Deliver it from the Contracts tab.");
     case "deliver": return r(B.deliver(s, n), "Delivered and paid.");
     // HR
-    case "hire": return r(H.hire(s, id, 1), "Hired.");
+    case "hire": return r(H.hire(s, id, 1), "Hired. Recruitment fee paid.");
+    case "hireTemp": return r(H.hire(s, id, 1, "temp", Number(f.tempDays) || 14), "Temp hired for the contract period.");
     case "fire": return r(H.fire(s, id, 1), "Let go.");
     case "wage": return r(H.setWageMult(s, a.value), "Wage level set.");
     case "training": return r(H.setTraining(s, a.value), "Training budget set.");

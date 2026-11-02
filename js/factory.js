@@ -6,7 +6,7 @@ import { post, balance, round2 } from "./ledger.js";
 import { getLocation } from "./locations.js";
 import * as D from "./data.js";
 import { rnd, log, distanceKm } from "./engine.js";
-import { hire, crew, factoryPayroll } from "./hr.js";
+import { hire, crew, factoryPayroll, recruitFee } from "./hr.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
@@ -59,10 +59,10 @@ export const machineBookValue = m => c(m.cost - m.deprec);
 // ---------- machines ----------
 export function quoteMachine(s, typeId) {
   const t = MACHINE[typeId]; if (!t) return err("Unknown machine type.");
-  const total = c(t.price + t.setup), cash = balance(s.ledger, "cash");
+  const total = c(t.price + t.setup), cash = balance(s.ledger, "cash"), hireFee = recruitFee(s, "factory", t.operators);
   const q = { type: typeId, price: t.price, setup: t.setup, total, perDay: t.perDay, daily: c(total / t.life), space: t.space, errors: [] };
   if (t.space > factorySpaceFree(s)) q.errors.push(`Not enough factory space: this machine needs ${t.space} m², ${Math.max(0, Math.floor(factorySpaceFree(s)))} m² free. Rent more factory space.`);
-  if (total > cash + 0.004) q.errors.push(`Not enough cash: need $${total.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
+  if (total + hireFee > cash + 0.004) q.errors.push(`Not enough cash: need $${c(total + hireFee).toFixed(2)} (machine plus ${t.operators} operators to recruit), have $${c(cash).toFixed(2)}.`);
   q.ok = !q.errors.length; return q;
 }
 export function buyMachine(s, { type } = {}) {
