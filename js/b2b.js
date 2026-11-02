@@ -32,8 +32,14 @@ export function available(s, pid) {
 }
 
 // ---------- daily: resolve closed tenders, apply late penalties, open new ones ----------
+export const receivable = s => c((ensureB2B(s).ar || []).reduce((a, x) => a + x.amount, 0));
 export function b2bDay(s) {
-  const b = ensureB2B(s);
+  const b = ensureB2B(s); b.ar = b.ar || [];
+  for (const x of b.ar.filter(v => v.due <= s.day)) {                // buyers pay on their credit terms; a few never pay
+    if (streamNext(b) < D.B2B.buyers.find(y => y.id === x.buyer).risk) { post(s.ledger, s.day, `Bad debt: ${BUYER[x.buyer].name} did not pay invoice #${x.id}`, [{ acct: "bad_debt", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.badDebt = c((b.badDebt || 0) + x.amount); log(s, `${BUYER[x.buyer].name} did not pay invoice #${x.id}. Written off $${x.amount.toFixed(2)}.`); }
+    else { post(s.ledger, s.day, `Payment received from ${BUYER[x.buyer].name}, invoice #${x.id}`, [{ acct: "cash", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.collected = c((b.collected || 0) + x.amount); }
+  }
+  b.ar = b.ar.filter(v => v.due > s.day);
   for (const t of b.open.filter(x => x.closes <= s.day)) resolve(s, b, t);
   b.open = b.open.filter(x => x.closes > s.day);
   for (const k of b.active) if (k.status === "active" && s.day > k.due) late(s, b, k);
@@ -100,12 +106,13 @@ export function deliver(s, id) {
   const k = b.active.find(x => x.id === id), retail = !!PRODUCT[k.pid], src = retail ? s.wh : s.fx.fg, have = src.qty[k.pid];
   const cost = k.qty >= have ? src.val[k.pid] : c(src.val[k.pid] / have * k.qty);
   src.qty[k.pid] -= k.qty; src.val[k.pid] = c(src.val[k.pid] - cost);
-  post(s.ledger, s.day, `B2B delivery #${k.id} to ${BUYER[k.buyer].name}`, [{ acct: "cash", dr: q.value }, { acct: "sales_b2b", cr: q.value }], "b2b:" + k.id);
+  post(s.ledger, s.day, `B2B delivery #${k.id} to ${BUYER[k.buyer].name}`, [{ acct: "receivables", dr: q.value }, { acct: "sales_b2b", cr: q.value }], "b2b:" + k.id);
+  b.ar = b.ar || []; b.ar.push({ id: k.id, buyer: k.buyer, amount: q.value, issued: s.day, due: s.day + D.B2B.buyers.find(y => y.id === k.buyer).terms });
   post(s.ledger, s.day, `Cost of B2B delivery #${k.id}`, [{ acct: "cogs", dr: cost }, { acct: retail ? "inventory" : "inv_fg", cr: cost }], "b2b:" + k.id);
   const onTime = s.day <= k.due;
   if (onTime) { b.ontime++; b.rep = clamp(b.rep + D.B2B.reputationGain, 0, 100); } else { b.late++; }
   k.status = "done"; b.history.push({ ...k, result: onTime ? "on time" : "late", revenue: q.value, day: s.day }); b.active = b.active.filter(x => x !== k);
-  log(s, `Delivered #${k.id}: ${k.qty.toLocaleString("en-US")} ${itemInfo(k.pid).name} for $${q.value.toFixed(2)}${onTime ? "" : " (late)"}.`);
+  log(s, `Delivered #${k.id}: ${k.qty.toLocaleString("en-US")} ${itemInfo(k.pid).name}, invoice $${q.value.toFixed(2)} due in ${D.B2B.buyers.find(y => y.id === k.buyer).terms} days${onTime ? "" : " (late)"}.`);
   return ok({ revenue: q.value, cogs: cost });
 }
 function late(s, b, k) {

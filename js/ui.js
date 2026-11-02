@@ -29,7 +29,7 @@ const ICON = {
   ecom: '<path d="M1.5 2.5h2l1.6 7h7l1.2-5H4"/><circle cx="6" cy="12.5" r="1.1"/><circle cx="11" cy="12.5" r="1.1"/>',
 };
 export const NAV = [
-  { id: "finance", label: "Finance", subs: [["overview", "Overview"], ["reports", "Reports"], ["statements", "Statements"], ["bank", "Bank"]] },
+  { id: "finance", label: "Finance", subs: [["overview", "Overview"], ["reports", "Reports"], ["statements", "Statements"], ["ledger", "Ledger"], ["bank", "Bank"]] },
   { id: "retail", label: "Retail", subs: [["location", "Location"], ["procurement", "Procurement"], ["store", "Store"], ["price", "Retail Sales & Price"], ["tx", "Transactions"]] },
   { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock & Storage"], ["procure", "Bulk Procurement"], ["send", "Send to Retail"], ["b2b", "Send to B2B"]] },
   { id: "factory", label: "Factory", subs: [["machines", "Machines"], ["raw", "Raw & Purchasing"], ["mrp", "MRP"]] },

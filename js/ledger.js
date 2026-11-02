@@ -37,9 +37,11 @@ export const ACCOUNTS = {
   penalties: { type:"expense",   name:"Contract penalties" },
   overflow:  { type:"expense",   name:"Storage overflow fees" },
   cogs_labor: { type:"expense",  name:"Production labour" },
+  tax_payable: { type:"liability", name:"Income tax payable" },
+  bad_debt:  { type:"expense",   name:"Bad debt written off" },
 };
 const DEBIT_NORMAL = new Set(["asset", "expense"]);
-export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor"];
+export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor", "bad_debt"];
 export const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const MAX_ENTRIES = 1500;
 

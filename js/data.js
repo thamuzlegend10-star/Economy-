@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -124,10 +124,10 @@ export const MRP = { horizonDays: 7, safetyDays: 2, orderCost: 80, holdRate: 0.0
 // Institutional buyers post tenders. qty is drawn from [min,max], ceiling is a multiple of the product reference price.
 export const B2B = {
   buyers: [
-    { id: "hotel",  name: "Grand Harbour Hotels", want: ["apple", "orange", "milk"],      qty: [4000, 20000],  ceiling: 1.05, penalty: 0.12, dueDays: [4, 8] },
-    { id: "uni",    name: "City University",       want: ["noodles", "milk", "earbuds"],  qty: [3000, 25000],  ceiling: 0.98, penalty: 0.10, dueDays: [5, 10] },
-    { id: "airline", name: "SkyLine Catering",     want: ["orange", "melon", "apple"],    qty: [6000, 30000],  ceiling: 1.10, penalty: 0.15, dueDays: [3, 7] },
-    { id: "chain",  name: "QuickMart Chain",       want: ["noodles", "apple", "earbuds"], qty: [10000, 50000], ceiling: 0.92, penalty: 0.08, dueDays: [6, 12] },
+    { id: "hotel",  name: "Grand Harbour Hotels", want: ["apple", "orange", "milk"],      qty: [4000, 20000],  ceiling: 1.05, penalty: 0.12, dueDays: [4, 8], terms: 7, risk: 0.01 },
+    { id: "uni",    name: "City University",       want: ["noodles", "milk", "earbuds"],  qty: [3000, 25000],  ceiling: 0.98, penalty: 0.10, dueDays: [5, 10], terms: 14, risk: 0 },
+    { id: "airline", name: "SkyLine Catering",     want: ["orange", "melon", "apple"],    qty: [6000, 30000],  ceiling: 1.10, penalty: 0.15, dueDays: [3, 7], terms: 5, risk: 0.02 },
+    { id: "chain",  name: "QuickMart Chain",       want: ["noodles", "apple", "earbuds"], qty: [10000, 50000], ceiling: 0.92, penalty: 0.08, dueDays: [6, 12], terms: 21, risk: 0.03 },
   ],
   tendersPerDay: [0, 2],                    // new tenders opened each day, inclusive
   openDays: 2,                              // bidding stays open this many days
@@ -178,8 +178,9 @@ export const BANK = {
   credit:    { limit: 60000, rate: 0.0006, termDays: 30 },
   equipment: { rate: 0.0004, termsDays: [60, 120, 240], maxShareOfPrice: 0.8 },
   longTerm:  { rate: 0.0003, minAmount: 25000 },
-  taxRate: 0.18,
 };
+// Income tax: every periodDays the game assesses tax on cumulative profit above what was already taxed (losses carry forward, nothing is refunded). It is paid dueDays later.
+export const TAX = { rate: 0.18, periodDays: 7, dueDays: 3 };
 
 // ---------- Service and customer satisfaction ----------
 export const SRV = { neutralCsi: 80, demandPerPoint: 0.004, demandMin: 0.8, demandMax: 1.1, csiDrift: 0.15, webLateChance: 0.06, csiStart: 80, ticketRate: 0.004, perStaffPerDay: 40, lateDeliveryHit: 0.5, defectHit: 1.5, stockoutHit: 0.01, repGain: 0.02 };

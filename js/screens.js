@@ -14,6 +14,7 @@ import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
 import { esc, money, money2, num } from "./ui.js";
 import { rawLines } from "./actions.js";
 import * as Fc from "./forecast.js";
+import * as Ac from "./accounting.js";
 
 const pct = n => Math.round(n * 100) + "%", dec = (n, d = 1) => Number(n).toFixed(d);
 const cls = n => (n < 0 ? "neg" : n > 0 ? "pos" : "");
@@ -172,7 +173,7 @@ export function statements(s) {
   const L = s.ledger, b = a => balance(L, a), t = totals(L);
   const nz = (a, label) => (Math.abs(b(a)) > 0.004 ? `<tr><td class="l">${label || ACCOUNTS[a].name}</td><td>${money2(b(a))}</td></tr>` : "");
   const rev = ["sales", "sales_b2b", "sales_ecom"].map(a => nz(a)).join(""), exp = ["cogs", ...OPEX].map(a => nz(a)).join(""), net = round2(t.revenue - t.costs);
-  const assets = ["cash", "receivables", "inventory", "inv_raw", "inv_fg", "transit", "machinery", "acc_deprec"].map(a => nz(a)).join(""), liab = ["overdraft", "payables", "credit", "longdebt", "escrow"].map(a => nz(a)).join("");
+  const assets = ["cash", "receivables", "inventory", "inv_raw", "inv_fg", "transit", "machinery", "acc_deprec"].map(a => nz(a)).join(""), liab = ["overdraft", "payables", "tax_payable", "credit", "longdebt", "escrow"].map(a => nz(a)).join("");
   const machGross = b("machinery"), financing = round2(b("capital") - openingGift(s) + b("overdraft") + b("credit") + b("longdebt")), investing = -machGross, cash = b("cash"), operating = round2(cash - financing - investing);
   const tbl = (title, rows, foot) => `<div class="card scroll"><b>${title}</b><table class="tbl fixed"><tbody>${rows}</tbody>${foot ? `<tfoot>${foot}</tfoot>` : ""}</table></div>`;
   return tbl("Income statement", `<tr><td class="l"><b>Revenue</b></td><td></td></tr>${rev}<tr><td class="l"><b>Expenses</b></td><td></td></tr>${exp}`, `<tr><td class="l">Net profit</td><td class="${cls(net)}">${money2(net)}</td></tr>`)
@@ -182,7 +183,7 @@ export function statements(s) {
     + `<small class="muted">Operating cash flow is what is left after investing and financing explain the rest of the cash. Opening stock was a gift from the owner, so it is not counted as cash capital. Return on assets ${dec(Kp.kpis(s).roa)}%, quick ratio ${dec(quick(s), 2)}.</small>`;
 }
 const openingGift = s => round2(s.startNetWorth - s.capital);
-const quick = s => { const L = s.ledger, b = a => balance(L, a), cur = b("overdraft") + b("payables") + b("credit") + b("escrow"); return cur > 0 ? (b("cash") + b("receivables")) / cur : 99; };
+const quick = s => { const L = s.ledger, b = a => balance(L, a), cur = b("overdraft") + b("payables") + b("tax_payable") + b("credit") + b("escrow"); return cur > 0 ? (b("cash") + b("receivables")) / cur : 99; };
 
 // Warning list. Each row jumps to the tab that fixes it.
 export function warningsCard(s) {
@@ -218,4 +219,17 @@ export function forecast(s) {
       <div class="row">${btn("advMake", a.qty ? `Queue ${num(a.qty)} bottles` : "Enough planned", { id: j.id, dis: !a.qty || !s.fx.machines.length, mini: false })}</div></div>`; }).join("");
   const cp = Kp.competitorPrices(s).map(r => { const avg = r.rivals.reduce((x, y) => x + y, 0) / r.rivals.length; return `<div class="kv1"><div><span>${esc(r.name)}: you vs rivals</span><b class="${r.you > avg * 1.05 ? "warnc" : ""}">${money2(r.you)} vs ${money2(avg)}</b></div></div>`; }).join("");
   return `<div class="card">${head("Forecast", "Built from your real sales")}<small class="muted">Demand is the units sold plus the units customers wanted but could not buy. The weekday pattern is removed, a trend is fitted, and the pattern is put back. Safety stock covers demand noise and late suppliers. The advice counts stock, deliveries on the way and free space.</small>${cp}</div>${per}${jc}`;
+}
+
+// ================= LEDGER: trial balance, tax, receivables, journal =================
+export function ledgerScreen(s, f = {}) {
+  const tb = Ac.trialBalance(s), ag = Ac.agingReceivables(s), tx = s.tax, gl = f.gl || "all", b2 = s.b2b;
+  const tbRows = tb.rows.map(r => `<tr><td class="l">${esc(r.name)}</td><td>${r.dr ? money2(r.dr) : ""}</td><td>${r.cr ? money2(r.cr) : ""}</td></tr>`).join("");
+  const accts = [["all", "All accounts"], ...Object.keys(ACCOUNTS).map(k => [k, ACCOUNTS[k].name])];
+  const jr = Ac.journal(s, gl).map(e => `<div class="kv1"><div><span>#${e.id} · day ${e.day} · ${esc(e.memo)}</span><b>${e.lines.map(l => `${esc(ACCOUNTS[l.acct].name)} ${l.dr ? "Dr " + money2(l.dr) : "Cr " + money2(l.cr)}`).join(" · ")}</b></div></div>`).join("");
+  const inv = ag.rows.map(x => `<div class="kv1"><div><span>#${x.id} ${esc(D.B2B.buyers.find(y => y.id === x.buyer).name)}</span><b>${money2(x.amount)} · due day ${x.due}</b></div></div>`).join("");
+  return `<div class="card scroll"><b>Trial balance</b><table class="tbl fixed"><thead><tr><th class="l">Account</th><th>Debit</th><th>Credit</th></tr></thead><tbody>${tbRows}</tbody><tfoot><tr><td class="l">Total ${tb.balanced ? "(balanced)" : "(OUT OF BALANCE)"}</td><td>${money2(tb.dr)}</td><td>${money2(tb.cr)}</td></tr></tfoot></table></div>
+    <div class="card">${head("Income tax", `${pct(D.TAX.rate)} of profit, every ${D.TAX.periodDays} days`)}${kv([["Profit before tax", money2(Ac.profitBeforeTax(s))], ["Tax assessed so far", money2(tx.assessed)], ["Tax paid so far", money2(tx.paid)], ["Tax payable now", money2(Ac.taxOwed(s))], ["Next assessment", "day " + (Math.floor(s.day / D.TAX.periodDays) + 1) * D.TAX.periodDays]])}<small class="muted">Losses carry forward and tax is never refunded. It is due ${D.TAX.dueDays} days after assessment.</small></div>
+    <div class="card">${head("Receivables", "Money customers owe you")}${kv([["B2B invoices open", money2(ag.total)], ["Web orders in escrow", money2(ag.web)], ["Collected so far", money2(b2.collected || 0)], ["Written off as bad debt", money2(b2.badDebt || 0)]])}${inv || `<small class="muted">No open B2B invoices. B2B buyers pay on credit terms (5 to 21 days) after delivery, and a few never pay.</small>`}</div>
+    <div class="card"><b>General ledger</b><label class="fld"><span>Account</span>${sel("gl", accts, gl, false)}</label>${jr || `<small class="muted">Nothing posted to this account yet.</small>`}<small class="muted">Shows the latest entries only.</small></div>`;
 }

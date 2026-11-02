@@ -12,7 +12,7 @@ import * as Kp from "./kpi.js";
 import * as Fc from "./forecast.js";
 import * as Fl from "./fleet.js";
 
-export const newForms = () => ({ vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, q: { juice: "apple", qty: 1000 } });
+export const newForms = () => ({ vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const r = (res, msg) => (res && res.ok ? { ok: true, msg } : { ok: false, error: (res && res.error) || "Not possible." });
 
