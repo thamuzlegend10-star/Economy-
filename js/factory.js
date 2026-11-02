@@ -1,6 +1,7 @@
 // Factory layer (spec modules PRD, MNT, PMN raw side): raw materials, machines, production runs, maintenance, depreciation,
 // and two-stage raw purchasing (requisition -> approval -> purchase order) with payment terms.
 // Pure functions on the game state `s`. State lives in s.fx. All money goes through the ledger.
+import { trackArrival, trackProduction } from "./bi.js";
 import { planTrip, dispatch } from "./fleet.js";
 import { post, balance, round2 } from "./ledger.js";
 import { getLocation } from "./locations.js";
@@ -186,6 +187,7 @@ export const rawIncoming = s => { const m = {}; for (const r of D.RAW) m[r.id] =
 export function factoryArrivals(s) {
   const fx = ensureFactory(s), due = fx.pos.filter(p => p.eta <= s.day);
   for (const po of due) {
+    trackArrival(s, po.vendor, !!po.delayed);
     post(s.ledger, s.day, `Raw delivery #${po.id}`, [{ acct: "inv_raw", dr: po.goods }, { acct: "transit", cr: po.goods }], "rawpo:" + po.id);
     for (const l of po.lines) { fx.raw.qty[l.rid] += l.qty; fx.raw.val[l.rid] = c(fx.raw.val[l.rid] + l.goods); }
     log(s, `Raw delivery #${po.id} arrived.`);
@@ -200,6 +202,7 @@ export function factoryDay(s) {
   for (const m of fx.machines) {
     const t = MACHINE[m.type]; m.ageDays++;
     // depreciation: straight line on price + setup, never below zero book value
+    trackProduction(s, t.perDay, 0);
     const dep = c(Math.min(m.cost / t.life, m.cost - m.deprec));
     if (dep > 0) { post(s.ledger, s.day, `Depreciation ${m.name}`, [{ acct: "depreciation", dr: dep }, { acct: "acc_deprec", cr: dep }], "dep:" + m.id + ":" + s.day); m.deprec = c(m.deprec + dep); }
     // downtime from an earlier breakdown
@@ -215,7 +218,7 @@ export function factoryDay(s) {
     }
     for (const rid of Object.keys(fx.raw.qty)) if (fx.raw.qty[rid] < 1e-6) { fx.raw.qty[rid] = 0; }
     post(s.ledger, s.day, `Production ${m.name}: ${n} ${j.name}`, [{ acct: "inv_fg", dr: cost }, { acct: "inv_raw", cr: cost }], "prod:" + m.id + ":" + s.day);
-    fx.fg.qty[j.id] += n; fx.fg.val[j.id] = c(fx.fg.val[j.id] + cost);
+    trackProduction(s, 0, n); fx.fg.qty[j.id] += n; fx.fg.val[j.id] = c(fx.fg.val[j.id] + cost);
     fx.today.made[j.id] = (fx.today.made[j.id] || 0) + n; fx.today.cost = c(fx.today.cost + cost);
     m.status = "running";
     if (w.batch) { w.batch.done += n; w.batch.started = w.batch.started ?? s.day; if (w.batch.done >= w.batch.qty) { m.queue.shift(); log(s, `${m.name} finished a batch of ${w.batch.qty.toLocaleString("en-US")} ${j.name}.`); } }

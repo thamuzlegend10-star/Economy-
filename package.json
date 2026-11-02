@@ -2,5 +2,5 @@
   "name": "economy",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/engine.test.js tests/data.test.js tests/factory.test.js tests/b2b-mrp.test.js tests/ops.test.js tests/screens.test.js tests/stepA.test.js tests/forecast.test.js tests/fleet.test.js tests/hr2.test.js tests/accounting.test.js" }
+  "scripts": { "test": "node --test tests/engine.test.js tests/data.test.js tests/factory.test.js tests/b2b-mrp.test.js tests/ops.test.js tests/screens.test.js tests/stepA.test.js tests/forecast.test.js tests/fleet.test.js tests/hr2.test.js tests/accounting.test.js tests/bi.test.js" }
 }

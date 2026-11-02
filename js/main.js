@@ -46,7 +46,7 @@ function viewFor() {
   if (m === "hr") return SC.hrScreen(s, ui.f);
   if (m === "marketing") return SC.marketing(s, ui.f);
   if (m === "ecom") return SC.ecom(s);
-  if (m === "data") return sub === "market" ? SC.competitors(s) : sub === "forecast" ? SC.forecast(s) : SC.scoring(s, ui.f);
+  if (m === "data") return sub === "market" ? SC.competitors(s) : sub === "bi" ? SC.biScreen(s) : sub === "forecast" ? SC.forecast(s) : SC.scoring(s, ui.f);
   if (m === "warehouse" && sub === "b2b") return SC.b2bContracts(s);
   if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
   if (m === "warehouse") return UI.warehouse(s, sub);

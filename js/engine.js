@@ -6,6 +6,7 @@ import * as D from "./data.js";
 import { newFactory, factoryArrivals, factoryDay, rawUnitsUsedSpace, fgSpace } from "./factory.js";
 import { newB2B, b2bDay } from "./b2b.js";
 import { newMrp, mrpDay } from "./mrp.js";
+import { trackArrival } from "./bi.js";
 import { newTax, taxDay, taxOwed } from "./accounting.js";
 import { receivable } from "./b2b.js";
 import { ensureFleet, newFleet as newFleetState, planTrip, dispatch, fleetDay } from "./fleet.js";
@@ -113,7 +114,7 @@ function arrivals(s) {
   const due = s.orders.filter(o => o.eta <= s.day);
   for (const o of due) {
     post(s.ledger, s.day, `Delivery #${o.id} ${o.kind === "transfer" ? "from the warehouse" : "from " + SUPPLIER[o.sup].name}${o.dest === "wh" ? " to the warehouse" : ""}`, [{ acct: "inventory", dr: o.goods }, { acct: "transit", cr: o.goods }], "order:" + o.id);
-    const dst = o.dest === "wh" ? s.wh : s;
+    const dst = o.dest === "wh" ? s.wh : s; if (o.kind !== "transfer") trackArrival(s, o.sup, !!o.delayed);
     dst.qty[o.pid] += o.qty; dst.val[o.pid] = c(dst.val[o.pid] + o.goods);
     s.today.arrivals.push({ id: o.id, pid: o.pid, qty: o.qty });
     s.feed.push({ id: ++s.feedSeq, kind: "truck", pid: o.pid, qty: o.qty, to: o.dest === "wh" ? "wh" : "retail", transfer: o.kind === "transfer" }); log(s, `Delivery #${o.id} arrived${o.dest === "wh" ? " at the warehouse" : ""}: ${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}.`);

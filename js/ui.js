@@ -39,7 +39,7 @@ export const NAV = [
   { id: "marketing", label: "Marketing", subs: [] },
   { id: "ecom", label: "E-commerce", subs: [] },
   { id: "mail", label: "Mail", subs: [], iconOnly: true },
-  { id: "data", label: "Data Explorer", subs: [["score", "Scoring"], ["forecast", "Forecast"], ["market", "Competitors"]] },
+  { id: "data", label: "Data Explorer", subs: [["score", "Scoring"], ["forecast", "Forecast"], ["market", "Competitors"], ["bi", "Dashboard"]] },
   { id: "info", label: "Info", subs: [], iconOnly: true, action: true },
 ];
 const svg = id => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;

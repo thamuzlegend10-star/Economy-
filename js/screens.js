@@ -15,6 +15,7 @@ import { esc, money, money2, num } from "./ui.js";
 import { rawLines } from "./actions.js";
 import * as Fc from "./forecast.js";
 import * as Ac from "./accounting.js";
+import * as Bi from "./bi.js";
 
 const pct = n => Math.round(n * 100) + "%", dec = (n, d = 1) => Number(n).toFixed(d);
 const cls = n => (n < 0 ? "neg" : n > 0 ? "pos" : "");
@@ -232,4 +233,27 @@ export function ledgerScreen(s, f = {}) {
     <div class="card">${head("Income tax", `${pct(D.TAX.rate)} of profit, every ${D.TAX.periodDays} days`)}${kv([["Profit before tax", money2(Ac.profitBeforeTax(s))], ["Tax assessed so far", money2(tx.assessed)], ["Tax paid so far", money2(tx.paid)], ["Tax payable now", money2(Ac.taxOwed(s))], ["Next assessment", "day " + (Math.floor(s.day / D.TAX.periodDays) + 1) * D.TAX.periodDays]])}<small class="muted">Losses carry forward and tax is never refunded. It is due ${D.TAX.dueDays} days after assessment.</small></div>
     <div class="card">${head("Receivables", "Money customers owe you")}${kv([["B2B invoices open", money2(ag.total)], ["Web orders in escrow", money2(ag.web)], ["Collected so far", money2(b2.collected || 0)], ["Written off as bad debt", money2(b2.badDebt || 0)]])}${inv || `<small class="muted">No open B2B invoices. B2B buyers pay on credit terms (5 to 21 days) after delivery, and a few never pay.</small>`}</div>
     <div class="card"><b>General ledger</b><label class="fld"><span>Account</span>${sel("gl", accts, gl, false)}</label>${jr || `<small class="muted">Nothing posted to this account yet.</small>`}<small class="muted">Shows the latest entries only.</small></div>`;
+}
+
+// ================= BI DASHBOARD =================
+// Plain SVG line chart: one line per series, shared day axis, min and max labelled. Colours come from the theme variables.
+function lineChart(series, days, label) {
+  if (days.length < 2) return `<small class="muted">Charts appear after two day reports.</small>`;
+  const W = 320, H = 120, P = 6, all = series.flatMap(x => x.values), lo = Math.min(0, ...all), hi = Math.max(1, ...all), X = i => P + (W - 2 * P) * i / (days.length - 1), Y = v => H - P - (H - 2 * P) * (v - lo) / (hi - lo || 1);
+  const lines = series.map(x => `<polyline fill="none" stroke="${x.color}" stroke-width="2" stroke-linejoin="round" points="${x.values.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}"/>`).join("");
+  const zero = lo < 0 ? `<line x1="${P}" x2="${W - P}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="var(--px-hi)" stroke-dasharray="3 3"/>` : "";
+  return `<svg class="lchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label)}">${zero}${lines}</svg>
+    <div class="legend">${series.map(x => `<span><i style="background:${x.color}"></i>${esc(x.name)}</span>`).join("")}<small class="muted">days ${days[0]} to ${days[days.length - 1]} · high ${money(hi)} · low ${money(lo)}</small></div>`;
+}
+const hbars = (rows, colors = ["var(--mint)", "var(--blue)", "var(--brass)", "var(--coral)"]) => { const tot = rows.reduce((a, r) => a + r.v, 0) || 1; return rows.map((r, i) => `<div class="hbar"><span>${esc(r.name)}</span><div class="meter"><i style="width:${(r.v / tot * 100).toFixed(1)}%;background:${colors[i % colors.length]}"></i></div><b>${money(r.v)} · ${Math.round(r.v / tot * 100)}%</b></div>`).join(""); };
+export function biScreen(s) {
+  const m = Bi.bi(s), na = "-", p = v => v == null ? na : dec(v, 1) + "%";
+  const ser = m.series, days = ser.map(x => x.day);
+  const sup = m.suppliers.map(x => `<tr><td class="l">${esc(x.name)}</td><td>${x.n}</td><td>${x.late}</td><td class="${x.onTime < 85 ? "warnc" : ""}">${dec(x.onTime, 0)}%</td></tr>`).join("");
+  return `${warningsCard(s)}<div class="card">${head("Profit and loss", "Since day 1")}${kv([["Revenue", money(m.revenue)], ["Cost of goods", money(m.cogs)], ["Gross profit", money(m.gross)], ["Gross margin", p(m.grossMargin)], ["Operating costs", money(m.opEx)], ["Net profit", money(m.net)], ["Net margin", p(m.netMargin)]])}</div>
+    <div class="card">${head("Operations")}${kv([["Inventory value", money(m.inventory)], ["Inventory turnover / year", m.turnoverYear ? dec(m.turnoverYear, 1) + "×" : na], ["Days of stock on hand", m.daysOfStock == null ? na : dec(m.daysOfStock, 0)], ["Factory utilisation", m.prodEff == null ? "no machines yet" : p(m.prodEff)], ["Bottles made / capacity", m.capUnits ? `${num(m.madeUnits)} / ${num(m.capUnits)}` : na], ["B2B delivered on time", m.b2bDone ? `${p(m.b2bOnTime)} of ${m.b2bDone}` : "no contracts done"], ["Supplier deliveries on time", m.supplierOrders ? `${p(m.supplierOnTime)} of ${m.supplierOrders}` : "none yet"]])}<small class="muted">Utilisation is bottles made divided by what every machine could make at full speed, so idle days, breakdowns and missing materials all lower it.</small></div>
+    <div class="card">${head("Revenue, profit and cash", "Last 60 days")}${lineChart([{ name: "Revenue", color: "var(--mint)", values: ser.map(x => x.revenue) }, { name: "Net profit", color: "var(--brass)", values: ser.map(x => x.net) }, { name: "Cash", color: "var(--blue)", values: ser.map(x => x.cash) }], days, "Revenue, net profit and cash per day")}</div>
+    <div class="card">${head("Where the money comes from")}${m.revenue > 0 ? hbars(m.channels.filter(x => x.v > 0)) : `<small class="muted">No sales yet.</small>`}</div>
+    <div class="card">${head("Where the money goes")}${m.costMix.length ? hbars(m.costMix, ["var(--coral)", "var(--brass)", "var(--blue)", "var(--mint)"]) : `<small class="muted">No costs yet.</small>`}</div>
+    <div class="card scroll"><b>Supplier reliability</b>${sup ? `<table class="tbl fixed"><thead><tr><th class="l">Supplier</th><th>Orders</th><th>Late</th><th>On time</th></tr></thead><tbody>${sup}</tbody></table>` : `<small class="muted">Reliability shows once deliveries arrive.</small>`}</div>`;
 }
