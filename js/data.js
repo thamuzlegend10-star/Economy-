@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -200,6 +200,20 @@ export const KPIS = [
 // ---------- Scenes ----------
 export const SCENES = [
   { id: "store", name: "Store" }, { id: "warehouse", name: "Warehouse" }, { id: "city", name: "City" }, { id: "factory", name: "Factory" }, { id: "yard", name: "Yard" }, { id: "bank", name: "Bank" },
+];
+
+// Facilitator scenarios: scripted market events. kind: demand (shop demand ×mult), cost (supplier prices ×mult), delay (supplier deliveries one day late).
+export const SCENARIOS = [
+  { id: "free", name: "Free play", desc: "No scripted events.", events: [] },
+  { id: "boom", name: "Festival boom", desc: "A demand surge, then a slump.", events: [
+    { day: 5, kind: "demand", mult: 1.25, days: 8, title: "Festival season", body: "A city festival fills the streets." },
+    { day: 20, kind: "demand", mult: 0.85, days: 6, title: "Post-festival slump", body: "People spent their money and stay home." } ] },
+  { id: "supply", name: "Supply crunch", desc: "Prices climb and deliveries slip.", events: [
+    { day: 4, kind: "cost", mult: 1.3, days: 10, title: "Port strike raises prices", body: "A port strike makes goods scarce." },
+    { day: 6, kind: "delay", mult: 1, days: 8, title: "Trucks stuck at the port", body: "Suppliers cannot ship on time." } ] },
+  { id: "pricewar", name: "Price war", desc: "A rival cuts prices, then fuel costs rise.", events: [
+    { day: 3, kind: "demand", mult: 0.8, days: 12, title: "Rival opens a discount chain", body: "Shoppers are drawn to cheap rival prices." },
+    { day: 15, kind: "cost", mult: 1.15, days: 7, title: "Fuel surcharge", body: "Suppliers add a fuel surcharge." } ] },
 ];
 
 // Effect sizes of staff on the rest of the business (tunable). Everything is neutral until people are hired.

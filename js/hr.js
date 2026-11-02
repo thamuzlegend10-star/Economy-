@@ -3,6 +3,7 @@ import { post, balance, round2 } from "./ledger.js";
 import * as D from "./data.js";
 import { streamNext, seedFrom } from "./rng.js";
 import { log } from "./engine.js";
+import { mailPost } from "./mail.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
@@ -78,7 +79,7 @@ export function hrDay(s) {
   const cv = crew(s), target = clamp(55 + 60 * (h.wageMult - 1) + Math.min(15, h.training / 40) - (cv.coverage < 1 ? 15 * (1 - cv.coverage) : 0), 0, 100);
   h.morale = c(clamp(h.morale + (target - h.morale) * D.HR_EFFECTS.moraleDrift, 0, 100));
   // turnover: unhappy staff quit
-  for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30); for (let i = permN(s, r.id); i > 0; i--) if (streamNext(h) < p) { st.n--; h.quits++; log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }
+  for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30); for (let i = permN(s, r.id); i > 0; i--) if (streamNext(h) < p) { st.n--; h.quits++; mailPost(s, { from: "HR", subject: `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} resigned`, body: `Morale is ${Math.round(h.morale)}%. Raise wages or training to keep people.`, goto: ["hr", ""], level: "warn" }); log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }
 }
 function payOut(s, acct, amount, memo) {
   amount = c(amount); if (amount <= 0) return;

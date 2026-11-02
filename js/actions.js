@@ -11,8 +11,10 @@ import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
 import * as Fc from "./forecast.js";
 import * as Fl from "./fleet.js";
+import * as Ml from "./mail.js";
+import * as Sn from "./scenario.js";
 
-export const newForms = () => ({ vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
+export const newForms = () => ({ vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const r = (res, msg) => (res && res.ok ? { ok: true, msg } : { ok: false, error: (res && res.error) || "Not possible." });
 
@@ -42,6 +44,11 @@ export function act(s, f, name, a = {}) {
     case "prReject": return r(F.rejectPR(s, n), "Requisition rejected.");
     case "buyTruck": return r(Fl.buyTruck(s, { type: id }), "Truck bought. Hire a driver in HR.");
     case "svcTruck": return r(Fl.serviceTruck(s, n), "Truck serviced.");
+    case "mailRead": return r(Ml.markRead(s, id), "Marked read.");
+    case "mailAll": return r(Ml.markRead(s, "all"), "All marked as read.");
+    case "mailClear": return r(Ml.clearMail(s), "Inbox cleared.");
+    case "evGo": return r(Sn.inject(s, f.ev), "Event announced to the players.");
+    case "evStop": return r(Sn.stopEvent(s, n), "Event stopped.");
     // MRP
     case "mrpAuto": M.ensureMrp(s).autoPO = !s.mrp.autoPO; return { ok: true, msg: s.mrp.autoPO ? "Auto purchasing is on." : "Auto purchasing is off." };
     case "mrpPlan": M.plan(s); return { ok: true, msg: "Plan refreshed." };

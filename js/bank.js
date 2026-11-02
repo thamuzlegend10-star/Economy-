@@ -1,6 +1,7 @@
 // Commercial banking (module 1): overdraft interest, a 30-day revolving credit line and fixed-term loans. Interest compounds daily.
 import { post, balance, round2 } from "./ledger.js";
 import * as D from "./data.js";
+import { mailPost } from "./mail.js";
 import { log } from "./engine.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -44,6 +45,7 @@ export function takeLoan(s, { kind = "equipment", amount, termDays } = {}) {
 export function bankDay(s) {
   const b = ensureBank(s);
   const od = balance(s.ledger, "overdraft");                                    // overdraft interest compounds into the overdraft itself
+  if (od > 0 && s.overdraftDays === 0) mailPost(s, { from: "Bank", subject: "Your account is overdrawn", body: `You owe the bank $${od.toFixed(2)}. Three days in a row ends the game. Repay it from sales or draw on the credit line.`, goto: ["finance", "bank"], level: "bad" });
   if (od > 0) { const i = c(od * D.BANK.overdraft.rate); if (i > 0) { post(s.ledger, s.day, "Overdraft interest", [{ acct: "interest", dr: i }, { acct: "overdraft", cr: i }], "odint:" + s.day); b.interestPaid = c(b.interestPaid + i); } }
   if (b.credit.bal > 0) {
     const i = c(b.credit.bal * D.BANK.credit.rate); if (i > 0) { post(s.ledger, s.day, "Credit line interest", [{ acct: "interest", dr: i }, { acct: "credit", cr: i }], "crint:" + s.day); b.credit.bal = c(b.credit.bal + i); b.interestPaid = c(b.interestPaid + i); }

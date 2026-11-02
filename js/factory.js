@@ -1,6 +1,8 @@
 // Factory layer (spec modules PRD, MNT, PMN raw side): raw materials, machines, production runs, maintenance, depreciation,
 // and two-stage raw purchasing (requisition -> approval -> purchase order) with payment terms.
 // Pure functions on the game state `s`. State lives in s.fx. All money goes through the ledger.
+import { mailPost } from "./mail.js";
+import { eventMult, delayed as scnDelayed } from "./scenario.js";
 import { trackArrival, trackProduction } from "./bi.js";
 import { planTrip, dispatch } from "./fleet.js";
 import { post, balance, round2 } from "./ledger.js";
@@ -139,7 +141,7 @@ export function quoteRaw(s, { vendor, lines, terms = "cod", carrier = "hired" } 
   if (!items.length) return err("Choose a quantity for at least one material.");
   const km = distanceKm(s.location, v), L = getLocation(s.location), days = Math.max(1, Math.ceil(km / v.speed + v.prep));
   const out = items.map(l => {
-    const r = RAWM[l.rid], unit = Math.round(r.cost * v.price * tm.price * 10000) / 10000, goods = c(unit * l.qty);
+    const r = RAWM[l.rid], unit = Math.round(r.cost * v.price * tm.price * eventMult(s, "cost") * 10000) / 10000, goods = c(unit * l.qty);
     return { rid: l.rid, qty: l.qty, unit, goods, ship: c(v.rate * km * l.qty * r.space * L.logistics) };
   });
   const goods = c(out.reduce((a, l) => a + l.goods, 0)); let ship = c(v.fee * L.logistics + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship), plan = null, dd = days; const errs = [];
@@ -170,7 +172,7 @@ export function rejectPR(s, id) {
 export function placeRawOrder(s, spec) {
   if (s.ended) return err("The game is over.");
   const q = quoteRaw(s, spec); if (q.error) return err(q.error); if (!q.ok) return err(q.errors[0]);
-  const fx = ensureFactory(s), tm = TERM[q.terms], own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "raw pickup") : 0, late = (rnd(s) > VENDOR[q.vendor].reliability ? 1 : 0) + haul;
+  const fx = ensureFactory(s), tm = TERM[q.terms], own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "raw pickup") : 0, late = (rnd(s) > VENDOR[q.vendor].reliability ? 1 : 0) + haul + (scnDelayed(s) ? 1 : 0);
   const po = { id: ++fx.poSeq, vendor: q.vendor, terms: q.terms, lines: q.lines.map(l => ({ ...l })), goods: q.goods, ship: q.ship, placed: s.day, eta: q.eta + late, delayed: late > 0, carrier: q.carrier, due: tm.days ? s.day + tm.days : null };
   fx.pos.push(po);
   const lines = [{ acct: "transit", dr: q.goods }]; if (!own) lines.push({ acct: "delivery", dr: q.ship });
@@ -187,7 +189,7 @@ export const rawIncoming = s => { const m = {}; for (const r of D.RAW) m[r.id] =
 export function factoryArrivals(s) {
   const fx = ensureFactory(s), due = fx.pos.filter(p => p.eta <= s.day);
   for (const po of due) {
-    trackArrival(s, po.vendor, !!po.delayed);
+    trackArrival(s, po.vendor, !!po.delayed); if (po.delayed) mailPost(s, { from: VENDOR[po.vendor].name, subject: `Raw order #${po.id} was late`, body: "Production may stall if you ran short of materials.", goto: ["factory", "raw"], level: "warn" });
     post(s.ledger, s.day, `Raw delivery #${po.id}`, [{ acct: "inv_raw", dr: po.goods }, { acct: "transit", cr: po.goods }], "rawpo:" + po.id);
     for (const l of po.lines) { fx.raw.qty[l.rid] += l.qty; fx.raw.val[l.rid] = c(fx.raw.val[l.rid] + l.goods); }
     log(s, `Raw delivery #${po.id} arrived.`);
@@ -227,7 +229,7 @@ export function factoryDay(s) {
     if (m.health < D.MAINT.breakdownBelow && rnd(s) < D.MAINT.breakdownChance) {
       m.downDays = D.MAINT.downMin + (rnd(s) < 0.5 ? 0 : D.MAINT.downMax - D.MAINT.downMin); m.status = "broken"; m.emergency++;
       const fee = c(t.pmCost * D.MAINT.emergencyMult); pay(s, "maintenance", fee, `Emergency repair of ${m.name}`, "emerg:" + m.id + ":" + s.day);
-      fx.today.broke.push(m.id); log(s, `${m.name} broke down. Emergency repair $${fee.toFixed(2)}, down ${m.downDays} day${m.downDays > 1 ? "s" : ""}.`);
+      fx.today.broke.push(m.id); mailPost(s, { from: "Factory manager", subject: `${m.name} broke down`, body: `Emergency repair cost $${fee.toFixed(2)}. The machine is down ${m.downDays} day(s). Service machines before their health drops below ${D.MAINT.breakdownBelow}%.`, goto: ["factory", "machines"], level: "bad" }); log(s, `${m.name} broke down. Emergency repair $${fee.toFixed(2)}, down ${m.downDays} day${m.downDays > 1 ? "s" : ""}.`);
     }
   }
   // conversion costs: operator wages, factory rent and utilities. On a day that made goods they are added to the cost of those goods; otherwise they are expenses.

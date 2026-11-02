@@ -38,13 +38,13 @@ export const NAV = [
   { id: "hr", label: "HR", subs: [] },
   { id: "marketing", label: "Marketing", subs: [] },
   { id: "ecom", label: "E-commerce", subs: [] },
-  { id: "mail", label: "Mail", subs: [], iconOnly: true },
+  { id: "mail", label: "Mail", subs: [["inbox", "Inbox"], ["facilitator", "Facilitator"]], iconOnly: true },
   { id: "data", label: "Data Explorer", subs: [["score", "Scoring"], ["forecast", "Forecast"], ["market", "Competitors"], ["bi", "Dashboard"]] },
   { id: "info", label: "Info", subs: [], iconOnly: true, action: true },
 ];
 const svg = id => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
 export function navHtml(ui) {
-  const main = NAV.map(n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}" ${n.iconOnly ? `aria-label="${n.label}"` : ""}>${svg(n.id)}${n.iconOnly ? "" : `<span>${n.label}</span>`}</button>`).join("");
+  const main = NAV.map(n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}" ${n.iconOnly ? `aria-label="${n.label}${n.id === "mail" && ui.unread ? " (" + ui.unread + " unread)" : ""}"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}${n.iconOnly ? "" : `<span>${n.label}</span>`}</button>`).join("");
   const cur = NAV.find(n => n.id === ui.main), subs = cur ? cur.subs : [];
   const sub = subs.length > 1 ? subs.map(([id, label]) => `<button data-sub="${id}" class="${ui.sub[ui.main] === id ? "on" : ""}">${label}</button>`).join("") : "";
   return { main, sub };

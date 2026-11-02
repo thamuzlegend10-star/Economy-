@@ -2,6 +2,7 @@
 import { post, balance, totals, round2, ACCOUNTS } from "./ledger.js";
 import * as D from "./data.js";
 import { log } from "./engine.js";
+import { mailPost } from "./mail.js";
 
 const c = round2;
 export const newTax = () => ({ seq: 0, items: [], assessed: 0, paid: 0, lastAssessed: 0 });
@@ -17,6 +18,7 @@ export function taxDay(s) {
     if (due > 0) {
       post(s.ledger, s.day, `Income tax assessed (${Math.round(D.TAX.rate * 100)}% of profit)`, [{ acct: "tax", dr: due }, { acct: "tax_payable", cr: due }], "tax:" + s.day);
       tx.items.push({ id: ++tx.seq, amount: due, assessed: s.day, due: s.day + D.TAX.dueDays }); tx.assessed = c(tx.assessed + due);
+      mailPost(s, { from: "Tax office", subject: "Income tax assessed", body: `Tax of $${due.toFixed(2)} on your profit is due on day ${s.day + D.TAX.dueDays}.`, goto: ["finance", "ledger"] });
       log(s, `Income tax of $${due.toFixed(2)} assessed. Due day ${s.day + D.TAX.dueDays}.`);
     }
   }

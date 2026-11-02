@@ -16,6 +16,8 @@ import { rawLines } from "./actions.js";
 import * as Fc from "./forecast.js";
 import * as Ac from "./accounting.js";
 import * as Bi from "./bi.js";
+import * as Ml from "./mail.js";
+import * as Sn from "./scenario.js";
 
 const pct = n => Math.round(n * 100) + "%", dec = (n, d = 1) => Number(n).toFixed(d);
 const cls = n => (n < 0 ? "neg" : n > 0 ? "pos" : "");
@@ -256,4 +258,26 @@ export function biScreen(s) {
     <div class="card">${head("Where the money comes from")}${m.revenue > 0 ? hbars(m.channels.filter(x => x.v > 0)) : `<small class="muted">No sales yet.</small>`}</div>
     <div class="card">${head("Where the money goes")}${m.costMix.length ? hbars(m.costMix, ["var(--coral)", "var(--brass)", "var(--blue)", "var(--mint)"]) : `<small class="muted">No costs yet.</small>`}</div>
     <div class="card scroll"><b>Supplier reliability</b>${sup ? `<table class="tbl fixed"><thead><tr><th class="l">Supplier</th><th>Orders</th><th>Late</th><th>On time</th></tr></thead><tbody>${sup}</tbody></table>` : `<small class="muted">Reliability shows once deliveries arrive.</small>`}</div>`;
+}
+
+// ================= MAIL AND FACILITATOR =================
+export function mailScreen(s) {
+  const m = Ml.ensureMail(s), items = [...m.items].reverse();
+  const rows = items.map(x => `<div class="card mailrow ${x.read ? "read" : "new"} ${x.level}"><div class="shophead"><b>${esc(x.subject)}</b><small>day ${x.day} · ${esc(x.from)}</small></div><p class="small">${esc(x.body)}</p>
+    <div class="row">${x.goto ? `<button class="mini" data-goto="${x.goto[0]}" data-gsub="${x.goto[1]}">Open</button>` : ""}${x.read ? "" : btn("mailRead", "Mark read", { id: x.id, ghost: true })}</div></div>`).join("");
+  return `<div class="card">${head("Inbox", `${Ml.unread(s)} unread of ${items.length}`)}<div class="row">${btn("mailAll", "Mark all read", { ghost: true, dis: !Ml.unread(s) })}${btn("mailClear", "Clear inbox", { ghost: true, dis: !items.length })}</div><small class="muted">Messages come from real events: late deliveries, breakdowns, contracts, the bank, the tax office and scenario events.</small></div>${rows || `<div class="card"><small class="muted">No messages yet. They arrive as things happen in your business.</small></div>`}`;
+}
+export function facilitatorScreen(s, f, results = []) {
+  const sc = Sn.ensureScn(s), def = Sn.SCENARIO[sc.id], act = Sn.activeEvents(s), ev = f.ev || { kind: "demand", mult: 1.2, days: 7, title: "" };
+  const evs = act.map(e => `<div class="kv1"><div><span>${esc(e.title)}</span><b>${e.kind} ×${e.mult.toFixed(2)} · until day ${e.until}</b></div></div><div class="row">${btn("evStop", "End now", { id: e.id, ghost: true })}</div>`).join("");
+  const rk = Sn.rank(results), mine = Sn.resultCard(s, Kp.scoreboard(s).total, f.team);
+  const table = rk.length ? `<div class="scroll"><table class="tbl fixed"><thead><tr><th>#</th><th class="l">Team</th><th>Score</th><th>Net worth</th><th>Profit</th></tr></thead><tbody>${rk.map(r => `<tr><td>${r.place}</td><td class="l">${esc(r.name)}</td><td>${dec(r.score, 1)}</td><td>${money(r.netWorth)}</td><td class="${r.netProfit >= 0 ? "" : "warnc"}">${money(r.netProfit)}</td></tr>`).join("")}</tbody></table></div>` : `<small class="muted">No results loaded yet.</small>`;
+  return `<div class="card">${head("Scenario", def ? def.name : "Free play")}<small class="muted">${esc(def ? def.desc : "")}</small>${def && def.events.length ? `<small class="muted">Scripted: ${def.events.map(e => `day ${e.day} ${esc(e.title)}`).join(" · ")}</small>` : ""}${evs || `<small class="muted">No event is active right now.</small>`}</div>
+    <div class="card">${head("Announce an event", "The facilitator's lever")}
+      <div class="two"><label class="fld"><span>Type</span>${sel("ev.kind", [["demand", "Demand"], ["cost", "Prices"], ["delay", "Delays"]], ev.kind, false)}</label><label class="fld"><span>Length</span>${sel("ev.days", [1, 3, 5, 7, 10, 14, 21, 30].map(x => [x, x + " d"]), ev.days)}</label></div>
+      ${ev.kind === "delay" ? "" : `<label class="fld"><span>Strength</span>${sel("ev.mult", [0.5, 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.5, 2].map(x => [x, "×" + x.toFixed(1)]), ev.mult)}</label>`}
+      <label class="fld"><span>Headline</span><input data-f="ev.title" value="${esc(ev.title || "")}" maxlength="60" placeholder="e.g. Heatwave"></label>${btn("evGo", "Announce", { mini: false })}<small class="muted">Players get it in Mail. It really changes their numbers.</small></div>
+    <div class="card">${head("Results", "Local, no server")}<label class="fld"><span>Team name</span><input data-f="team" value="${esc(f.team || "")}" maxlength="30" placeholder="Your team"></label>
+      <div class="row"><button class="mini" data-resexport="1">Save my result</button><button class="mini ghost" data-respick="1">Load results to rank</button>${rk.length ? `<button class="mini ghost" data-resclear="1">Clear</button>` : ""}</div>
+      <small class="muted">Now: score ${dec(mine.score, 1)}, net worth ${money(mine.netWorth)}. Teams save a result file and hand it in. The facilitator loads them all here.</small>${table}</div>`;
 }

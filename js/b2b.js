@@ -7,6 +7,7 @@ import { streamNext, seedFrom } from "./rng.js";
 import { log, PRODUCT } from "./engine.js";
 import { JUICE } from "./factory.js";
 import { salesEdge } from "./hr.js";
+import { mailPost } from "./mail.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
@@ -36,7 +37,7 @@ export const receivable = s => c((ensureB2B(s).ar || []).reduce((a, x) => a + x.
 export function b2bDay(s) {
   const b = ensureB2B(s); b.ar = b.ar || [];
   for (const x of b.ar.filter(v => v.due <= s.day)) {                // buyers pay on their credit terms; a few never pay
-    if (streamNext(b) < D.B2B.buyers.find(y => y.id === x.buyer).risk) { post(s.ledger, s.day, `Bad debt: ${BUYER[x.buyer].name} did not pay invoice #${x.id}`, [{ acct: "bad_debt", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.badDebt = c((b.badDebt || 0) + x.amount); log(s, `${BUYER[x.buyer].name} did not pay invoice #${x.id}. Written off $${x.amount.toFixed(2)}.`); }
+    if (streamNext(b) < D.B2B.buyers.find(y => y.id === x.buyer).risk) { post(s.ledger, s.day, `Bad debt: ${BUYER[x.buyer].name} did not pay invoice #${x.id}`, [{ acct: "bad_debt", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.badDebt = c((b.badDebt || 0) + x.amount); mailPost(s, { from: BUYER[x.buyer].name, subject: `Invoice #${x.id} will not be paid`, body: `$${x.amount.toFixed(2)} is written off as bad debt.`, goto: ["finance", "ledger"], level: "bad" }); log(s, `${BUYER[x.buyer].name} did not pay invoice #${x.id}. Written off $${x.amount.toFixed(2)}.`); }
     else { post(s.ledger, s.day, `Payment received from ${BUYER[x.buyer].name}, invoice #${x.id}`, [{ acct: "cash", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.collected = c((b.collected || 0) + x.amount); }
   }
   b.ar = b.ar.filter(v => v.due > s.day);
@@ -58,7 +59,9 @@ function open(s, b) {
   const t = mkTender(s, b, "tender"); t.closes = s.day + D.B2B.openDays; b.open.push(t);
 }
 function openFixed(s, b) {
-  const t = mkTender(s, b, "fixed"); t.price = c(refPrice(t.pid) * (1 - D.B2B.fixedDeals.discount)); t.qty = Math.round(t.qty * 0.6 / 100) * 100; t.due = s.day + 3; t.closes = s.day + 2; b.open.push(t);
+  const t = mkTender(s, b, "fixed");
+  mailPost(s, { from: BUYER[t.buyer].name, subject: "Fixed offer", body: "", goto: ["b2b", "market"], level: "info", _t: t }); t.price = c(refPrice(t.pid) * (1 - D.B2B.fixedDeals.discount)); t.qty = Math.round(t.qty * 0.6 / 100) * 100; t.due = s.day + 3; t.closes = s.day + 2; b.open.push(t);
+  mailPost(s, { from: BUYER[t.buyer].name, subject: "Fixed offer: take it or leave it", body: `${t.qty.toLocaleString("en-US")} ${itemInfo(t.pid).name} at $${t.price.toFixed(2)} each, deliver by day ${t.due}. The offer closes on day ${t.closes}.`, goto: ["b2b", "market"], level: "info" });
 }
 
 // ---------- bidding ----------
@@ -86,10 +89,11 @@ function resolve(s, b, t) {
     if (sc > best.score) best = { who: r.id, score: sc, price: p };
   }
   if (t.bid != null && playerScore(s, b, t, t.bid) >= best.score) { award(s, b, t, t.bid, "Tender"); b.won++; }
-  else { b.history.push({ ...t, result: t.bid == null ? "no bid" : "lost", winner: best.who, winPrice: best.price, day: s.day }); if (t.bid != null) b.lost++; }
+  else { b.history.push({ ...t, result: t.bid == null ? "no bid" : "lost", winner: best.who, winPrice: best.price, day: s.day }); if (t.bid != null) { b.lost++; mailPost(s, { from: BUYER[t.buyer].name, subject: "Tender lost", body: `Your bid for ${t.qty.toLocaleString("en-US")} ${itemInfo(t.pid).name} was not chosen. A rival won at $${best.price.toFixed(2)}.`, goto: ["b2b", "market"], level: "info" }); } }
 }
 function award(s, b, t, price, how) {
   const k = { id: t.id, buyer: t.buyer, pid: t.pid, qty: t.qty, price, due: t.due, penalty: t.penalty, status: "active", awarded: s.day, lateDays: 0, fined: 0 };
+  mailPost(s, { from: BUYER[t.buyer].name, subject: `${how} awarded to you`, body: `${t.qty.toLocaleString("en-US")} ${itemInfo(t.pid).name} at $${price.toFixed(2)} each, deliver by day ${t.due}. Late delivery is fined ${Math.round(t.penalty * 100)}% of the value.`, goto: ["b2b", "contracts"], level: "info" });
   b.active.push(k); log(s, `${how} won: ${BUYER[t.buyer].name} wants ${t.qty.toLocaleString("en-US")} ${itemInfo(t.pid).name} at $${price.toFixed(2)} by day ${t.due}.`);
 }
 
@@ -120,6 +124,7 @@ function late(s, b, k) {
   if (k.lateDays > 5) {                                        // breach: contract cancelled, full penalty, big reputation hit
     const fee = c(value * k.penalty); payPenalty(s, fee, `Contract #${k.id} breached`);
     k.status = "breached"; b.late++; b.rep = clamp(b.rep - D.B2B.reputationLoss * 2, 0, 100); b.history.push({ ...k, result: "breached", penaltyPaid: fee, day: s.day });
+    mailPost(s, { from: BUYER[k.buyer].name, subject: `Contract #${k.id} cancelled`, body: `You missed the delivery by more than 5 days. Penalty $${fee.toFixed(2)} and a big loss of reputation.`, goto: ["b2b", "contracts"], level: "bad" });
     log(s, `Contract #${k.id} breached. Penalty $${fee.toFixed(2)}.`); return;
   }
   const fee = c(value * D.B2B.latePenaltyPerDay); payPenalty(s, fee, `Late contract #${k.id} (day ${k.lateDays})`); k.fined = c(k.fined + fee);

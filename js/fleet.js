@@ -4,6 +4,7 @@ import { post, balance, round2 } from "./ledger.js";
 import * as D from "./data.js";
 import { streamNext, seedFrom } from "./rng.js";
 import { log } from "./engine.js";
+import { mailPost } from "./mail.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
@@ -59,7 +60,7 @@ export function dispatch(s, plan, kind) {
     if (broke) {
       const d = D.TRANSPORT.downMin + (streamNext(f) < 0.5 ? 0 : D.TRANSPORT.downMax - D.TRANSPORT.downMin), fee = c(t.serviceCost * D.TRANSPORT.repairMult);
       k.status = "down"; k.downDays = d; k.busyUntil = s.day + plan.back + d; delay = Math.max(delay, d); k.health = D.TRANSPORT.restoreTo - 20;
-      payOut(s, "maintenance", fee, `Emergency repair of ${k.name} on the road`, "trepair:" + k.id + ":" + s.day); log(s, `${k.name} broke down on the road. Repair $${fee.toFixed(2)}. The delivery is ${d} day(s) late.`);
+      payOut(s, "maintenance", fee, `Emergency repair of ${k.name} on the road`, "trepair:" + k.id + ":" + s.day); mailPost(s, { from: "Fleet manager", subject: `${k.name} broke down on the road`, body: `Repair $${fee.toFixed(2)}. The delivery is ${d} day(s) late. Service trucks before health drops below ${D.TRANSPORT.breakdownBelow}%.`, goto: ["shipping", "fleet"], level: "bad" }); log(s, `${k.name} broke down on the road. Repair $${fee.toFixed(2)}. The delivery is ${d} day(s) late.`);
     }
   }
   payOut(s, "delivery", plan.fuel, `Fuel for ${kind}`, "fuel:" + s.day + ":" + f.tripSeq); f.fuelPaid = c(f.fuelPaid + plan.fuel);

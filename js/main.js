@@ -6,6 +6,9 @@ import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
 import { createScene } from "./scene.js";
+import * as Ml from "./mail.js";
+import * as Sn from "./scenario.js";
+import * as Kp from "./kpi.js";
 import { createLocationPicker } from "./locationpicker.js";
 import { startFit } from "./fit.js";
 
@@ -14,7 +17,7 @@ const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }, del: k => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } } };
 
 let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central", lastSave = 0, lastView = 0, lastDay = 0;
-const ui = { f: newForms(), main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co", factory: "machines", b2b: "market", data: "score" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
+const ui = { results: [], unread: 0, f: newForms(), main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co", factory: "machines", b2b: "market", data: "score", mail: "inbox" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
 
 // ---------- small helpers ----------
 function toast(text, kind = "") {
@@ -46,6 +49,7 @@ function viewFor() {
   if (m === "hr") return SC.hrScreen(s, ui.f);
   if (m === "marketing") return SC.marketing(s, ui.f);
   if (m === "ecom") return SC.ecom(s);
+  if (m === "mail") return ui.sub.mail === "facilitator" ? SC.facilitatorScreen(s, ui.f, ui.results) : SC.mailScreen(s);
   if (m === "data") return sub === "market" ? SC.competitors(s) : sub === "bi" ? SC.biScreen(s) : sub === "forecast" ? SC.forecast(s) : SC.scoring(s, ui.f);
   if (m === "warehouse" && sub === "b2b") return SC.b2bContracts(s);
   if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
@@ -63,7 +67,7 @@ function renderView(force) {
   $("view").innerHTML = viewFor();
   window.scrollTo(0, y);
 }
-function renderAll(force) { renderHud(); renderView(force); lastView = performance.now(); }
+function renderAll(force) { if (s && Ml.unread(s) !== ui.unread) { ui.unread = Ml.unread(s); renderNav(); } renderHud(); renderView(force); lastView = performance.now(); }
 
 // ---------- game loop (the engine owns time; frames only feed it elapsed seconds) ----------
 let prev = performance.now();
@@ -88,6 +92,9 @@ $("tabs").addEventListener("click", e => {
 $("subtabs").addEventListener("click", e => { const b = e.target.closest("[data-sub]"); if (b) goto(ui.main, b.dataset.sub); });
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.resexport) { const card = Sn.resultCard(s, Kp.scoreboard(s).total, ui.f.team), a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(card)], { type: "application/json" })); a.download = `economy-result-${(card.name || "team").replace(/[^a-z0-9]+/gi, "-")}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast("Result saved. Hand the file to the facilitator.", "ok"); return; }
+  if (t.dataset.respick) { $("resIn").click(); return; }
+  if (t.dataset.resclear) { ui.results = []; renderAll(true); return; }
   if (t.dataset.goto) { goto(t.dataset.goto, t.dataset.gsub || undefined); return; }
   if (t.dataset.act) { const r = act(s, ui.f, t.dataset.act, { id: t.dataset.id, dir: t.dataset.dir, juice: t.dataset.juice, batch: t.dataset.batch }); if (!r.ok) toast(r.error, "err"); else { toast(r.msg, "ok"); save(); } renderAll(true); return; }
   if (t.dataset.price) { const r = E.adjustPrice(s, t.dataset.price, Number(t.dataset.dir)); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
@@ -176,6 +183,11 @@ $("mExport").onclick = () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([E.serialize(s)], { type: "application/json" })); a.download = "economy-save.json"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 $("mImport").onclick = () => $("fileIn").click();
+$("resIn").onchange = async () => {
+  const files = [...$("resIn").files]; $("resIn").value = ""; let bad = 0;
+  for (const f of files) { const r = Sn.parseResult(await f.text()); if (r) ui.results.push(r); else bad++; }
+  toast(bad ? `${files.length - bad} loaded, ${bad} not a result file.` : `${files.length} result${files.length === 1 ? "" : "s"} loaded.`, bad ? "err" : "ok"); renderAll(true);
+};
 $("fileIn").onchange = async () => {
   const f = $("fileIn").files[0]; $("fileIn").value = ""; if (!f) return;
   const v = E.validateSave(await f.text());
@@ -200,8 +212,9 @@ $("sArea").oninput = () => { $("sAreaN").value = $("sArea").value; readSetup(); 
 $("sAreaN").oninput = () => { $("sArea").value = Math.min(D.AREA.max, Math.max(D.AREA.min, Number($("sAreaN").value) || D.AREA.min)); readSetup(); };
 $("areaChips").onclick = e => { const b = e.target.closest("[data-area]"); if (b) { $("sAreaN").value = $("sArea").value = b.dataset.area; readSetup(); } };
 for (const id of ["sSec", "sDays", "sCap"]) $(id).oninput = readSetup;
+$("sScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); $("sScn").onchange = () => { $("scnNote").textContent = (D.SCENARIOS.find(x => x.id === $("sScn").value) || {}).desc || ""; };
 $("sStart").onclick = () => {
-  const c = setupValues(); $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay; $("sDays").value = c.days;
+  const c = { ...setupValues(), scenario: $("sScn").value }; $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay; $("sDays").value = c.days;
   adopt(E.newGame(c)); closeMenu(); toast("Shop open. Order stock in the Procurement tab.", "ok");
 };
 

@@ -195,3 +195,6 @@ html, body, * { scrollbar-width:none; -ms-overflow-style:none; }
 .lchart { display:block; width:100%; height:120px; border-bottom:2px solid var(--px-hi); margin:6px 0 4px; }
 .legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.72rem; color:var(--muted); } .legend span { display:inline-flex; align-items:center; gap:5px; } .legend i { width:10px; height:10px; display:inline-block; }
 .hbar { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:2px 8px; align-items:center; margin:6px 0; font-size:.78rem; } .hbar span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .hbar .meter { grid-column:1 / -1; order:3; margin:0; } .hbar b { text-align:right; font-size:.78rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.tabs button { position:relative; } .badge { position:absolute; top:2px; right:2px; min-width:14px; height:14px; padding:0 3px; border-radius:7px; background:var(--coral); color:#fff; font:700 .6rem/14px var(--font); text-align:center; }
+.mailrow.new { border-left:3px solid var(--brass); } .mailrow.read { opacity:.72; } .mailrow.bad { border-left-color:var(--coral); } .mailrow.warn.new { border-left-color:var(--brass); }
