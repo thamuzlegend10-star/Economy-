@@ -24,7 +24,7 @@ function initSprites() {
   SPRITES.tiles = load("cozy-town-lite/tiles/1x/town-street-lite.png");
 }
 const DIR_ROWS = { idle: { down: 0, left: 1, right: 2, up: 3 }, walk: { down: 4, left: 5, right: 6, up: 7 } };
-function drawChar(ctx, x, y, dir = "down", moving = false, t = 0, scale = 1.25) {
+function drawChar(ctx, x, y, dir = "down", moving = false, t = 0, scale = 1.45) {
   const img = SPRITES.char;
   if (img && img.complete && img.naturalWidth) {
     const row = (moving ? DIR_ROWS.walk : DIR_ROWS.idle)[dir] ?? 0;
@@ -48,7 +48,14 @@ function drawTile(ctx, index, dx, dy, dw = 16, dh = 16) {
 export function createScene(canvas, { getState }) {
   initSprites();
   const ctx = canvas.getContext("2d");
-  const st = { view: "store", t: 0, cursor: null, saleQty: {}, spawnT: 0, lostSeen: null, shoppers: [], pings: [], inbound: [], outbound: [], forklift: { x: 470, dir: -1 } };
+  const st = {
+    view: "store", t: 0, cursor: null, saleQty: {}, spawnT: 0, lostSeen: null,
+    shoppers: [
+      { x: 135, y: 196, state: "browse", t: 0, look: 0, shirt: 0, pid: "noodles", qty: 2, angry: false, lane: 0, dir: "up" },
+      { x: 295, y: 204, state: "browse", t: 0.5, look: 1, shirt: 1, pid: "milk", qty: 1, angry: false, lane: 1, dir: "up" }
+    ],
+    pings: [], inbound: [], outbound: [], forklift: { x: 470, dir: -1 }
+  };
   function size() { const dpr = Math.min(2, window.devicePixelRatio || 1), w = canvas.clientWidth || W; canvas.width = Math.round(w * dpr); canvas.height = Math.round(w * dpr * H / W); }
   size(); window.addEventListener("resize", size);
 
@@ -122,7 +129,7 @@ export function createScene(canvas, { getState }) {
     txt(ctx, "SELF CHECKOUT", 590, 160, 10, "#9aa7c4");
     px(ctx, 0, 220, 26, 70, "#101a30"); px(ctx, 4, 224, 18, 62, Math.sin(st.t * 3) > 0 ? "#0e3a2a" : "#12503a");  // automatic door
     txt(ctx, "ENTRANCE", 14, 304, 9, "#9aa7c4");
-    drawChar(ctx, 595, 230, "left", false, st.t, 1.25); // store staff
+    drawChar(ctx, 580, 218, "left", false, st.t, 1.5); // store staff at checkout
     for (const c of [...st.shoppers].sort((a, b) => a.y - b.y)) person(c);
     for (const p of st.pings) { const a = 1 - p.t / 1.2; ctx.globalAlpha = a; txt(ctx, `+${p.qty}`, p.x, p.y - p.t * 24, 13, p.color, "center", 700); txt(ctx, "$", p.x + 22, p.y - 4 - p.t * 24, 13, "#ffd36b", "center", 700); ctx.globalAlpha = 1; }
     txt(ctx, `SHOP  ${s.area} m²`, 12, 12, 12, "#f2a93b", "left", 700);
