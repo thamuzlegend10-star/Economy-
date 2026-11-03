@@ -75,8 +75,10 @@ export function buyMachine(s, { type } = {}) {
   const t = MACHINE[type], fx = ensureFactory(s);
   const m = { id: ++fx.mseq, type, name: `${t.name} ${fx.mseq}`, health: D.MAINT.startHealth, status: "idle", ageDays: 0, cost: q.total, deprec: 0, job: null, downDays: 0, pmToday: false, emergency: 0 };
   fx.machines.push(m); hire(s, "factory", t.operators);
+  // Assign a default standing run (apple juice at full capacity) so the machine starts producing immediately.
+  const _dj = D.JUICES[0]; if (_dj) m.job = { juice: _dj.id, qty: t.perDay };
   post(s.ledger, s.day, `Bought ${m.name} (price and setup capitalised)`, [{ acct: "machinery", dr: q.total }, { acct: "cash", cr: q.total }], "machine:" + m.id);
-  log(s, `Bought ${m.name} for $${q.total.toFixed(2)}.`);
+  log(s, `Bought ${m.name} for $${q.total.toFixed(2)}. Default: ${_dj ? _dj.name : ''} at full capacity.`);
   return ok({ machine: m });
 }
 const findMachine = (s, id) => ensureFactory(s).machines.find(m => m.id === id);
@@ -185,6 +187,21 @@ export function placeRawOrder(s, spec) {
   return ok({ po, total: q.total, eta: po.eta });
 }
 export const rawIncoming = s => { const m = {}; for (const r of D.RAW) m[r.id] = 0; for (const po of ensureFactory(s).pos) for (const l of po.lines) m[l.rid] += l.qty; return m; };
+
+// --- diagnostics: returns the reason a machine is idle, for the UI ---
+export function factoryDiag(s, m) {
+  if (m.downDays > 0) return { reason: "broken", label: `BROKEN \u2014 down ${m.downDays} more day${m.downDays > 1 ? "s" : ""}`, kind: "bad" };
+  const w = workOf(m);
+  if (!w) return { reason: "no_recipe", label: "NO RECIPE \u2014 set a juice to make", kind: "warn" };
+  const bp = bottlesPossible(s, w.juice);
+  if (bp === 0) {
+    const j = JUICE[w.juice]; const missing = Object.entries(j.bom).filter(([rid, q]) => s.fx.raw.qty[rid] < q).map(([rid]) => RAWM[rid].name);
+    return { reason: "no_stock", label: `OUT OF STOCK \u2014 need: ${missing.join(", ") || "raw materials"}`, kind: "bad" };
+  }
+  const { crew: crewFn } = { crew: null }; // crew check handled by HR
+  if (m.health < 30) return { reason: "low_health", label: `LOW HEALTH (${Math.round(m.health)}%) \u2014 service soon`, kind: "warn" };
+  return null;
+}
 
 // ---------- daily hooks (called from the engine's day start and day close) ----------
 export function factoryArrivals(s) {

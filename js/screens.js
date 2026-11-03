@@ -42,6 +42,7 @@ export function factoryMachines(s, f = { farea: 250, q: { juice: "apple", qty: 1
   const own = fx.machines.map(m => { const t = F.MACHINE[m.type], j = m.job ? m.job.juice : "", pc = m.job ? Math.round(m.job.qty / t.perDay * 100) : 0, st = m.status;
     return `<div class="card"><div class="shophead"><b>${esc(m.name)}</b>${chip(st, st === "running" ? "ok" : st === "broken" ? "bad" : "")}</div>
       <small>Health ${dec(m.health, 0)}% · efficiency ${pct(F.machineEfficiency(m))}${m.downDays ? ` · down ${m.downDays} more day${m.downDays > 1 ? "s" : ""}` : ""}</small>${meter(m.health, m.health < 30 ? "full" : m.health < 60 ? "warn" : "")}
+      ${(()=>{ const _d=F.factoryDiag(s,m); return _d ? `<div class="diag-badge diag-${_d.kind}">${esc(_d.label)}</div>` : ""; })()}
       <div class="two"><label class="fld"><span>Makes</span><select id="mj-${m.id}-juice" data-mj="${m.id}"><option value="">Nothing</option>${D.JUICES.map(x => opt(x.id, x.name, j)).join("")}</select></label>
         <label class="fld"><span>Share of capacity</span><select id="mj-${m.id}-qty" data-mj="${m.id}">${jq.map(x => opt(x, x + "%", pc)).join("")}</select></label></div>
       <div class="row">${btn("pm", `Service · ${money(t.pmCost)}`, { id: m.id, ghost: true, dis: m.downDays > 0 })}<small class="muted">Stops about ${Math.round(t.pmDays * 24)} h, restores health</small></div>

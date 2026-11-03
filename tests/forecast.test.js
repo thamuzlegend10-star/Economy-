@@ -31,7 +31,8 @@ test("queue: limits, validation, removal, and a batch waits for raw materials", 
   const id = m.queue[1].id; assert.ok(F.dropBatch(s, { machine: m.id, id }).ok); assert.equal(m.queue.length, F.QUEUE_MAX - 1); assert.equal(F.dropBatch(s, { machine: m.id, id }).ok, false);
 });
 test("MRP plans raw materials for the queue, not only the standing run", () => {
-  const s = mk(); const m = F.buyMachine(s, { type: "std" }).machine; assert.ok(M.plan(s).rows.every(r => r.qty === 0));
+  const s = mk(); const m = F.buyMachine(s, { type: "std" }).machine; F.setRun(s, { machine: m.id, juice: "apple", qty: 0 }); // clear default job for this test
+  assert.ok(M.plan(s).rows.every(r => r.qty === 0));
   F.queueBatch(s, { machine: m.id, juice: "melon", qty: 4000 }); const r = M.plan(s).rows.find(x => x.rid === "melonSyrup"); assert.equal(r.perDay, 150); assert.ok(r.qty > 0);
 });
 test("old machines without a queue field still work", () => {

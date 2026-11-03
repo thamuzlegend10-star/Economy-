@@ -21,10 +21,26 @@ let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central"
 const ui = { results: [], unread: 0, f: newForms(), main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co", factory: "machines", b2b: "market", data: "score", mail: "inbox" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
 
 // ---------- small helpers ----------
-function toast(text, kind = "") {
-  const t = document.createElement("div"); t.className = "toast " + kind; t.textContent = text; $("toasts").appendChild(t);
-  requestAnimationFrame(() => t.classList.add("show")); setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 250); }, 3200);
+// ---------- news broadcast ticker ----------
+const _bq = [], _bseen = new Map();
+function broadcast(text, kind = "") {
+  const key = text.slice(0, 60);
+  const now = Date.now();
+  // Deduplicate within a 5-second window
+  if (_bseen.has(key) && now - _bseen.get(key) < 5000) return;
+  _bseen.set(key, now);
+  const prefix = kind === "err" ? "\u26a0 " : "";
+  _bq.push(prefix + text);
+  if (_bq.length > 12) _bq.shift();
+  const el = document.getElementById("tickerText");
+  if (!el) return;
+  el.textContent = _bq.join("  \u2756  ");
+  // Restart scroll animation by forcing a reflow
+  el.style.animation = "none";
+  void el.offsetWidth;
+  el.style.animation = "";
 }
+const toast = broadcast; // alias so existing call sites work
 const save = () => { if (s) ls.set(SAVE_KEY, E.serialize(s)); lastSave = performance.now(); };
 
 // ---------- render ----------

@@ -108,8 +108,17 @@ dialog h2 { font:700 1.4rem/1.2 var(--font); letter-spacing:0; text-transform:no
 .rentbox { padding:10px; background:var(--px-lo); display:grid; gap:4px; font-size:.88rem; color:var(--fg); } .rentbox b { color:var(--brass); } .rentbox .big { font:700 1.2rem var(--font); }
 .helpbody h4 { margin:12px 0 4px; color:var(--brass); } .helpbody p, .helpbody li { color:var(--fg); font-size:.9rem; } .helpbody ul { margin:4px 0 0; padding-left:18px; }
 .grade { font:700 4rem/1 var(--font); color:var(--brass); text-align:center; } .grade small { display:block; font-size:.85rem; }
-.toasts { position:fixed; left:50%; bottom:max(14px,env(safe-area-inset-bottom)); transform:translateX(-50%); flex-direction:column-reverse !important; display:flex; flex-direction:column; gap:8px; z-index:200; align-items:center; width:min(92vw,420px); pointer-events:none; }
-.toast { background:var(--surface-2); border:2px solid var(--px-hi); border-radius:var(--radius); padding:8px 14px; font-size:.88rem; opacity:0; transform:translateY(-8px); transition:.2s; text-align:center; } .toast.show { opacity:1; transform:none; } .toast.err { border-color:var(--coral); color:#ffd0d6; } .toast.ok { border-color:var(--mint); }
+/* broadcast ticker (replaces stacking toasts) */
+.broadcast-bar { display:flex; align-items:center; height:26px; background:#0b1428; border-bottom:1px solid #1e2d4f; overflow:hidden; flex-shrink:0; }
+.broadcast-label { flex-shrink:0; padding:0 8px; font-size:10px; font-weight:700; letter-spacing:.08em; color:#0a0e19; background:#f2a93b; height:100%; display:flex; align-items:center; }
+.ticker-wrap { flex:1; overflow:hidden; height:100%; display:flex; align-items:center; }
+.ticker-content { white-space:nowrap; display:inline-block; animation:tickerScroll 28s linear infinite; font-size:11px; color:#c8d4ec; padding-left:100%; will-change:transform; }
+.ticker-content:hover { animation-play-state:paused; }
+@keyframes tickerScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-100%)} }
+/* machine diagnostic badges */
+.diag-badge { display:inline-block; margin:4px 0 2px; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:700; letter-spacing:.04em; }
+.diag-warn { background:#3d2e00; color:#f2c040; border:1px solid #7a5a00; }
+.diag-bad  { background:#3a0a0a; color:#ff8080; border:1px solid #8a2020; }
 
 /* location picker */
 dialog.overlay { border:0; background:transparent; padding:2vh 8px; width:100%; max-width:none; max-height:none; height:100%; overflow:auto; margin:0; } dialog.overlay[open] { display:grid; place-items:start center; } dialog.overlay::backdrop { background:rgba(5,8,20,.8); }
