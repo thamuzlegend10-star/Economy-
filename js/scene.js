@@ -14,7 +14,39 @@ const LANES = [{ x: 560, y: 190 }, { x: 560, y: 250 }];             // self-chec
 const SKIN = ["#f1c9a0", "#d9a577", "#b8825a", "#8d5a3c"], SHIRT = ["#4aa8ff", "#8ee0a8", "#c79bff", "#ff8a8a", "#f2a93b"];
 const txt = (ctx, s, x, y, size, color, align = "center", weight = 600) => { ctx.font = `${weight} ${size}px ${FONT}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = "middle"; ctx.fillText(s, x, y); };
 
+// Cozy Town Lite sprite asset management
+const SPRITES = { char: null, cafe: null, tiles: null };
+function initSprites() {
+  if (typeof Image === "undefined" || SPRITES.char) return;
+  const load = src => { const img = new Image(); img.src = src; return img; };
+  SPRITES.char = load("cozy-town-lite/characters/1x/player-1-walk.png");
+  SPRITES.cafe = load("cozy-town-lite/buildings/1x/cafe.png");
+  SPRITES.tiles = load("cozy-town-lite/tiles/1x/town-street-lite.png");
+}
+const DIR_ROWS = { idle: { down: 0, left: 1, right: 2, up: 3 }, walk: { down: 4, left: 5, right: 6, up: 7 } };
+function drawChar(ctx, x, y, dir = "down", moving = false, t = 0, scale = 1.25) {
+  const img = SPRITES.char;
+  if (img && img.complete && img.naturalWidth) {
+    const row = (moving ? DIR_ROWS.walk : DIR_ROWS.idle)[dir] ?? 0;
+    const frame = Math.floor(t * (moving ? 8 : 4)) % 6;
+    const sw = 16, sh = 24, dw = Math.round(sw * scale), dh = Math.round(sh * scale);
+    ctx.drawImage(img, frame * sw, row * sh, sw, sh, Math.round(x - dw / 2), Math.round(y - dh), dw, dh);
+    return true;
+  }
+  return false;
+}
+function drawTile(ctx, index, dx, dy, dw = 16, dh = 16) {
+  const img = SPRITES.tiles;
+  if (img && img.complete && img.naturalWidth) {
+    const col = index % 8, row = Math.floor(index / 8);
+    ctx.drawImage(img, col * 16, row * 16, 16, 16, Math.round(dx), Math.round(dy), Math.round(dw), Math.round(dh));
+    return true;
+  }
+  return false;
+}
+
 export function createScene(canvas, { getState }) {
+  initSprites();
   const ctx = canvas.getContext("2d");
   const st = { view: "store", t: 0, cursor: null, saleQty: {}, spawnT: 0, lostSeen: null, shoppers: [], pings: [], inbound: [], outbound: [], forklift: { x: 470, dir: -1 } };
   function size() { const dpr = Math.min(2, window.devicePixelRatio || 1), w = canvas.clientWidth || W; canvas.width = Math.round(w * dpr); canvas.height = Math.round(w * dpr * H / W); }
@@ -33,8 +65,8 @@ export function createScene(canvas, { getState }) {
       if (lost > seen) { if (st.shoppers.filter(c => c.angry).length < 3) spawn(p.id, 0, true); st.lostSeen[p.id] = lost; }
     }
   }
-  function spawn(pid, qty, angry = false) { st.shoppers.push({ x: -12, y: 250 + Math.random() * 30, state: "toShelf", t: 0, look: Math.floor(Math.random() * 4), shirt: Math.floor(Math.random() * 5), pid, qty, angry, lane: Math.random() < 0.5 ? 0 : 1 }); }
-  const go = (c, tx, ty, v, dt) => { const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy); if (d < 2) return true; c.x += dx / d * Math.min(d, v * dt); c.y += dy / d * Math.min(d, v * dt); return false; };
+  function spawn(pid, qty, angry = false) { st.shoppers.push({ x: -12, y: 250 + Math.random() * 30, state: "toShelf", t: 0, look: Math.floor(Math.random() * 4), shirt: Math.floor(Math.random() * 5), pid, qty, angry, lane: Math.random() < 0.5 ? 0 : 1, dir: "right" }); }
+  const go = (c, tx, ty, v, dt) => { const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy); if (d < 2) return true; if (Math.abs(dx) > Math.abs(dy)) c.dir = dx > 0 ? "right" : "left"; else c.dir = dy > 0 ? "down" : "up"; c.x += dx / d * Math.min(d, v * dt); c.y += dy / d * Math.min(d, v * dt); return false; };
 
   function update(dt, s) {
     st.t += dt; intake(s); st.spawnT += dt;
@@ -57,13 +89,19 @@ export function createScene(canvas, { getState }) {
   }
 
   const person = (c) => {
-    const x = c.x, y = c.y, b = Math.sin(st.t * 10 + c.look) > 0 ? 1 : 0, bag = c.state === "toPay" || c.state === "pay" || (c.state === "toDoor" && !c.angry);
-    px(ctx, x - 5, y - 6 + b, 4, 6, "#1a1f33"); px(ctx, x + 1, y - 6 + (1 - b), 4, 6, "#1a1f33");          // legs
-    px(ctx, x - 6, y - 18, 12, 13, SHIRT[c.shirt]);                                                              // body
-    px(ctx, x - 5, y - 27, 10, 9, SKIN[c.look]); px(ctx, x - 5, y - 28, 10, 3, ["#2a1d12", "#5a3416", "#111", "#9a5a1c"][c.look]);
-    if (bag) { px(ctx, x + 6, y - 14, 8, 9, "#f2a93b"); px(ctx, x + 7, y - 12, 6, 2, "#c9822a"); }              // basket with goods
-    if (c.angry) txt(ctx, "!", x, y - 40, 16, "#f0647a", "center", 700);
-    else if (c.state === "browse") txt(ctx, "?", x, y - 38, 12, "#ffd36b", "center", 700);
+    const x = c.x, y = c.y, bag = c.state === "toPay" || c.state === "pay" || (c.state === "toDoor" && !c.angry);
+    const moving = c.state === "toShelf" || c.state === "toPay" || c.state === "toDoor";
+    const dir = c.dir || (c.state === "browse" ? "up" : c.state === "pay" ? "right" : "right");
+    const drew = drawChar(ctx, x, y, dir, moving, st.t, 1.25);
+    if (!drew) {
+      const b = Math.sin(st.t * 10 + c.look) > 0 ? 1 : 0;
+      px(ctx, x - 5, y - 6 + b, 4, 6, "#1a1f33"); px(ctx, x + 1, y - 6 + (1 - b), 4, 6, "#1a1f33");
+      px(ctx, x - 6, y - 18, 12, 13, SHIRT[c.shirt]);
+      px(ctx, x - 5, y - 27, 10, 9, SKIN[c.look]); px(ctx, x - 5, y - 28, 10, 3, ["#2a1d12", "#5a3416", "#111", "#9a5a1c"][c.look]);
+    }
+    if (bag) { px(ctx, x + 7, y - 10, 7, 7, BY[c.pid].color); px(ctx, x + 8, y - 9, 5, 2, "#ffd36b"); }
+    if (c.angry) txt(ctx, "!", x, y - 36, 16, "#f0647a", "center", 700);
+    else if (c.state === "browse") txt(ctx, "?", x, y - 34, 12, "#ffd36b", "center", 700);
   };
   const truck = (x, y, color, dir = 1) => {
     const f = dir; px(ctx, x, y - 28, 64, 28, "#f6efe3"); px(ctx, f > 0 ? x + 64 : x - 20, y - 20, 20, 20, "#ffb84d"); px(ctx, x + 8, y, 12, 8, "#111"); px(ctx, x + 48, y, 12, 8, "#111"); px(ctx, x + 6, y - 22, 16, 16, color);
@@ -84,6 +122,7 @@ export function createScene(canvas, { getState }) {
     txt(ctx, "SELF CHECKOUT", 590, 160, 10, "#9aa7c4");
     px(ctx, 0, 220, 26, 70, "#101a30"); px(ctx, 4, 224, 18, 62, Math.sin(st.t * 3) > 0 ? "#0e3a2a" : "#12503a");  // automatic door
     txt(ctx, "ENTRANCE", 14, 304, 9, "#9aa7c4");
+    drawChar(ctx, 595, 230, "left", false, st.t, 1.25); // store staff
     for (const c of [...st.shoppers].sort((a, b) => a.y - b.y)) person(c);
     for (const p of st.pings) { const a = 1 - p.t / 1.2; ctx.globalAlpha = a; txt(ctx, `+${p.qty}`, p.x, p.y - p.t * 24, 13, p.color, "center", 700); txt(ctx, "$", p.x + 22, p.y - 4 - p.t * 24, 13, "#ffd36b", "center", 700); ctx.globalAlpha = 1; }
     txt(ctx, `SHOP  ${s.area} m²`, 12, 12, 12, "#f2a93b", "left", 700);
@@ -111,13 +150,34 @@ export function createScene(canvas, { getState }) {
 
   function drawCity(s) {
     const L = getLocation(s.location), rivals = Math.round((L.competition || 0) * 4);
-    px(ctx, 0, 0, W, H, "#22352f"); px(ctx, 0, 150, W, 36, "#3a3f4f"); for (let x = 0; x < W; x += 40) px(ctx, x + 8, 167, 22, 3, "#d9d3b8"); px(ctx, 300, 0, 28, 150, "#3a3f4f"); px(ctx, 120, 186, 28, 134, "#3a3f4f");
+    px(ctx, 0, 0, W, H, "#22352f");
+    let tilesOk = false;
+    if (SPRITES.tiles && SPRITES.tiles.complete && SPRITES.tiles.naturalWidth) {
+      tilesOk = true;
+      for (let x = 0; x < W; x += 16) {
+        drawTile(ctx, 6, x, 134); drawTile(ctx, 16, x, 150);
+        const cross = x >= 300 && x < 348;
+        drawTile(ctx, cross ? 5 : 4, x, 166); drawTile(ctx, cross ? 5 : 0, x, 182);
+        drawTile(ctx, 15, x, 198); drawTile(ctx, 6, x, 214);
+        if (x % 48 === 0) drawTile(ctx, 12 + (Math.floor(x / 48) % 3), x, 230);
+      }
+    }
+    if (!tilesOk) {
+      px(ctx, 0, 150, W, 36, "#3a3f4f"); for (let x = 0; x < W; x += 40) px(ctx, x + 8, 167, 22, 3, "#d9d3b8"); px(ctx, 300, 0, 28, 150, "#3a3f4f"); px(ctx, 120, 186, 28, 134, "#3a3f4f");
+    }
     px(ctx, 6, 100, 74, 44, "#1b2540"); txt(ctx, "SUPPLIERS", 43, 122, 10, "#e9edf7");
     const door = { shop: { x: 440, y: 150 }, wh: { x: 210, y: 150 } };
-    px(ctx, 380, 60, 120, 86, "#2c3a5e"); px(ctx, 380, 54, 120, 10, "#f2a93b"); px(ctx, 396, 84, 88, 40, "#0b1426"); txt(ctx, `SHOP ${s.area} m²`, 440, 44, 11, "#f2a93b", "center", 700);
+    if (SPRITES.cafe && SPRITES.cafe.complete && SPRITES.cafe.naturalWidth) {
+      ctx.drawImage(SPRITES.cafe, 0, 0, 80, 80, 390, 48, 100, 100);
+      txt(ctx, `SHOP ${s.area} m²`, 440, 40, 11, "#f2a93b", "center", 700);
+    } else {
+      px(ctx, 380, 60, 120, 86, "#2c3a5e"); px(ctx, 380, 54, 120, 10, "#f2a93b"); px(ctx, 396, 84, 88, 40, "#0b1426"); txt(ctx, `SHOP ${s.area} m²`, 440, 44, 11, "#f2a93b", "center", 700);
+    }
     if (s.wh.area) { px(ctx, 150, 50, 130, 96, "#33405f"); px(ctx, 150, 44, 130, 10, "#6fd3a0"); px(ctx, 160, 100, 36, 46, "#0b1426"); px(ctx, 204, 100, 36, 46, "#0b1426"); txt(ctx, `WAREHOUSE ${s.wh.area} m²`, 215, 34, 11, "#6fd3a0", "center", 700); }
     else { px(ctx, 150, 70, 130, 76, "#1c2b27"); txt(ctx, "empty lot", 215, 108, 11, "#9aa7c4"); }
     for (let i = 0; i < rivals; i++) { const x = 20 + i * 110, y = 214 + (i % 2) * 40; px(ctx, x + 150 - 30, y, 84, 52, "#3b3f4a"); px(ctx, x + 120, y - 6, 84, 8, "#f0647a"); txt(ctx, "RIVAL", x + 162, y + 28, 10, "#c8ccd8"); }
+    const ped1 = ((st.t * 32 + 60) % (W + 80)) - 40; drawChar(ctx, ped1, 144, "right", true, st.t, 1.15);
+    const ped2 = W + 40 - ((st.t * 26 + 180) % (W + 80)); drawChar(ctx, ped2, 218, "left", true, st.t, 1.15);
     const now = s.day + s.dayStep / Math.max(1, s.stepsPerDay);
     for (const o of s.orders) {
       const from = o.kind === "transfer" ? door.wh.x : 80, to = o.dest === "wh" ? door.wh.x : door.shop.x, k = Math.max(0, Math.min(1, (now - o.placed) / Math.max(0.5, o.eta - o.placed)));
@@ -150,6 +210,8 @@ export function createScene(canvas, { getState }) {
       for (let k = 0; k < 7; k++) { const on = m.status === "running" ? (Math.floor(st.t * 6) + k) % 3 === 0 : false; px(ctx, x + 10 + k * 15, y + 36, 9, 10, on ? "#ffd36b" : "#2c3a5e"); }  // conveyor lights chase while running
       if (m.status === "broken" && Math.sin(st.t * 8) > 0) txt(ctx, "!", x + 60, y + 28, 22, "#f0647a", "center", 700);
       txt(ctx, m.name.toUpperCase(), x + 60, y + 62, 8, "#e9edf7"); bar(x + 8, y + 70, 104, 7, m.health / 100, m.health < 40 ? "#f0647a" : m.health < 70 ? "#f2a93b" : "#6fd3a0", "#05070d");
+      if (m.status === "running") drawChar(ctx, x + 96, y + 50, "left", true, st.t, 1.15);
+      else if (m.status === "broken") drawChar(ctx, x + 96, y + 50, "up", false, st.t, 1.15);
       if (m.status === "broken") for (let k = 0; k < 3; k++) { const a = ((st.t * 0.6 + k / 3) % 1); ctx.globalAlpha = 1 - a; px(ctx, x + 40 + k * 14 + Math.sin(st.t * 3 + k) * 4, y - 4 - a * 26, 8, 8, "#6b7390"); ctx.globalAlpha = 1; }
     });
     const made = fx.today ? Object.values(fx.today.made || {}).reduce((a, b) => a + b, 0) : 0, stock = Object.values(fx.fg.qty).reduce((a, b) => a + b, 0), crew = s.hr ? s.hr.staff.factory.n : 0;
@@ -172,6 +234,7 @@ export function createScene(canvas, { getState }) {
       if (k.status === "out") { const p = (st.t * 0.25 + i * 0.37) % 1, x = -70 + (W + 140) * p; truck(x, 262, col, 1); txt(ctx, "empty bay", bx + 73, by + 28, 9, "#6b7390"); }
       else { truck(bx + 10, by + 50, col, 1); if (k.status === "down") { if (Math.sin(st.t * 6) > 0) txt(ctx, "!", bx + 40, by + 4, 18, "#f0647a", "center", 700); } }
       txt(ctx, `${k.name.toUpperCase()} · ${k.status === "down" ? "BROKEN" : k.status === "out" ? "ON ROAD" : "READY"}`, bx + 73, by + 8, 8, k.status === "down" ? "#f0647a" : "#e9edf7");
+      if (k.status !== "out") drawChar(ctx, bx + 124, by + 48, "left", false, st.t, 1.15);
       bar(bx + 90, by + 40, 50, 6, k.health / 100, k.health < 30 ? "#f0647a" : k.health < 60 ? "#f2a93b" : "#6fd3a0", "#05070d");
     });
   }
