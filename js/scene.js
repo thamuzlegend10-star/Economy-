@@ -198,7 +198,7 @@ export function createScene(canvas, { getState }) {
     if (s.ended) { px(ctx, 0, 0, W, H, "rgba(5,8,20,.6)"); txt(ctx, s.ended.reason === "bankrupt" ? "BANKRUPT" : "FINISHED", W / 2, H / 2, 22, "#f2a93b", "center", 700); }
   }
   let last = performance.now();
-  function frame(now) { const dt = Math.min(0.1, (now - last) / 1000); last = now; const s = getState(); if (s) { update(dt, s); draw(s); } requestAnimationFrame(frame); }
+  function frame(now) { const dt = Math.min(0.1, (now - last) / 1000); last = now; const s = getState(); if (s) { update(dt, s); if (!document.querySelector("dialog[open]")) draw(s); } requestAnimationFrame(frame); }
   requestAnimationFrame(frame);
   return {
     reset() { st.shoppers = []; st.pings = []; st.inbound = []; st.outbound = []; st.cursor = null; st.saleQty = {}; st.lostSeen = null; },

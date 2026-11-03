@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261103e";
+import { createScene } from "./scene.js?v=20261103f";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -45,18 +45,18 @@ const save = () => { if (s) ls.set(SAVE_KEY, E.serialize(s)); lastSave = perform
 
 // ---------- render ----------
 function renderHud() {
-  if (!s) { $("hDay").textContent = "Day - / -"; $("hTime").textContent = "-"; return; }
+  if (!s) { setText($("hDay"), "Day - / -"); setText($("hTime"), "-"); return; }
   const d = E.dashboard(s), tl = Math.ceil(E.timeLeft(s));
-  $("hDay").textContent = s.days ? `Day ${Math.min(s.day, s.days)} / ${s.days}` : `Day ${s.day} / \u221e`;
-  $("hTime").textContent = s.ended ? "Finished" : `${tl} second${tl === 1 ? "" : "s"}`;
+  setText($("hDay"), s.days ? `Day ${Math.min(s.day, s.days)} / ${s.days}` : `Day ${s.day} / \u221e`);
+  setText($("hTime"), s.ended ? "Finished" : `${tl} second${tl === 1 ? "" : "s"}`);
   document.querySelector(".k-time").classList.toggle("low", !s.ended && tl <= 5);
-  $("hCash").textContent = UI.money(d.cash);
-  const n = $("hNet"); n.textContent = UI.money(d.netProfit); n.className = d.netProfit < 0 ? "neg" : d.netProfit > 0 ? "pos" : "";
-  $("locLabel").textContent = `${LOC.getLocation(s.location).city} · ${s.area} m²`;
+  setText($("hCash"), UI.money(d.cash));
+  const n = $("hNet"); setText(n, UI.money(d.netProfit)); n.className = d.netProfit < 0 ? "neg" : d.netProfit > 0 ? "pos" : "";
+  setText($("locLabel"), `${LOC.getLocation(s.location).city} · ${s.area} m²`);
   $("bPause").disabled = !!live; $("bPause").textContent = paused ? "Resume" : "Pause"; $("bPause").classList.toggle("on", paused);
   const wait = live && Date.now() < liveStartAt ? Math.ceil((liveStartAt - Date.now()) / 1000) : 0, lb = live && live.state.phase !== "lobby" ? live.leaderboard().find(r => r.me) : null;
-  $("status").textContent = wait ? `Live game starts in ${wait} s.` : s.ended ? "The game is over." : paused ? "Paused. The timer is stopped." : `Running. Day ${s.day} ends in ${tl} s.${lb && live.state.scores[live.state.id] ? ` Rank ${lb.place} of ${live.leaderboard().length}.` : ""}`;
-  $("log").innerHTML = s.log.slice(-8).reverse().map(l => `<div><small>Day ${l.day}</small> ${UI.esc(l.text)}</div>`).join("");
+  setText($("status"), wait ? `Live game starts in ${wait} s.` : s.ended ? "The game is over." : paused ? "Paused. The timer is stopped." : `Running. Day ${s.day} ends in ${tl} s.${lb && live.state.scores[live.state.id] ? ` Rank ${lb.place} of ${live.leaderboard().length}.` : ""}`);
+  setHtml($("log"), s.log.slice(-8).reverse().map(l => `<div><small>Day ${l.day}</small> ${UI.esc(l.text)}</div>`).join(""));
 }
 const SOON = { mail: ["Mail", "Messages from suppliers, the bank and the facilitator will be here."], data: ["Data Explorer", "Charts and tables to dig into your numbers will be here."] };
 function viewFor() {
@@ -75,14 +75,18 @@ function viewFor() {
   if (m === "shipping") return UI.ship(s, ui);
   return UI.soon(...SOON[m]);
 }
-function renderNav() { const n = UI.navHtml(ui); $("tabs").innerHTML = n.main; $("subtabs").innerHTML = n.sub; $("subtabs").hidden = !n.sub; }
+const setHtml = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } }, setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+function renderNav() { const n = UI.navHtml(ui); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
 function goto(main, sub) { ui.main = main; if (sub) ui.sub[main] = sub; renderNav(); renderAll(true); }
+let lastHtml = "";
 function renderView(force) {
-  if (!s) { $("view").innerHTML = `<div class="card"><p>No game yet. Open the menu and start a new game.</p></div>`; return; }
+  if (!s) { lastHtml = ""; $("view").innerHTML = `<div class="card"><p>No game yet. Open the menu and start a new game.</p></div>`; return; }
   const a = document.activeElement;
   if (!force && a && a.closest && a.closest("#view") && /INPUT|SELECT/.test(a.tagName)) return;      // never rebuild while someone types
-  const y = window.scrollY;
-  $("view").innerHTML = viewFor();
+  const html = viewFor();
+  if (html === lastHtml) return;                                    // nothing changed: no layout, no paint
+  lastHtml = html; const y = window.scrollY;
+  $("view").innerHTML = html;
   window.scrollTo(0, y);
 }
 function renderAll(force) { if (s && Ml.unread(s) !== ui.unread) { ui.unread = Ml.unread(s); renderNav(); } renderHud(); renderView(force); lastView = performance.now(); }
