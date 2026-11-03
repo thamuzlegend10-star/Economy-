@@ -3,6 +3,7 @@
 // Pure functions on the game state `s`. State lives in s.fx. All money goes through the ledger.
 import { mailPost } from "./mail.js";
 import { eventMult, delayed as scnDelayed } from "./scenario.js";
+import { priceLevel } from "./economy.js";
 import { trackArrival, trackProduction } from "./bi.js";
 import { planTrip, dispatch } from "./fleet.js";
 import { post, balance, round2 } from "./ledger.js";
@@ -141,7 +142,7 @@ export function quoteRaw(s, { vendor, lines, terms = "cod", carrier = "hired" } 
   if (!items.length) return err("Choose a quantity for at least one material.");
   const km = distanceKm(s.location, v), L = getLocation(s.location), days = Math.max(1, Math.ceil(km / v.speed + v.prep));
   const out = items.map(l => {
-    const r = RAWM[l.rid], unit = Math.round(r.cost * v.price * tm.price * eventMult(s, "cost") * 10000) / 10000, goods = c(unit * l.qty);
+    const r = RAWM[l.rid], unit = Math.round(r.cost * v.price * tm.price * eventMult(s, "cost") * priceLevel(s) * 10000) / 10000, goods = c(unit * l.qty);
     return { rid: l.rid, qty: l.qty, unit, goods, ship: c(v.rate * km * l.qty * r.space * L.logistics) };
   });
   const goods = c(out.reduce((a, l) => a + l.goods, 0)); let ship = c(v.fee * L.logistics + out.reduce((a, l) => a + l.ship, 0)), total = c(goods + ship), plan = null, dd = days; const errs = [];

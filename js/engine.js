@@ -7,6 +7,7 @@ import { newFactory, factoryArrivals, factoryDay, rawUnitsUsedSpace, fgSpace } f
 import { newB2B, b2bDay } from "./b2b.js";
 import { newMrp, mrpDay } from "./mrp.js";
 import { trackArrival } from "./bi.js";
+import { newEcon, econDay, expectedPrice, demandMood, priceLevel } from "./economy.js";
 import { newMail, mailPost } from "./mail.js";
 import { newScn, scenarioDay, eventMult, delayed as scnDelayed } from "./scenario.js";
 import { newTax, taxDay, taxOwed } from "./accounting.js";
@@ -50,7 +51,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), tax: newTax(), mail: newMail(), scn: newScn(o.scenario), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
+    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), mail: newMail(), scn: newScn(o.scenario), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
   for (const sp of ALL_SUP) { s.supIdx[sp.id] = 1; }
@@ -94,8 +95,8 @@ export function dashboard(s) {
 function demandFor(s, p) {
   const L = getLocation(s.location), price = s.prices[p.id];
   const area = Math.pow(s.area / D.AREA.def, 0.3);
-  const pf = clamp(Math.pow((p.ref * L.power) / price, p.elast * L.priceSens * priceCut(s, p.cat)), 0.01, 2.5);
-  return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s) * csiFactor(s) * eventMult(s, "demand");
+  const pf = clamp(Math.pow(expectedPrice(s, p) / price, p.elast * L.priceSens * priceCut(s, p.cat)), 0.01, 2.5);
+  return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s) * csiFactor(s) * eventMult(s, "demand") * demandMood(s, p.cat);
 }
 export const expectedDemand = (s, pid) => Math.round(demandFor(s, PRODUCT[pid]));
 
@@ -108,7 +109,7 @@ function beginDay(s) {
   for (const sp of ALL_SUP) {                                           // supplier prices drift (supplier stock is unlimited)
     const i = s.supIdx[sp.id]; s.supIdx[sp.id] = Math.round(clamp(i + (rnd(s) - 0.5) * 0.05 + (1 - i) * 0.08, 0.9, 1.15) * 1000) / 1000;
   }
-  scenarioDay(s); arrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
+  econDay(s); scenarioDay(s); arrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
 }
 
@@ -138,7 +139,7 @@ export function distanceKm(locId, sp) {
   return Math.round(best);
 }
 export const discountFor = (qty, table = D.BULK) => { for (const [min, d] of table) if (qty >= min) return d; return 0; };
-export const unitCost = (s, sp, pid) => c(PRODUCT[pid].cost * sp.price * s.supIdx[sp.id] * eventMult(s, "cost"));
+export const unitCost = (s, sp, pid) => c(PRODUCT[pid].cost * sp.price * s.supIdx[sp.id] * eventMult(s, "cost") * priceLevel(s));
 
 export function quote(s, supId, pid, qty) {
   const sp = SUPPLIER[supId], p = PRODUCT[pid];
@@ -435,6 +436,7 @@ export function validateSave(raw) {
   if (o && o.v === 17) { o.v = 18; Object.assign(o.hr, { temps: [], recruitPaid: 0, severancePaid: 0, hires: 0 }); }
   if (o && o.v === 18) { o.v = 19; o.tax = newTax(); o.ledger.bal.tax_payable = o.ledger.bal.tax_payable || 0; o.ledger.bal.bad_debt = o.ledger.bal.bad_debt || 0; o.b2b.ar = []; }
   if (o && o.v === 19) { o.v = 20; o.mail = newMail(); o.scn = newScn("free"); o.scenario = "free"; }
+  if (o && o.v === 20) { o.v = 21; o.econ = newEcon(o.seed); }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

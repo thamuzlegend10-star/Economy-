@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -202,6 +202,12 @@ export const SCENES = [
   { id: "store", name: "Store" }, { id: "warehouse", name: "Warehouse" }, { id: "city", name: "City" }, { id: "factory", name: "Factory" }, { id: "yard", name: "Yard" }, { id: "bank", name: "Bank" },
 ];
 
+// Economy: how strongly rival prices pull the price shoppers expect, and how fast confidence, the price level and tastes wander and return to normal.
+export const MARKET = { rivalBase: 0.3, rivalPerCompetition: 0.7, rivalMax: 0.85,
+  confPull: 0.04, confShock: 0.012, confMin: 0.88, confMax: 1.12, newsAt: 0.04,
+  inflPull: 0.03, inflShock: 0.006, inflMin: 0.92, inflMax: 1.2, inflNews: 1.05,
+  prefPull: 0.05, prefShock: 0.02, prefMin: 0.85, prefMax: 1.15 };
+
 // Facilitator scenarios: scripted market events. kind: demand (shop demand ×mult), cost (supplier prices ×mult), delay (supplier deliveries one day late).
 export const SCENARIOS = [
   { id: "free", name: "Free play", desc: "No scripted events.", events: [] },
@@ -212,7 +218,7 @@ export const SCENARIOS = [
     { day: 4, kind: "cost", mult: 1.3, days: 10, title: "Port strike raises prices", body: "A port strike makes goods scarce." },
     { day: 6, kind: "delay", mult: 1, days: 8, title: "Trucks stuck at the port", body: "Suppliers cannot ship on time." } ] },
   { id: "pricewar", name: "Price war", desc: "A rival cuts prices, then fuel costs rise.", events: [
-    { day: 3, kind: "demand", mult: 0.8, days: 12, title: "Rival opens a discount chain", body: "Shoppers are drawn to cheap rival prices." },
+    { day: 3, kind: "rival", mult: 0.85, days: 12, title: "Rival opens a discount chain", body: "Rival shops cut their prices. Shoppers compare." },
     { day: 15, kind: "cost", mult: 1.15, days: 7, title: "Fuel surcharge", body: "Suppliers add a fuel surcharge." } ] },
 ];
 

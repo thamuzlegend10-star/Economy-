@@ -1,8 +1,8 @@
 # Final audit (Phase 8)
 
 Checked against every section of the master prompt. Status words: **Done** (works, tested), **Partial** (works but narrower than the prompt), **Missing** (not built).
-Evidence: 145 tests pass (`npm test`), including a 60 day full-lifecycle run (`tests/lifecycle.test.js`) that reconciles the books and checks the trial balance after every day, proves determinism, and reloads a mid-game save. Browser audits (`tools/e2e-loop.mjs`, `tools/audit-scrollbars.mjs`) are clean at five viewport sizes.
-Save format is v20. Saves from v11 on migrate step by step. Older saves are refused.
+Evidence: 150 tests pass (`npm test`), including a 60 day full-lifecycle run (`tests/lifecycle.test.js`) that reconciles the books and checks the trial balance after every day, proves determinism, and reloads a mid-game save. Browser audits (`tools/e2e-loop.mjs`, `tools/audit-scrollbars.mjs`) are clean at five viewport sizes.
+Save format is v21. Saves from v11 on migrate step by step. Older saves are refused.
 
 ## 2. Factory and manufacturing
 | Requirement | Status | Notes |
@@ -69,9 +69,10 @@ Save format is v20. Saves from v11 on migrate step by step. Older saves are refu
 | Requirement | Status | Notes |
 |---|---|---|
 | Location costs and demand, elasticity, supplier reliability, supplier price drift | Done | Locations differ in rent, demand, price power, competition, logistics. |
-| **Competitor prices affecting demand** | **Missing** | Rival prices are drawn for comparison only. Demand uses a location competition factor. |
-| **Economic fluctuation, consumer preferences** | **Missing** | Only random daily noise and facilitator or scenario events. |
-| Parameters in config | Partial | Most are in `data.js`; some constants stay inline. |
+| Competitor pricing and market competition | Done | Three rival shops move in waves. Shoppers compare your price with what they expect, which blends the local reference and the rival average. More competition in a district makes rivals count more. A scenario can start a rival price cut. (`economy.js`) |
+| Economic fluctuation | Done | Consumer confidence (about ±12%) and a price level for supplier and vendor prices drift and return to normal. Mail announces large moves. |
+| Consumer preferences | Done | Taste for each product category drifts within ±15%. |
+| Parameters in config | Done for this module | Rates and bounds are in `D.MARKET`. Some older constants stay inline. |
 
 ## 10. Multiplayer and education
 | Requirement | Status | Notes |
@@ -100,8 +101,7 @@ Batch tail trickle, stale raw quantities after a vendor change, machines breakin
 - Rotate the database password, secret keys and Metered credentials that were pasted in chat earlier.
 
 ## Suggested next work, in priority order
-1. Competitor prices and economic fluctuation affecting demand (priority 1 in the prompt).
-2. Factory to warehouse transport and shop sales of juice (priority 2 and 3).
-3. Payroll schedule, multiple factory sites.
-4. Drawn workers and cashiers.
-5. A real multiplayer server with action replay (needs your decision).
+1. Factory to warehouse transport and shop sales of juice (priority 2 and 3).
+2. Payroll schedule, multiple factory sites.
+3. Drawn workers and cashiers.
+4. A real multiplayer server with action replay (needs your decision).

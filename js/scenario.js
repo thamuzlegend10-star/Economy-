@@ -1,6 +1,6 @@
 // Facilitator and scenario mode, played locally. A scenario is a script of dated events that change the market for a while. The facilitator
 // (the person running the session) can also inject an event at any time. Every event is announced in Mail and changes real numbers:
-//   demand: shopper demand in the shop is multiplied    cost: supplier and vendor prices are multiplied    delay: supplier deliveries arrive one day late
+//   rival: rival shop prices are multiplied (shoppers compare)   demand: shopper demand in the shop is multiplied    cost: supplier and vendor prices are multiplied    delay: supplier deliveries arrive one day late
 import * as D from "./data.js";
 import { mailPost } from "./mail.js";
 import { log } from "./engine.js";
@@ -16,7 +16,7 @@ export const delayed = s => activeAt(s, "delay").length > 0;
 function start(s, ev, how) {
   const sc = ensureScn(s), e = { id: ++sc.seq, kind: ev.kind, mult: ev.mult || 1, from: s.day, until: s.day + ev.days - 1, title: ev.title, how };
   sc.events.push(e); if (sc.events.length > 40) sc.events.shift();
-  const txt = e.kind === "demand" ? `Shopper demand ${e.mult >= 1 ? "up" : "down"} ${Math.round(Math.abs(e.mult - 1) * 100)}%` : e.kind === "cost" ? `Supplier prices ${e.mult >= 1 ? "up" : "down"} ${Math.round(Math.abs(e.mult - 1) * 100)}%` : "Supplier deliveries arrive one day late";
+  const txt = e.kind === "rival" ? `Rival shops ${e.mult >= 1 ? "raise" : "cut"} their prices by ${Math.round(Math.abs(e.mult - 1) * 100)}%` : e.kind === "demand" ? `Shopper demand ${e.mult >= 1 ? "up" : "down"} ${Math.round(Math.abs(e.mult - 1) * 100)}%` : e.kind === "cost" ? `Supplier prices ${e.mult >= 1 ? "up" : "down"} ${Math.round(Math.abs(e.mult - 1) * 100)}%` : "Supplier deliveries arrive one day late";
   mailPost(s, { from: how === "facilitator" ? "Facilitator" : "Market news", subject: e.title, body: `${ev.body || e.title} ${txt} for ${ev.days} days (until day ${e.until}).`, level: "warn" });
   log(s, `Event: ${e.title}.`); return e;
 }
@@ -29,7 +29,7 @@ export function scenarioDay(s) {
 // Facilitator action: a custom event starting today.
 export function inject(s, { kind, mult, days, title } = {}) {
   if (s.ended) return { ok: false, error: "The game is over." };
-  if (!["demand", "cost", "delay"].includes(kind)) return { ok: false, error: "Choose an event type." };
+  if (!["demand", "cost", "delay", "rival"].includes(kind)) return { ok: false, error: "Choose an event type." };
   mult = Number(mult); days = Math.round(Number(days)); if (kind !== "delay" && !(mult >= 0.5 && mult <= 2)) return { ok: false, error: "Strength must be between ×0.5 and ×2." };
   if (!(days >= 1 && days <= 30)) return { ok: false, error: "Length must be 1 to 30 days." };
   return { ok: true, event: start(s, { kind, mult: kind === "delay" ? 1 : mult, days, title: (title || "").trim().slice(0, 60) || ({ demand: "Demand shock", cost: "Price shock", delay: "Supply delays" })[kind], body: "The facilitator announces a change in the market." }, "facilitator") };

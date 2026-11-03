@@ -17,6 +17,7 @@ import * as Fc from "./forecast.js";
 import * as Ac from "./accounting.js";
 import * as Bi from "./bi.js";
 import * as Ml from "./mail.js";
+import * as Ec from "./economy.js";
 import * as Sn from "./scenario.js";
 
 const pct = n => Math.round(n * 100) + "%", dec = (n, d = 1) => Number(n).toFixed(d);
@@ -208,7 +209,7 @@ export function competitors(s) {
   const nets = s.history.slice(-30), max = Math.max(1, ...nets.map(h => h.revenue));
   const chartRev = nets.length ? `<div class="chart" role="img" aria-label="Revenue per day">${nets.map(h => `<div class="col"><i style="height:${Math.max(3, h.revenue / max * 100)}%"></i><small>${h.day}</small></div>`).join("")}</div>` : `<small class="muted">The first day report appears when day 1 ends.</small>`;
   return `<div class="card scroll"><b>Competitor prices</b><table class="tbl fixed"><thead><tr><th class="l">Product</th><th>You</th><th>Rival A</th><th>Rival B</th><th>Rival C</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <small class="muted">Amber means a rival is cheaper than you by more than 5%.</small><div class="card"><b>Revenue per day</b>${chartRev}</div>`;
+    <small class="muted">Amber means a rival is cheaper than you by more than 5%. Shoppers compare your price with the rivals, so when they cut, your sales fall unless you follow.</small>${economyCard(s)}<div class="card"><b>Revenue per day</b>${chartRev}</div>`;
 }
 
 export function forecast(s) {
@@ -274,10 +275,13 @@ export function facilitatorScreen(s, f, results = []) {
   const table = rk.length ? `<div class="scroll"><table class="tbl fixed"><thead><tr><th>#</th><th class="l">Team</th><th>Score</th><th>Net worth</th><th>Profit</th></tr></thead><tbody>${rk.map(r => `<tr><td>${r.place}</td><td class="l">${esc(r.name)}</td><td>${dec(r.score, 1)}</td><td>${money(r.netWorth)}</td><td class="${r.netProfit >= 0 ? "" : "warnc"}">${money(r.netProfit)}</td></tr>`).join("")}</tbody></table></div>` : `<small class="muted">No results loaded yet.</small>`;
   return `<div class="card">${head("Scenario", def ? def.name : "Free play")}<small class="muted">${esc(def ? def.desc : "")}</small>${def && def.events.length ? `<small class="muted">Scripted: ${def.events.map(e => `day ${e.day} ${esc(e.title)}`).join(" · ")}</small>` : ""}${evs || `<small class="muted">No event is active right now.</small>`}</div>
     <div class="card">${head("Announce an event", "The facilitator's lever")}
-      <div class="two"><label class="fld"><span>Type</span>${sel("ev.kind", [["demand", "Demand"], ["cost", "Prices"], ["delay", "Delays"]], ev.kind, false)}</label><label class="fld"><span>Length</span>${sel("ev.days", [1, 3, 5, 7, 10, 14, 21, 30].map(x => [x, x + " d"]), ev.days)}</label></div>
+      <div class="two"><label class="fld"><span>Type</span>${sel("ev.kind", [["demand", "Demand"], ["cost", "Prices"], ["delay", "Delays"], ["rival", "Rival prices"]], ev.kind, false)}</label><label class="fld"><span>Length</span>${sel("ev.days", [1, 3, 5, 7, 10, 14, 21, 30].map(x => [x, x + " d"]), ev.days)}</label></div>
       ${ev.kind === "delay" ? "" : `<label class="fld"><span>Strength</span>${sel("ev.mult", [0.5, 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.5, 2].map(x => [x, "×" + x.toFixed(1)]), ev.mult)}</label>`}
       <label class="fld"><span>Headline</span><input data-f="ev.title" value="${esc(ev.title || "")}" maxlength="60" placeholder="e.g. Heatwave"></label>${btn("evGo", "Announce", { mini: false })}<small class="muted">Players get it in Mail. It really changes their numbers.</small></div>
     <div class="card">${head("Results", "Local, no server")}<label class="fld"><span>Team name</span><input data-f="team" value="${esc(f.team || "")}" maxlength="30" placeholder="Your team"></label>
       <div class="row"><button class="mini" data-resexport="1">Save my result</button><button class="mini ghost" data-respick="1">Load results to rank</button>${rk.length ? `<button class="mini ghost" data-resclear="1">Clear</button>` : ""}</div>
       <small class="muted">Now: score ${dec(mine.score, 1)}, net worth ${money(mine.netWorth)}. Teams save a result file and hand it in. The facilitator loads them all here.</small>${table}</div>`;
 }
+
+const economyCard = s => { const e = Ec.ensureEcon(s), tag = v => `${v >= 1 ? "+" : ""}${Math.round((v - 1) * 100)}%`;
+  return `<div class="card">${head("The economy", "Moves slowly, returns to normal")}${kv([["Consumer confidence (all demand)", tag(e.conf)], ["Price level (supplier prices)", tag(e.infl)], ...Object.entries(e.pref).map(([k, v]) => [`Taste for ${k}`, tag(v)])])}</div>`; };

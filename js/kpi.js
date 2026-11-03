@@ -2,6 +2,7 @@
 import { totals, balance, round2 } from "./ledger.js";
 import { getLocation } from "./locations.js";
 import * as D from "./data.js";
+import { rivalPrices } from "./economy.js";
 import { PRODUCT, whOverflow, capacityOf, spaceUsed } from "./engine.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -39,8 +40,7 @@ export function scoreboard(s) {
 }
 // Rival shops' prices for the three retail products: slow waves around the local reference price.
 export function competitorPrices(s) {
-  const L = getLocation(s.location);
-  return D.PRODUCTS.map(p => ({ pid: p.id, name: p.name, you: s.prices[p.id], rivals: [0, 1, 2].map(i => c(p.ref * L.power * (1 + 0.05 * Math.sin(s.day * 0.6 + i * 2.1 + p.base % 7) + 0.02 * (i - 1)))) }));
+  return D.PRODUCTS.map(p => ({ pid: p.id, name: p.name, you: s.prices[p.id], rivals: rivalPrices(s, p) }));
 }
 
 // Business warnings from real state. Each: { level: "bad"|"warn", text, where: [main tab, sub tab] }.
