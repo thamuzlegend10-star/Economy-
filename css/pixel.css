@@ -14,7 +14,7 @@ body.modal-open { overflow:hidden; }
 h1,h2,h3,h4,h5,p { margin:0; } h1 { font:700 1.5rem/1.1 var(--font); } h3 { font:600 1.1rem var(--font); } h4 { font:600 1rem var(--font); }
 .h2, h2 { font:600 .72rem/1 var(--font); letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin:16px 0 8px; }
 small, .muted { color:var(--muted); font-size:.8rem; } .small { font-size:.8rem; } .center { text-align:center; }
-.wrap { max-width:1100px; margin:0 auto; padding:max(10px,env(safe-area-inset-top)) 12px max(24px,env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:10px; }
+.wrap { max-width:1100px; margin:0 auto; padding:max(10px,env(safe-area-inset-top)) 12px max(44px,calc(36px + env(safe-area-inset-bottom))); display:flex; flex-direction:column; gap:10px; }
 
 /* panels */
 .px, .pill, .stage-card, .stat, .card, .ctrl, .tabs, #status, dialog, .sheet, .rentbox {
@@ -108,8 +108,8 @@ dialog h2 { font:700 1.4rem/1.2 var(--font); letter-spacing:0; text-transform:no
 .rentbox { padding:10px; background:var(--px-lo); display:grid; gap:4px; font-size:.88rem; color:var(--fg); } .rentbox b { color:var(--brass); } .rentbox .big { font:700 1.2rem var(--font); }
 .helpbody h4 { margin:12px 0 4px; color:var(--brass); } .helpbody p, .helpbody li { color:var(--fg); font-size:.9rem; } .helpbody ul { margin:4px 0 0; padding-left:18px; }
 .grade { font:700 4rem/1 var(--font); color:var(--brass); text-align:center; } .grade small { display:block; font-size:.85rem; }
-/* broadcast ticker (replaces stacking toasts) */
-.broadcast-bar { display:flex; align-items:center; height:26px; background:#0b1428; border-bottom:1px solid #1e2d4f; overflow:hidden; flex-shrink:0; }
+/* broadcast ticker (pinned to bottom of screen) */
+.broadcast-bar { position:fixed; bottom:0; left:0; right:0; width:100%; height:28px; background:#0b1428; border-top:1px solid #1e2d4f; overflow:hidden; display:flex; align-items:center; z-index:100; box-shadow:0 -2px 10px rgba(0,0,0,.5); }
 .broadcast-label { flex-shrink:0; padding:0 8px; font-size:10px; font-weight:700; letter-spacing:.08em; color:#0a0e19; background:#f2a93b; height:100%; display:flex; align-items:center; }
 .ticker-wrap { flex:1; overflow:hidden; height:100%; display:flex; align-items:center; }
 .ticker-content { white-space:nowrap; display:inline-block; animation:tickerScroll 28s linear infinite; font-size:11px; color:#c8d4ec; padding-left:100%; will-change:transform; }
