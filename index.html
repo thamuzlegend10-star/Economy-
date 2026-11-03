@@ -71,7 +71,8 @@
       <div class="chips" id="areaChips"><button type="button" class="ghost mini" data-area="50">50</button><button type="button" class="ghost mini" data-area="100">100</button><button type="button" class="ghost mini" data-area="250">250</button><button type="button" class="ghost mini" data-area="500">500</button><button type="button" class="ghost mini" data-area="1000">1,000</button><button type="button" class="ghost mini" data-area="2000">2,000</button></div>
       <div class="rentbox" id="rentBox"></div></div>
     <div class="field"><span>3. Game length</span>
-      <div class="two"><label>Real seconds per day<input id="sSec" type="number" min="10" max="120" step="1" value="30"></label><label>Number of days<input id="sDays" type="number" min="5" max="60" step="1" value="30"></label></div>
+      <div class="two"><label>Real seconds per day<input id="sSec" type="number" min="10" max="120" step="1" value="30"></label><label id="sDaysLbl">Number of days (up to 300)<input id="sDays" type="number" min="5" max="300" step="1" value="30"></label></div>
+      <label class="row gap" style="margin-top:4px;cursor:pointer;font-size:.85rem"><input id="sDaysInf" type="checkbox" style="width:auto;min-height:auto;margin:0 4px 0 0"> <span>Infinite days (sandbox / endless mode)</span></label>
       <small class="muted" id="lenNote"></small></div>
     <label class="field"><span>4. Starting capital</span><select id="sCap"><option value="20000">$20,000 (hard)</option><option value="40000" selected>$40,000</option><option value="80000">$80,000</option><option value="150000">$150,000 (easy)</option></select></label>
     <label class="field"><span>5. Scenario</span><select id="sScn"></select><small class="muted" id="scnNote"></small></label>

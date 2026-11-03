@@ -264,7 +264,7 @@ export function finalReport(s) {
   const r = E.finalReport(s), bust = r.reason === "bankrupt";
   const rows = r.rows.map(x => `<tr><td>${esc(x.name)}</td><td>${num(x.units)}</td><td>${money(x.revenue)}</td><td>${money(x.cogs)}</td><td>${money(x.shipping)}</td><td class="${signCls(x.profit)}">${money(x.profit)}</td><td>${num(x.left)}</td></tr>`).join("");
   return `<h2>${bust ? "Bankrupt" : "Final business report"}</h2>
-    <div class="grade">${r.rating}<small>${bust ? "Rent went unpaid for three days." : `${s.days} days in ${esc(E.siteLabel(s.location))}`}</small></div>
+    <div class="grade">${r.rating}<small>${bust ? "Rent went unpaid for three days." : `${s.days ? `${s.days} days` : `${s.day} days (endless)`} in ${esc(E.siteLabel(s.location))}`}</small></div>
     <div class="grid">${stat("Total revenue", money(r.revenue))}${stat("Total expenses", money(r.expenses), `rent ${money(r.rent)} · shipping ${money(r.shipping)}`)}${stat("Net profit", money(r.netProfit), "", signCls(r.netProfit))}${stat("Cash", money(r.cash))}
       ${stat("Remaining inventory", num(r.inventoryUnits) + " units", money(r.inventoryValue) + " at cost")}${stat("Products sold", num(r.unitsSold))}${stat("Net worth", money(r.netWorth), "cash + inventory − debt")}${stat("Most profitable", r.best ? esc(r.best.name) : "none", r.best ? money(r.best.profit) + " profit" : "")}</div>
     <div class="scroll" style="margin-top:10px"><table class="tbl"><thead><tr><th>Product</th><th>Sold</th><th>Revenue</th><th>Goods</th><th>Shipping</th><th>Profit</th><th>Left</th></tr></thead><tbody>${rows}</tbody></table></div>

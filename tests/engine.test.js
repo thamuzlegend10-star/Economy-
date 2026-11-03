@@ -169,3 +169,17 @@ test("old v11 saves get an empty warehouse instead of being refused", () => {
   const s = mk(); const o = JSON.parse(E.serialize(s)); o.v = 11; delete o.wh; delete o.supIdx.harbor;
   const v = E.validateSave(JSON.stringify(o)); assert.ok(v.ok); assert.equal(v.state.wh.area, 0);
 });
+
+test("day limit allows up to 300 days and supports infinite days mode", () => {
+  assert.equal(D.DAYS.max, 300);
+  const c300 = E.cleanSetup({ days: 300 }); assert.equal(c300.days, 300);
+  const cOver = E.cleanSetup({ days: 500 }); assert.equal(cOver.days, 300);
+  const cZero = E.cleanSetup({ days: 0 }); assert.equal(cZero.days, 0);
+  const cInf = E.cleanSetup({ days: "infinite" }); assert.equal(cInf.days, 0);
+  const s = E.newGame({ days: 0, capital: 500000, secPerDay: 10 });
+  s.day = 301;
+  s.dayStep = s.stepsPerDay;
+  E.advanceSteps(s, 1);
+  assert.equal(s.ended, null);
+  assert.equal(s.day, 302);
+});

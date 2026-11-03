@@ -28,7 +28,7 @@ export const SPACE_PER_M2 = 100;          // storage units per rented square met
 export const RENT_PER_M2 = 4.0;           // dollars per m2 per day in a neutral district (district rent factor multiplies it)
 export const AREA = { min: 20, max: 2000, def: 250 };
 export const SECONDS_PER_DAY = { min: 10, max: 120, def: 30 };
-export const DAYS = { min: 5, max: 60, def: 30 };
+export const DAYS = { min: 5, max: 300, def: 30 };
 export const CAPITAL = { min: 10000, max: 200000, def: 40000 };
 export const START_STOCK = { noodles: 3000, milk: 1200, earbuds: 120 };
 

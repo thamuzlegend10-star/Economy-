@@ -47,7 +47,7 @@ const save = () => { if (s) ls.set(SAVE_KEY, E.serialize(s)); lastSave = perform
 function renderHud() {
   if (!s) { $("hDay").textContent = "Day - / -"; $("hTime").textContent = "-"; return; }
   const d = E.dashboard(s), tl = Math.ceil(E.timeLeft(s));
-  $("hDay").textContent = `Day ${Math.min(s.day, s.days)} / ${s.days}`;
+  $("hDay").textContent = s.days ? `Day ${Math.min(s.day, s.days)} / ${s.days}` : `Day ${s.day} / \u221e`;
   $("hTime").textContent = s.ended ? "Finished" : `${tl} second${tl === 1 ? "" : "s"}`;
   document.querySelector(".k-time").classList.toggle("low", !s.ended && tl <= 5);
   $("hCash").textContent = UI.money(d.cash);
@@ -219,22 +219,29 @@ $("fileIn").onchange = async () => {
 const picker = createLocationPicker({ root: $("globeDlg"), getArea: () => Number($("sAreaN").value) || D.AREA.def, onPick: id => { chosenLoc = id; readSetup(); } });
 $("sLocBtn").onclick = () => picker.open(chosenLoc);
 function setupValues() {
-  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: $("sDays").value, capital: $("sCap").value });
+  const inf = $("sDaysInf") && $("sDaysInf").checked;
+  const dVal = inf ? 0 : $("sDays").value;
+  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value });
 }
 function readSetup() {
   const c = setupValues(), info = E.siteInfo(c.location, c.area), cap = E.capacityOf(c.area);
   $("sLocLabel").textContent = LOC.getLocation(c.location).name;
-  $("rentBox").innerHTML = `<div class="big"><b>${UI.money2(info.rentM2)}</b> / m² / day</div><div>Total rent: <b>${UI.money2(info.rent)}</b> per day · <b>${UI.money(info.rent * c.days)}</b> for ${c.days} days</div>
+  const isInf = !c.days;
+  const rentTerm = isInf ? " \xc2\xb7 <b>Infinite days mode</b>" : ` \xc2\xb7 <b>${UI.money(info.rent * c.days)}</b> for ${c.days} days`;
+  $("rentBox").innerHTML = `<div class="big"><b>${UI.money2(info.rentM2)}</b> / m\xc2\xb2 / day</div><div>Total rent: <b>${UI.money2(info.rent)}</b> per day${rentTerm}</div>
     <div>Storage: <b>${UI.num(cap)}</b> space (about ${UI.num(cap)} noodles, or half as many milk)</div><div class="muted">Estimated sales: ${UI.money(info.revenue)} per day at full stock.</div>`;
-  const total = c.secPerDay * c.days; $("lenNote").textContent = `The whole game takes about ${Math.floor(total / 60)} min ${total % 60} s of real time.`;
+  const total = c.secPerDay * c.days;
+  $("lenNote").textContent = isInf ? "Infinite days mode. Game runs continuously without a day limit." : `The whole game takes about ${Math.floor(total / 60)} min ${total % 60} s of real time.`;
 }
 $("sArea").oninput = () => { $("sAreaN").value = $("sArea").value; readSetup(); };
 $("sAreaN").oninput = () => { $("sArea").value = Math.min(D.AREA.max, Math.max(D.AREA.min, Number($("sAreaN").value) || D.AREA.min)); readSetup(); };
 $("areaChips").onclick = e => { const b = e.target.closest("[data-area]"); if (b) { $("sAreaN").value = $("sArea").value = b.dataset.area; readSetup(); } };
 for (const id of ["sSec", "sDays", "sCap"]) $(id).oninput = readSetup;
+if ($("sDaysInf")) $("sDaysInf").onchange = () => { $("sDays").disabled = $("sDaysInf").checked; readSetup(); };
 $("sScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); $("sScn").onchange = () => { $("scnNote").textContent = (D.SCENARIOS.find(x => x.id === $("sScn").value) || {}).desc || ""; };
 $("sStart").onclick = () => {
-  const c = { ...setupValues(), scenario: $("sScn").value }; $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay; $("sDays").value = c.days;
+  const c = { ...setupValues(), scenario: $("sScn").value }; $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay;
+  if (c.days) $("sDays").value = c.days;
   adopt(E.newGame(c)); closeMenu(); toast("Shop open. Order stock in the Procurement tab.", "ok");
 };
 

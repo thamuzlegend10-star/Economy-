@@ -37,10 +37,11 @@ export function rnd(s) {                                          // mulberry32 
 // ---------- setup ----------
 export function cleanSetup(o = {}) {
   const n = (v, lim, def) => clamp(Math.round(Number(v)) || def, lim.min, lim.max);
+  const isInf = o.days === 0 || o.days === "0" || o.days === "inf" || o.days === "infinite" || o.days === Infinity;
   return {
     location: typeof o.location === "string" && hasLocation(o.location) && o.location !== "default" ? o.location : "id-medan-central",
     area: n(o.area, D.AREA, D.AREA.def), secPerDay: n(o.secPerDay, D.SECONDS_PER_DAY, D.SECONDS_PER_DAY.def),
-    days: n(o.days, D.DAYS, D.DAYS.def), capital: n(o.capital, D.CAPITAL, D.CAPITAL.def),
+    days: isInf ? 0 : n(o.days, D.DAYS, D.DAYS.def), capital: n(o.capital, D.CAPITAL, D.CAPITAL.def),
     seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free",
   };
 }
@@ -382,7 +383,7 @@ function closeDay(s) {
   s.history.push(rep); if (s.history.length > 90) s.history.shift(); s.lastReport = rep;
   log(s, `Day ${day} closed: revenue $${rep.revenue.toFixed(0)}, net $${net.toFixed(0)}.`);
   if (s.overdraftDays >= 3) { s.ended = { reason: "bankrupt", day }; return; }
-  if (day >= s.days) { s.ended = { reason: "completed", day }; return; }
+  if (s.days > 0 && day >= s.days) { s.ended = { reason: "completed", day }; return; }
   s.day++; beginDay(s);
 }
 
