@@ -1,5 +1,6 @@
 // Demand forecasting (spec section 5). Uses real sales history: de-seasonalise by weekday, fit a straight-line trend, forecast ahead.
 // Safety stock and reorder points come from demand noise, lead time and supplier reliability. Nothing here changes state.
+import { ensureJshop, shopPerDay as shopPerDay0 } from "./juiceshop.js";
 import * as D from "./data.js";
 import { PRODUCT, WEEK, expectedDemand, distanceKm, unitCost, spaceFree, whFree } from "./engine.js";
 import { JUICE } from "./factory.js";
@@ -74,6 +75,7 @@ export function juiceAdvice(s, jid) {
   const contracts = (s.b2b ? s.b2b.active : []).filter(k => k.pid === jid).reduce((a, k) => a + k.qty, 0);
   const days = Math.max(1, s.day - 1);
   const webPerDay = s.ecom && s.ecom.active && s.ecom.catalog.includes(jid) ? (s.ecom.stats.units / days) / Math.max(1, s.ecom.catalog.length) : 0, webNeed = webPerDay * D.FORECAST.reviewDays;
-  const need = contracts + webNeed, have = fg + queued, qty = Math.max(0, Math.ceil((need - have) / 100) * 100);
-  return { jid, fg, queued, contracts, webPerDay: c(webPerDay), need: Math.round(need), qty };
+  const js = ensureJshop(s), shopPerDay = js.listed[jid] ? shopPerDay0(s, jid) : 0, onShelf = js.qty[jid] + js.moves.filter(m => m.jid === jid).reduce((a, m) => a + m.qty, 0), shopNeed = Math.max(0, shopPerDay * D.FORECAST.reviewDays - onShelf);
+  const need = contracts + webNeed + shopNeed, have = fg + queued, qty = Math.max(0, Math.ceil((need - have) / 100) * 100);
+  return { jid, fg, queued, contracts, webPerDay: c(webPerDay), shopPerDay: c(shopPerDay), onShelf, need: Math.round(need), qty };
 }

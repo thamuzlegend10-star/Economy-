@@ -11,6 +11,7 @@ import * as B from "../js/b2b.js";
 import * as K from "../js/market.js";
 import * as Bk from "../js/bank.js";
 import * as M from "../js/mrp.js";
+import * as Js from "../js/juiceshop.js";
 import * as Ac from "../js/accounting.js";
 import * as Bi from "../js/bi.js";
 import * as Kp from "../js/kpi.js";
@@ -29,9 +30,11 @@ function play(seed, scenario = "supply", onDay = () => {}) {
     if (d % 8 === 2) { F.placeRawOrder(s, { vendor: "agro", lines: [{ rid: "appleConc", qty: 300 }, { rid: "water", qty: 3000 }] }); F.placeRawOrder(s, { vendor: "packco", lines: [{ rid: "bottles", qty: 3000 }, { rid: "caps", qty: 3000 }], terms: "net30" }); }
     if (d % 3 === 0 && s.fx.machines.length) F.queueBatch(s, { machine: s.fx.machines[0].id, juice: "apple", qty: 1500 });
     if (d % 6 === 0) { const q = Object.fromEntries(D.PRODUCTS.map(p => [p.id, Math.min(500, s.wh.qty[p.id])])); E.sendToRetail(s, { lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: q[p.id] })).filter(l => l.qty > 0), carrier: "hired" }); }
-    for (const t of B.ensureB2B(s).open) if (t.kind === "fixed") B.acceptDeal(s, t.id); else if (d % 2) B.placeBid(s, { tender: t.id, price: t.ceiling * 0.97 });
+    if (d % 3 === 0 && s.fx.fg.qty.apple > 0) Js.moveJuice(s, { lines: [{ jid: "apple", qty: Math.min(2500, s.fx.fg.qty.apple) }], carrier: d % 6 === 0 ? "own" : "hired" });
+    const stock = pid => (s.wh.qty[pid] ?? s.fx.fg.qty[pid] ?? 0);
+    for (const t of B.ensureB2B(s).open) if (stock(t.pid) >= t.qty) { if (t.kind === "fixed") B.acceptDeal(s, t.id); else B.placeBid(s, { tender: t.id, price: t.ceiling * 0.97 }); }
     for (const k of [...s.b2b.active]) B.deliver(s, k.id);
-    if (d === 2) Bk.takeLoan(s, { kind: "long", amount: 100000, termDays: 365 }); if (d === 10) Bk.drawCredit(s, 10000); if (d === 12) Bk.takeLoan(s, { kind: "equipment", amount: 20000, termDays: 60 });
+    if (d === 10) Bk.drawCredit(s, 10000); if (d === 12) Bk.takeLoan(s, { kind: "equipment", amount: 20000, termDays: 60 });
     if (d % 7 === 0) for (const m of s.fx.machines) F.preventiveMaintenance(s, m.id);
     if (d % 9 === 0) for (const k of s.fleet.trucks) Fl.serviceTruck(s, k.id);
     day(); onDay(s);
@@ -52,7 +55,7 @@ test("60 days of every department: books reconcile and balance every day, nothin
   const t = Ac.trialBalance(s); assert.ok(t.balanced);
   assert.ok(balance(s.ledger, "sales") + balance(s.ledger, "sales_b2b") + balance(s.ledger, "sales_ecom") > 0, "something was sold");
   assert.ok(s.fx.eff && s.fx.eff.made > 0, "the factory produced bottles");
-  assert.ok(s.fleet.km > 0, "the truck drove"); assert.ok(s.tax.assessed >= 0); assert.ok(s.mail.items.length > 0); assert.ok(H.ensureHr(s).hires > 0);
+  assert.ok(s.fleet.km > 0, "the truck drove"); assert.ok(s.jshop.sold.apple > 0, "juice sold in the shop"); assert.ok(s.tax.assessed >= 0); assert.ok(s.mail.items.length > 0); assert.ok(H.ensureHr(s).hires > 0);
 });
 
 test("determinism: the same seed and the same actions give the exact same save", () => {

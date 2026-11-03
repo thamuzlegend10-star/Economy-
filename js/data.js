@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -50,6 +50,8 @@ export const WH_SUPPLIERS = [
 ];
 // Moving goods from the warehouse to the shop: one trip fee plus a charge per space unit. Takes one day.
 export const TRANSFER = { fee: 120, rate: 0.0006, days: 1 };
+// Juice sold on the shop shelf: share of the juice base demand that shoppers in the shop take (the rest goes to B2B and the web store).
+export const JUICE_SHOP = { share: 0.5 };
 
 // =====================================================================================
 // MonsoonSIM spec, Phase 1: data for manufacturing, MRP, B2B, HR, marketing, e-commerce,

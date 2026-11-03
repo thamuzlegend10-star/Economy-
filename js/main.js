@@ -44,7 +44,7 @@ const SOON = { mail: ["Mail", "Messages from suppliers, the bank and the facilit
 function viewFor() {
   const m = ui.main, sub = ui.sub[m];
   if (m === "finance") return sub === "reports" ? UI.reports(s) : sub === "statements" ? SC.statements(s) : sub === "bank" ? SC.bank(s, ui.f) : sub === "ledger" ? SC.ledgerScreen(s, ui.f) : SC.warningsCard(s) + UI.dashboard(s);
-  if (m === "factory") return sub === "raw" ? SC.factoryRaw(s, ui.f) : sub === "mrp" ? SC.factoryMrp(s) : SC.factoryMachines(s, ui.f);
+  if (m === "factory") return sub === "raw" ? SC.factoryRaw(s, ui.f) : sub === "mrp" ? SC.factoryMrp(s) : sub === "juice" ? SC.factoryJuice(s, ui.f) : SC.factoryMachines(s, ui.f);
   if (m === "b2b") return sub === "contracts" ? SC.b2bContracts(s) : SC.b2bMarket(s, ui.f);
   if (m === "hr") return SC.hrScreen(s, ui.f);
   if (m === "marketing") return SC.marketing(s, ui.f);

@@ -32,7 +32,7 @@ export const NAV = [
   { id: "finance", label: "Finance", subs: [["overview", "Overview"], ["reports", "Reports"], ["statements", "Statements"], ["ledger", "Ledger"], ["bank", "Bank"]] },
   { id: "retail", label: "Retail", subs: [["location", "Location"], ["procurement", "Procurement"], ["store", "Store"], ["price", "Retail Sales & Price"], ["tx", "Transactions"]] },
   { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock & Storage"], ["procure", "Bulk Procurement"], ["send", "Send to Retail"], ["b2b", "Send to B2B"]] },
-  { id: "factory", label: "Factory", subs: [["machines", "Machines"], ["raw", "Raw & Purchasing"], ["mrp", "MRP"]] },
+  { id: "factory", label: "Factory", subs: [["machines", "Machines"], ["raw", "Raw & Purchasing"], ["mrp", "MRP"], ["juice", "Juice to shop"]] },
   { id: "shipping", label: "Shipping", subs: [["co", "Transport Company"], ["fleet", "My Fleet"], ["tx", "Transactions"]] },
   { id: "b2b", label: "B2B", subs: [["market", "Market"], ["contracts", "Contracts"]] },
   { id: "hr", label: "HR", subs: [] },

@@ -1,8 +1,8 @@
 # Final audit (Phase 8)
 
 Checked against every section of the master prompt. Status words: **Done** (works, tested), **Partial** (works but narrower than the prompt), **Missing** (not built).
-Evidence: 150 tests pass (`npm test`), including a 60 day full-lifecycle run (`tests/lifecycle.test.js`) that reconciles the books and checks the trial balance after every day, proves determinism, and reloads a mid-game save. Browser audits (`tools/e2e-loop.mjs`, `tools/audit-scrollbars.mjs`) are clean at five viewport sizes.
-Save format is v21. Saves from v11 on migrate step by step. Older saves are refused.
+Evidence: 156 tests pass (`npm test`), including a 60 day full-lifecycle run (`tests/lifecycle.test.js`) that reconciles the books and checks the trial balance after every day, proves determinism, and reloads a mid-game save. Browser audits (`tools/e2e-loop.mjs`, `tools/audit-scrollbars.mjs`) are clean at five viewport sizes.
+Save format is v22. Saves from v11 on migrate step by step. Older saves are refused.
 
 ## 2. Factory and manufacturing
 | Requirement | Status | Notes |
@@ -23,7 +23,8 @@ Save format is v21. Saves from v11 on migrate step by step. Older saves are refu
 | Own trucks, purchase, capacity, maintenance, fuel, drivers and wages | Done | Van and box truck; service restores health; drivers are an HR role. |
 | Delivery scheduling, delays, breakdowns | Done | Multiple rounds when the load is bigger than one truck; a breakdown delays the delivery and costs an emergency repair. |
 | Warehouse to shop, supplier to shop or warehouse, supplier to factory | Done | Choose "My own trucks" on orders, raw orders and transfers. |
-| **Factory to warehouse transport** | **Missing** | Finished juice stays in the factory. B2B and the web store draw from it there. Juice cannot be sold on the shop shelf. |
+| Factory to shop transport of juice | Done | Factory, Juice to shop: pick bottles, choose your own trucks or a hired carrier. Goods go through goods-in-transit and arrive on the shop shelf after the trip. Raw materials and factory goods already count against warehouse space, so no separate factory-to-warehouse move was added. |
+| Juice sold in the shop | Done | Juice has its own shelf, price and demand (price, location, rivals, economy, satisfaction). Cost of goods follows the bottles. A juice draws shoppers only after you stock it once. |
 | Delivery routes, loading and unloading | **Partial** | Distance sets time and fuel. Loading is a fixed quarter day. No route map and no dock queue. |
 | Trucks tied to real deliveries | Done | The city and yard scenes draw trucks from real orders and the real fleet. |
 
@@ -90,18 +91,17 @@ Save format is v21. Saves from v11 on migrate step by step. Older saves are refu
 | Performance | Done | 60 frames per second in every scene (headless Chromium, 90 frame sample). 60 days of simulation run in about 20 ms. |
 
 ## 12. Department interconnection
-Verified end to end by the lifecycle test: marketing lifts demand, forecasts read sales history, MRP plans materials, purchase requisitions become orders, suppliers or your trucks deliver, factory crews make bottles, bottles sell through B2B (on credit) and the web store (through escrow), service satisfaction moves demand, every step is in the ledger, tax is assessed, and the dashboard reads it back. The two breaks in the chain are the missing factory-to-warehouse move and the fact that juice cannot be sold in the shop.
+Verified end to end by the lifecycle test: marketing lifts demand, forecasts read sales history, MRP plans materials, purchase requisitions become orders, suppliers or your trucks deliver, factory crews make bottles, bottles sell through B2B (on credit) and the web store (through escrow), service satisfaction moves demand, every step is in the ledger, tax is assessed, and the dashboard reads it back. Juice now flows factory, truck, shop shelf, sale, ledger, and production advice counts the shop's juice demand.
 
 ## Bugs found and fixed during the work
 Batch tail trickle, stale raw quantities after a vendor change, machines breaking down on the day they were bought, MRP header overflow at 320 px, factory tanks hidden behind the scene tabs, old cached CSS showing scrollbars. No open bugs are known.
 
 ## Known limitations
-- A simple script that buys a factory but cannot sell juice in the shop goes bankrupt around day 30 to 38 on $250,000. The lifecycle test needs a $100,000 loan to reach day 60. Juice revenue only comes from B2B and web.
+- A careless script that accepts every B2B deal without stock pays large breach penalties and goes bankrupt. That is by design, not a bug. The lifecycle script only takes deals it can fill and survives 60 days without loans.
 - Progress is local to one browser. There is no cloud save.
 - Rotate the database password, secret keys and Metered credentials that were pasted in chat earlier.
 
 ## Suggested next work, in priority order
-1. Factory to warehouse transport and shop sales of juice (priority 2 and 3).
-2. Payroll schedule, multiple factory sites.
-3. Drawn workers and cashiers.
-4. A real multiplayer server with action replay (needs your decision).
+1. Payroll schedule, multiple factory sites.
+2. Drawn workers and cashiers.
+3. A real multiplayer server with action replay (needs your decision).

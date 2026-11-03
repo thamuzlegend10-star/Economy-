@@ -18,6 +18,7 @@ import * as Ac from "./accounting.js";
 import * as Bi from "./bi.js";
 import * as Ml from "./mail.js";
 import * as Ec from "./economy.js";
+import * as Js from "./juiceshop.js";
 import * as Sn from "./scenario.js";
 
 const pct = n => Math.round(n * 100) + "%", dec = (n, d = 1) => Number(n).toFixed(d);
@@ -285,3 +286,17 @@ export function facilitatorScreen(s, f, results = []) {
 
 const economyCard = s => { const e = Ec.ensureEcon(s), tag = v => `${v >= 1 ? "+" : ""}${Math.round((v - 1) * 100)}%`;
   return `<div class="card">${head("The economy", "Moves slowly, returns to normal")}${kv([["Consumer confidence (all demand)", tag(e.conf)], ["Price level (supplier prices)", tag(e.infl)], ...Object.entries(e.pref).map(([k, v]) => [`Taste for ${k}`, tag(v)])])}</div>`; };
+
+// ================= JUICE TO THE SHOP =================
+export function factoryJuice(s, f = {}) {
+  const js = Js.ensureJshop(s), jm = f.jm || {}, carrier = f.jcarrier || "hired", lines = D.JUICES.map(j => ({ jid: j.id, qty: Number(jm[j.id]) || 0 })).filter(l => l.qty > 0);
+  const q = lines.length ? Js.quoteMove(s, lines, carrier) : null, qtys = max => [[0, "None"], ...[500, 1000, 2000, 5000, 10000].filter(x => x < max).map(x => [x, num(x)]), ...(max > 0 ? [[max, `All (${num(max)})`]] : [])];
+  const cards = D.JUICES.map(j => { const st = s.fx.fg.qty[j.id], price = js.prices[j.id], mv = js.moves.filter(m => m.jid === j.id).reduce((a, m) => a + m.qty, 0), avg = st ? s.fx.fg.val[j.id] / st : 0, shelfAvg = js.qty[j.id] ? js.val[j.id] / js.qty[j.id] : avg;
+    return `<div class="card"><div class="shophead"><b><span class="dot" style="background:${j.color}"></span>${esc(j.name.replace(" (1 L)", ""))}</b><small>${js.listed[j.id] ? "on the shop shelf" : "not stocked yet"}</small></div>
+      ${kv([["At the factory", num(st)], ["On the way", num(mv)], ["On the shop shelf", num(js.qty[j.id])], ["Sold so far", num(js.sold[j.id])], ["Missed (empty shelf)", num(js.lost[j.id])], ["Cost per bottle", shelfAvg ? money2(shelfAvg) : "-"], ["Wanted per day (recent)", num(Js.shopPerDay(s, j.id))]])}
+      <div class="row">${btn("jprice", "-", { id: j.id, ghost: true, arg: 'data-dir="-1"' })}<b>${money2(price)}</b>${btn("jprice", "+", { id: j.id, ghost: true, arg: 'data-dir="1"' })}<small class="muted">${shelfAvg ? `margin ${money2(price - shelfAvg)}` : "no stock yet"}</small></div>
+      <label class="fld"><span>Send to the shop</span>${sel("jm." + j.id, qtys(st), jm[j.id] || 0)}</label></div>`; }).join("");
+  const sum = !q ? `<small class="muted">Choose how many bottles to send.</small>` : q.error ? `<div class="err">${esc(q.error)}</div>` : `<div class="quote"><div class="ln"><span>${q.carrier === "own" ? "Fuel, paid now" : "Carrier fee, paid now"}</span><b>${money2(q.fee)}</b></div><div class="ln"><span>Arrives</span><b>day ${q.eta}</b></div><div class="ln"><span>Shop space needed</span><b>${num(q.space)} of ${num(Math.max(0, E.spaceFree(s)))} free</b></div></div>${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}`;
+  return `<div class="card">${head("Juice to the shop", "Factory stock, then the shelf")}<small class="muted">Finished juice is trucked from the factory to the shop and sold at the price you set. The cost of the bottles follows them, so profit is real. Shoppers come to a juice only after you have stocked it once.</small>
+    <label class="fld"><span>Carrier</span>${sel("jcarrier", [["hired", "Transport company"], ["own", `My own trucks (${Fl.ensureFleet(s).trucks.length})`]], carrier, false)}</label>${sum}${btn("jmove", "Send to the shop", { mini: false, dis: !q || !!q.error || !q.ok })}</div>${cards}`;
+}
