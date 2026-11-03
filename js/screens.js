@@ -269,19 +269,26 @@ export function mailScreen(s) {
     <div class="row">${x.goto ? `<button class="mini" data-goto="${x.goto[0]}" data-gsub="${x.goto[1]}">Open</button>` : ""}${x.read ? "" : btn("mailRead", "Mark read", { id: x.id, ghost: true })}</div></div>`).join("");
   return `<div class="card">${head("Inbox", `${Ml.unread(s)} unread of ${items.length}`)}<div class="row">${btn("mailAll", "Mark all read", { ghost: true, dis: !Ml.unread(s) })}${btn("mailClear", "Clear inbox", { ghost: true, dis: !items.length })}</div><small class="muted">Messages come from real events: late deliveries, breakdowns, contracts, the bank, the tax office and scenario events.</small></div>${rows || `<div class="card"><small class="muted">No messages yet. They arrive as things happen in your business.</small></div>`}`;
 }
-export function facilitatorScreen(s, f, results = []) {
+export function liveCard(lv) {
+  if (!lv) return "";
+  const rows = lv.board.map(r => `<tr class="${r.me ? "me" : ""}"><td>${r.place}</td><td class="l">${esc(r.name)}${r.host ? " (host)" : ""}${r.me ? " (you)" : ""}${r.left ? " (left)" : ""}</td><td>${r.day || "-"}</td><td>${dec(r.score, 1)}</td><td>${money(r.netWorth)}</td><td>${r.ended ? "done" : ""}</td></tr>`).join("");
+  return `<div class="card">${head("Live room " + lv.code, lv.role === "host" ? "You are the host" : "Host announces events")}<table class="tbl fixed"><thead><tr><th>#</th><th class="l">Player</th><th>Day</th><th>Score</th><th>Net worth</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <small class="muted">Everyone plays the same market. Scores are reported by each player's own device and use the standard weights.</small><div class="row"><button class="mini ghost" data-liveleave="1">Leave room</button></div></div>`;
+}
+export function facilitatorScreen(s, f, results = [], lv = null) {
   const sc = Sn.ensureScn(s), def = Sn.SCENARIO[sc.id], act = Sn.activeEvents(s), ev = f.ev || { kind: "demand", mult: 1.2, days: 7, title: "" };
   const evs = act.map(e => `<div class="kv1"><div><span>${esc(e.title)}</span><b>${e.kind} ×${e.mult.toFixed(2)} · until day ${e.until}</b></div></div><div class="row">${btn("evStop", "End now", { id: e.id, ghost: true })}</div>`).join("");
   const rk = Sn.rank(results), mine = Sn.resultCard(s, Kp.scoreboard(s).total, f.team);
   const table = rk.length ? `<div class="scroll"><table class="tbl fixed"><thead><tr><th>#</th><th class="l">Team</th><th>Score</th><th>Net worth</th><th>Profit</th></tr></thead><tbody>${rk.map(r => `<tr><td>${r.place}</td><td class="l">${esc(r.name)}</td><td>${dec(r.score, 1)}</td><td>${money(r.netWorth)}</td><td class="${r.netProfit >= 0 ? "" : "warnc"}">${money(r.netProfit)}</td></tr>`).join("")}</tbody></table></div>` : `<small class="muted">No results loaded yet.</small>`;
-  return `<div class="card">${head("Scenario", def ? def.name : "Free play")}<small class="muted">${esc(def ? def.desc : "")}</small>${def && def.events.length ? `<small class="muted">Scripted: ${def.events.map(e => `day ${e.day} ${esc(e.title)}`).join(" · ")}</small>` : ""}${evs || `<small class="muted">No event is active right now.</small>`}</div>
-    <div class="card">${head("Announce an event", "The facilitator's lever")}
+  const guest = lv && lv.role === "guest";
+  return `${liveCard(lv)}<div class="card">${head("Scenario", def ? def.name : "Free play")}<small class="muted">${esc(def ? def.desc : "")}</small>${def && def.events.length ? `<small class="muted">Scripted: ${def.events.map(e => `day ${e.day} ${esc(e.title)}`).join(" · ")}</small>` : ""}${evs || `<small class="muted">No event is active right now.</small>`}</div>
+    ${guest ? `<div class="card">${head("Events", "Sent by the host")}<small class="muted">The host announces events. They arrive in your Mail and change your numbers.</small></div>` : `<div class="card">${head("Announce an event", lv ? "Sent to every player" : "The facilitator's lever")}
       <div class="two"><label class="fld"><span>Type</span>${sel("ev.kind", [["demand", "Demand"], ["cost", "Prices"], ["delay", "Delays"], ["rival", "Rival prices"]], ev.kind, false)}</label><label class="fld"><span>Length</span>${sel("ev.days", [1, 3, 5, 7, 10, 14, 21, 30].map(x => [x, x + " d"]), ev.days)}</label></div>
       ${ev.kind === "delay" ? "" : `<label class="fld"><span>Strength</span>${sel("ev.mult", [0.5, 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.5, 2].map(x => [x, "×" + x.toFixed(1)]), ev.mult)}</label>`}
-      <label class="fld"><span>Headline</span><input data-f="ev.title" value="${esc(ev.title || "")}" maxlength="60" placeholder="e.g. Heatwave"></label>${btn("evGo", "Announce", { mini: false })}<small class="muted">Players get it in Mail. It really changes their numbers.</small></div>
-    <div class="card">${head("Results", "Local, no server")}<label class="fld"><span>Team name</span><input data-f="team" value="${esc(f.team || "")}" maxlength="30" placeholder="Your team"></label>
+      <label class="fld"><span>Headline</span><input data-f="ev.title" value="${esc(ev.title || "")}" maxlength="60" placeholder="e.g. Heatwave"></label>${btn("evGo", "Announce", { mini: false })}<small class="muted">Players get it in Mail. It really changes their numbers.</small></div>`}
+    ${lv ? "" : `<div class="card">${head("Results", "Local, no server")}<label class="fld"><span>Team name</span><input data-f="team" value="${esc(f.team || "")}" maxlength="30" placeholder="Your team"></label>
       <div class="row"><button class="mini" data-resexport="1">Save my result</button><button class="mini ghost" data-respick="1">Load results to rank</button>${rk.length ? `<button class="mini ghost" data-resclear="1">Clear</button>` : ""}</div>
-      <small class="muted">Now: score ${dec(mine.score, 1)}, net worth ${money(mine.netWorth)}. Teams save a result file and hand it in. The facilitator loads them all here.</small>${table}</div>`;
+      <small class="muted">Now: score ${dec(mine.score, 1)}, net worth ${money(mine.netWorth)}. Teams save a result file and hand it in. The facilitator loads them all here.</small>${table}</div>`}`;
 }
 
 const economyCard = s => { const e = Ec.ensureEcon(s), tag = v => `${v >= 1 ? "+" : ""}${Math.round((v - 1) * 100)}%`;

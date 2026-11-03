@@ -105,3 +105,12 @@ Batch tail trickle, stale raw quantities after a vendor change, machines breakin
 1. Payroll schedule, multiple factory sites.
 2. Drawn workers and cashiers.
 3. A real multiplayer server with action replay (needs your decision).
+
+## 10. Live play (Step N)
+
+- **What it is:** menu → Play with friends. One player hosts a 6-digit room, friends join with the code. The host picks days, seconds per day, capital and scenario and presses Start; every device starts the same seeded game together after a 5 s countdown. Same seed means the same market for everyone (tested: two devices produce byte-identical saves).
+- **Transport:** Supabase Realtime Broadcast + Presence (no tables, nothing stored). Logic is in `js/live.js`, separate from the transport, so it is tested with an in-memory bus (`tests/live.test.js`, 15 tests: lobby, start sync, host-only start and events, forged messages ignored, late joiners turned away, ranking, spoofed score ids, bad values, leaving, transport failure).
+- **Browser check:** two real browser pages played a full room against a stub of the Supabase client (BroadcastChannel): lobby, start, same settings, event from host reaches guest, leaderboard, no pause, no page errors.
+- **Not verified:** the real Supabase network connection. The sandbox cannot reach supabase.co, so the first real room is the first real test. If joining fails, the player sees "Could not connect to the room".
+- **Honest limits:** each player's shop runs on their own device, so scores are reported by the client and a determined cheater could edit theirs. Mitigations: scores use fixed default KPI weights, values are range-checked, a player can only post their own card. Closing a tab pauses that player's shop (browser throttling); leaving keeps their last score on the board. No reconnect after a refresh: a refreshed player continues solo.
+- **Tests:** 171 passing. Overflow audit clean at 5 viewports; no visible scrollbars.

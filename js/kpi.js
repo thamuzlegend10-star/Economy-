@@ -33,6 +33,8 @@ export function normalise(s, k) {
   return { netProfit: clamp(50 + 50 * k.netProfit / base, 0, 100), revenue: clamp(100 * k.revenue / (base * 3), 0, 100), roa: clamp(50 + k.roa * 2.5, 0, 100),
     serviceLevel: clamp(k.serviceLevel, 0, 100), marketShare: clamp(k.marketShare * 1.5, 0, 100), csi: clamp(k.csi, 0, 100), morale: clamp(k.morale, 0, 100), solvency: clamp((k.solvency - 1) / 4 * 100, 0, 100) };
 }
+// Score with the DEFAULT weights, so a player cannot raise it by changing the weights. Used for live rooms.
+export function defaultScore(s) { const n = normalise(s, kpis(s)); return c(D.KPIS.reduce((a, d) => a + n[d.id] * d.weight, 0) / D.KPIS.reduce((a, d) => a + d.weight, 0)); }
 export function scoreboard(s) {
   const k = kpis(s), n = normalise(s, k), w = ensureKpi(s).weights;
   const rows = D.KPIS.map(d => ({ id: d.id, name: d.name, unit: d.unit, value: k[d.id], score: c(n[d.id]), weight: w[d.id], points: c(n[d.id] * w[d.id]) }));

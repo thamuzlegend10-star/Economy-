@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Pixelify+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <style>html,body,*{scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none;width:0;height:0}</style>
-<link rel="stylesheet" href="css/pixel.css?v=20261103b">
+<link rel="stylesheet" href="css/pixel.css?v=20261103c">
 </head>
 <body>
 <div class="wrap">
@@ -56,9 +56,10 @@
     <div class="menu-grid">
       <button class="primary big" id="mContinue" hidden>Continue your game</button>
       <button class="primary big" id="mNew">New game</button>
+      <button class="primary big alt" id="mLive">Play with friends</button>
       <div class="menu-row"><button class="ghost" id="mHelp">How to play</button><button class="ghost" id="mImport">Load save file</button><button class="ghost" id="mExport">Download save</button></div>
       <button class="ghost" id="mClose" hidden>Back to game</button>
-      <small class="muted build-tag">Build 20261103b · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
+      <small class="muted build-tag">Build 20261103c · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
     </div>
     <p class="muted small center" id="mNote"></p>
   </div>
@@ -75,6 +76,25 @@
     <label class="field"><span>4. Starting capital</span><select id="sCap"><option value="20000">$20,000 (hard)</option><option value="40000" selected>$40,000</option><option value="80000">$80,000</option><option value="150000">$150,000 (easy)</option></select></label>
     <label class="field"><span>5. Scenario</span><select id="sScn"></select><small class="muted" id="scnNote"></small></label>
     <div class="dlg-actions"><button class="ghost" id="sBack">Back</button><button class="primary" id="sStart">Open the shop</button></div>
+  </div>
+  <div id="menuLive" hidden>
+    <h2>Play with friends</h2>
+    <div id="lJoinBox">
+      <label class="field"><span>Your name</span><input id="lName" maxlength="20" placeholder="Your name" autocomplete="off"></label>
+      <label class="field"><span>Room code (to join a friend)</span><input id="lCode" inputmode="numeric" maxlength="6" placeholder="6 digits" autocomplete="off"></label>
+      <div class="dlg-actions"><button class="ghost" id="lBack" type="button">Back</button><button class="ghost" id="lJoin" type="button">Join room</button><button class="primary" id="lHost" type="button">Host a room</button></div>
+    </div>
+    <div id="lLobby" hidden>
+      <div class="rentbox"><div>Room code</div><div class="big"><b id="lShow">------</b></div><small class="muted">Tell your friends this code. They tap Play with friends and Join.</small></div>
+      <div class="field"><span>Players</span><div id="lPlayers" class="chips"></div></div>
+      <div id="lSet">
+        <div class="two"><label>Real seconds per day<input id="lSec" type="number" min="10" max="120" step="1" value="20"></label><label>Number of days<input id="lDays" type="number" min="5" max="60" step="1" value="20"></label></div>
+        <div class="two"><label>Starting capital<select id="lCap"><option value="20000">$20,000 (hard)</option><option value="40000" selected>$40,000</option><option value="80000">$80,000</option><option value="150000">$150,000 (easy)</option></select></label><label>Scenario<select id="lScn"></select></label></div>
+        <small class="muted">Everyone gets the same shop, market and start time. Location and shop size come from the New game form.</small>
+      </div>
+      <p class="muted small" id="lNote"></p>
+      <div class="dlg-actions"><button class="ghost" id="lLeave" type="button">Leave</button><button class="primary" id="lStart" type="button">Start for everyone</button></div>
+    </div>
   </div>
   <div id="menuHelp" hidden>
     <h2>How to play</h2>
@@ -101,7 +121,7 @@
 </dialog>
 
 <input type="file" id="fileIn" accept="application/json,.json" hidden><input type="file" id="resIn" accept="application/json,.json" multiple hidden>
-<script type="module" src="js/main.js?v=20261103b"></script>
+<script type="module" src="js/main.js?v=20261103c"></script>
 <script>
   window.addEventListener("error", function (e) { var s = document.getElementById("status"); if (s && !window.__economyBooted) { s.textContent = "Game failed to start: " + (e.message || "script error") + ". Reload the page."; } });
 </script>
