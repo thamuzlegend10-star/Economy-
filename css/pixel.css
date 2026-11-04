@@ -207,3 +207,9 @@ html, body, * { scrollbar-width:none; -ms-overflow-style:none; }
 
 .tabs button { position:relative; } .badge { position:absolute; top:2px; right:2px; min-width:14px; height:14px; padding:0 3px; border-radius:7px; background:var(--coral); color:#fff; font:700 .6rem/14px var(--font); text-align:center; }
 .mailrow.new { border-left:3px solid var(--brass); } .mailrow.read { opacity:.72; } .mailrow.bad { border-left-color:var(--coral); } .mailrow.warn.new { border-left-color:var(--brass); }
+
+.scn-list { display:grid; gap:6px; }
+.scn { display:grid; gap:3px; text-align:left; padding:8px 10px; border:2px solid var(--px-hi); border-radius:6px; background:transparent; color:inherit; font:inherit; }
+.scn b { font-size:.85rem; } .scn span, .scn li, .scn small { font-size:.72rem; color:var(--muted); line-height:1.35; overflow-wrap:anywhere; }
+.scn ul { margin:2px 0 0; padding-left:16px; } .scn em { font-style:normal; color:#f2a93b; } .scn small { color:#9aa7c4; }
+.scn.on { border-color:#f2a93b; background:rgba(242,169,59,.08); } .scn.on b { color:#f2a93b; }

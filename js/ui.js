@@ -290,3 +290,13 @@ export function fleetScreen(s) {
     <div class="kv1"><div><span>Trucks</span><b>${f.trucks.length}</b></div><div><span>Drivers</span><b>${drivers} (${out} on the road)</b></div><div><span>Distance driven</span><b>${num(f.km)} km</b></div><div><span>Fuel paid</span><b>${money2(f.fuelPaid)}</b></div></div></div>
     <div class="tcos">${buy}</div>${rows ? `<div class="card scroll"><table class="tbl"><thead><tr><th>Truck</th><th>Status</th><th>Health</th><th>Driven</th><th>Book value</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}${trips ? `<div class="card"><b>Recent trips</b>${trips}</div>` : ""}`;
 }
+
+// Plain-words list of the scenarios for the setup forms: what happens, what it does to you, and a hint.
+export const scenarioEffect = e => {
+  const pc = v => Math.round(Math.abs(v - 1) * 100);
+  const what = { demand: e.mult >= 1 ? `demand +${pc(e.mult)}%` : `demand -${pc(e.mult)}%`, cost: e.mult >= 1 ? `supplier prices +${pc(e.mult)}%` : `supplier prices -${pc(e.mult)}%`, delay: "deliveries arrive late", rival: e.mult >= 1 ? `rival prices +${pc(e.mult)}%` : `rival prices -${pc(e.mult)}%` }[e.kind] || e.kind;
+  return `${what} for ${e.days} days`;
+};
+export function scenarioList(list, sel) {
+  return list.map(s => `<button type="button" class="scn ${s.id === sel ? "on" : ""}" data-scn="${esc(s.id)}" aria-pressed="${s.id === sel}"><b>${esc(s.name)}</b><span>${esc(s.about || s.desc)}</span>${s.events.length ? `<ul>${s.events.map(e => `<li><em>Day ${e.day}</em> ${esc(e.title)}: ${esc(scenarioEffect(e))}</li>`).join("")}</ul>` : ""}${s.tip ? `<small>Tip: ${esc(s.tip)}</small>` : ""}</button>`).join("");
+}

@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261104b";
+import { createScene } from "./scene.js?v=20261105a";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -242,7 +242,9 @@ $("sAreaN").oninput = () => { $("sArea").value = Math.min(D.AREA.max, Math.max(D
 $("areaChips").onclick = e => { const b = e.target.closest("[data-area]"); if (b) { $("sAreaN").value = $("sArea").value = b.dataset.area; readSetup(); } };
 for (const id of ["sSec", "sDays", "sCap"]) $(id).oninput = readSetup;
 if ($("sDaysInf")) $("sDaysInf").onchange = () => { $("sDays").disabled = $("sDaysInf").checked; readSetup(); };
-$("sScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); $("sScn").onchange = () => { $("scnNote").textContent = (D.SCENARIOS.find(x => x.id === $("sScn").value) || {}).desc || ""; };
+$("sScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); const scnShow = () => { const id = $("sScn").value; $("scnNote").textContent = ""; $("scnList").innerHTML = UI.scenarioList(D.SCENARIOS, id); };
+$("sScn").onchange = scnShow; scnShow();
+$("scnList").addEventListener("click", e => { const b = e.target.closest("[data-scn]"); if (b) { $("sScn").value = b.dataset.scn; scnShow(); } });
 $("sStart").onclick = () => {
   const c = { ...setupValues(), scenario: $("sScn").value }; $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay;
   if (c.days) $("sDays").value = c.days;
@@ -269,6 +271,7 @@ function renderLive() {
   $("lNote").textContent = st.error || (st.phase !== "lobby" ? "Starting…" : host ? `${Object.keys(st.players).length} in the room. Start when everyone has joined.` : "Waiting for the host to start.");
   if (st.error && !inRoom) { $("lNote").textContent = ""; $("mNote").textContent = st.error; }
 }
+const lScnShow = () => { const x = D.SCENARIOS.find(s => s.id === $("lScn").value); $("lScnNote").textContent = x ? `${x.about || x.desc}${x.tip ? " Tip: " + x.tip : ""}` : ""; };
 async function enterLive(role) {
   const name = $("lName").value.trim() || "Player", code = role === "host" ? undefined : $("lCode").value.trim();
   if (role === "guest" && !Lv.validCode(code)) { toast("A room code is six digits.", "err"); return; }
@@ -281,7 +284,7 @@ async function enterLive(role) {
   try { localStorage.setItem("economy-name", name); } catch { /* optional */ }
   renderLive();
 }
-$("mLive").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "menuLive"; }); if (!live) { $("lJoinBox").hidden = false; $("lLobby").hidden = true; } try { $("lName").value = localStorage.getItem("economy-name") || ""; } catch { /* optional */ } $("lScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); };
+$("mLive").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "menuLive"; }); if (!live) { $("lJoinBox").hidden = false; $("lLobby").hidden = true; } try { $("lName").value = localStorage.getItem("economy-name") || ""; } catch { /* optional */ } $("lScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); $("lScn").onchange = lScnShow; lScnShow(); };
 $("lBack").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "menuMain"; }); };
 $("lHost").onclick = () => enterLive("host"); $("lJoin").onclick = () => enterLive("guest");
 $("lLeave").onclick = () => { leaveLive(); $("lJoinBox").hidden = false; $("lLobby").hidden = true; };

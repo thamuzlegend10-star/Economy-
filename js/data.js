@@ -212,14 +212,14 @@ export const MARKET = { rivalBase: 0.3, rivalPerCompetition: 0.7, rivalMax: 0.85
 
 // Facilitator scenarios: scripted market events. kind: demand (shop demand ×mult), cost (supplier prices ×mult), delay (supplier deliveries one day late).
 export const SCENARIOS = [
-  { id: "free", name: "Free play", desc: "No scripted events.", events: [] },
-  { id: "boom", name: "Festival boom", desc: "A demand surge, then a slump.", events: [
+  { id: "free", name: "Free play", desc: "No scripted events.", about: "A calm market. Nothing is scripted, so your own choices decide the result. A facilitator can still announce events by hand.", tip: "Best for learning the basics.", events: [] },
+  { id: "boom", name: "Festival boom", desc: "A demand surge, then a slump.", about: "A city festival fills the streets and shoppers buy more. Then people run out of money and demand drops below normal.", tip: "Stock up before day 5. Do not overbuy for the slump.", events: [
     { day: 5, kind: "demand", mult: 1.25, days: 8, title: "Festival season", body: "A city festival fills the streets." },
     { day: 20, kind: "demand", mult: 0.85, days: 6, title: "Post-festival slump", body: "People spent their money and stay home." } ] },
-  { id: "supply", name: "Supply crunch", desc: "Prices climb and deliveries slip.", events: [
+  { id: "supply", name: "Supply crunch", desc: "Prices climb and deliveries slip.", about: "A port strike makes goods dearer and trucks arrive late. Shelves can run empty even when you ordered on time.", tip: "Keep a bigger buffer. Order earlier and use a faster carrier.", events: [
     { day: 4, kind: "cost", mult: 1.3, days: 10, title: "Port strike raises prices", body: "A port strike makes goods scarce." },
     { day: 6, kind: "delay", mult: 1, days: 8, title: "Trucks stuck at the port", body: "Suppliers cannot ship on time." } ] },
-  { id: "pricewar", name: "Price war", desc: "A rival cuts prices, then fuel costs rise.", events: [
+  { id: "pricewar", name: "Price war", desc: "A rival cuts prices, then fuel costs rise.", about: "A rival chain drops its prices and shoppers compare. Later a fuel surcharge raises what suppliers charge you.", tip: "Watch the Market tab. Match prices only if your margin can take it.", events: [
     { day: 3, kind: "rival", mult: 0.85, days: 12, title: "Rival opens a discount chain", body: "Rival shops cut their prices. Shoppers compare." },
     { day: 15, kind: "cost", mult: 1.15, days: 7, title: "Fuel surcharge", body: "Suppliers add a fuel surcharge." } ] },
 ];

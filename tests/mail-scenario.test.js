@@ -62,3 +62,12 @@ test("mail and facilitator screens render; v19 saves migrate to v20", () => {
   assert.match(SC.mailScreen(s), /Inbox/); const f = newForms(); assert.match(SC.facilitatorScreen(s, f, [{ name: "T", score: 5, netWorth: 1, netProfit: 1 }]), /Announce an event/);
   const old = JSON.parse(JSON.stringify(mk())); old.v = 19; delete old.mail; delete old.scn; const m = E.validateSave(old); assert.ok(m.ok, m.error); assert.equal(m.state.scn.id, "free"); assert.deepEqual(m.state.mail.items, []);
 });
+
+import * as UIx from "../js/ui.js";
+import * as Dx from "../js/data.js";
+test("scenario list explains every scenario in plain words", () => {
+  const h = UIx.scenarioList(Dx.SCENARIOS, "supply");
+  for (const s of Dx.SCENARIOS) { assert.ok(h.includes(s.name)); assert.ok(s.about && s.about.length > 30, s.id); }
+  assert.match(h, /Port strike raises prices: supplier prices \+30% for 10 days/); assert.match(h, /deliveries arrive late for 8 days/); assert.match(h, /rival prices -15% for 12 days/);
+  assert.ok(h.includes('class="scn on" data-scn="supply"') && !h.includes('class="scn on" data-scn="free"'));
+});
