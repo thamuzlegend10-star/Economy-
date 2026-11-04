@@ -29,12 +29,12 @@ export function createLocationPicker({ root, getArea = () => 250, onPick }) {
   function focusOn(list) {
     if (!globe || !list.length) return;
     const la = list.reduce((a, l) => a + l.lat, 0) / list.length, lo = list.reduce((a, l) => a + l.lon, 0) / list.length;
-    globe.focus(la, lo, list.length === 1 ? 2.4 : 1.4);
+    globe.focus(la, lo, list.length === 1 ? 6 : 1.6);
   }
   function selectSite(id) {
     const l = LOC.getLocation(id); if (l.id === "default") return;
     st.sel = id; st.q = ""; st.country = l.country; st.region = l.region; st.city = l.city;
-    globe && (globe.select(id), globe.focus(l.lat, l.lon, 2.6)); render();
+    globe && (globe.select(id), globe.focus(l.lat, l.lon, 7)); render();
   }
   function crumbs() {
     const parts = [["Earth", () => { st.country = st.region = st.city = null; globe && globe.reset(); }]];
@@ -101,7 +101,7 @@ export function createLocationPicker({ root, getArea = () => 250, onPick }) {
   function open(cur = "default") {
     current = cur; if (!root.open) root.showModal();
     if (!globe) globe = createMap(canvasHost, { markers: all(), onPick: id => selectSite(id) });
-    globe.start(); if (cur !== "default") { const l = LOC.getLocation(cur); st.sel = cur; st.country = l.country; st.region = l.region; st.city = l.city; globe.select(cur); globe.focus(l.lat, l.lon, 2.4); } else globe.reset();
+    globe.start(); if (cur !== "default") { const l = LOC.getLocation(cur); st.sel = cur; st.country = l.country; st.region = l.region; st.city = l.city; globe.select(cur); globe.focus(l.lat, l.lon, 6); } else globe.reset();
     render(); const q = root.querySelector("#gq"); (q || root.querySelector("[data-gclose]")).focus();
   }
   function close() { if (root.open) root.close(); globe && globe.stop(); }
