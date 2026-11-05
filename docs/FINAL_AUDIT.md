@@ -15,7 +15,7 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 | Depreciation, preventive and emergency maintenance, breakdowns, efficiency | Done | Straight-line depreciation on the ledger; health drives breakdown chance. |
 | Workforce: hired through HR, requirements, capacity loss, salaries, skill, training, morale | Done | Short crews cut output; skill and morale scale it. |
 | Hiring and dismissal reach the statements | Done | Recruitment fee and severance are booked to Wages. |
-| Visual factory | **Partial** | Machines run, idle or show broken; tanks and bottle stock show real levels; a crew count is shown. **No workers are drawn, no loading dock and no trucks in the factory scene.** |
+| Visual factory | **Done** | Machines run, idle or show broken; tanks and bottle stock show real levels; one operator is drawn per machine up to the real crew size, and a loading dock shows a truck while purchase orders are open. Also drawn from real HR counts: cashiers and shelf staff in the shop, handlers in the warehouse, a teller and coin flow in the bank. |
 
 ## 3. Logistics
 | Requirement | Status | Notes |
@@ -85,9 +85,9 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 ## 11. Visual simulation
 | Area | Status | Notes |
 |---|---|---|
-| Retail | Partial | Store, shelves with real stock, shoppers for real sales and missed sales, self-checkout. No cashiers or staff drawn. |
-| Warehouse | Partial | Racks, real stock, forklift, trucks for real deliveries. No workers drawn. |
-| Factory, Transport, Bank | Partial | See sections 2 and 3. Bank shows vault, credit, loans and tax but no transaction animation. |
+| Retail | Done | Store, shelves with real stock, shoppers for real sales and missed sales, cashiers and shelf staff drawn from the real retail headcount, self-checkout when you hire nobody. |
+| Warehouse | Done | Racks, real stock, forklift, trucks for real deliveries, handlers drawn from the real headcount. |
+| Factory, Transport, Bank | Done | Factory operators, dock and truck (section 2); bank shows vault, credit, loans, tax, a teller and coins flying when cash really moves. |
 | Performance | Done | 60 frames per second in every scene (headless Chromium, 90 frame sample). 60 days of simulation run in about 20 ms. |
 
 ## 12. Department interconnection

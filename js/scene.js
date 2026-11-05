@@ -16,7 +16,7 @@ const txt = (ctx, s, x, y, size, color, align = "center", weight = 600) => { ctx
 
 export function createScene(canvas, { getState }) {
   const ctx = canvas.getContext("2d");
-  const st = { view: "store", t: 0, cursor: null, saleQty: {}, spawnT: 0, lostSeen: null, shoppers: [], pings: [], inbound: [], outbound: [], forklift: { x: 470, dir: -1 } };
+  const st = { view: "store", t: 0, cursor: null, saleQty: {}, spawnT: 0, lostSeen: null, shoppers: [], pings: [], inbound: [], outbound: [], forklift: { x: 470, dir: -1 }, bank: { cash: null, coins: [] } };
   function size() { const dpr = Math.min(2, window.devicePixelRatio || 1), w = canvas.clientWidth || W; canvas.width = Math.round(w * dpr); canvas.height = Math.round(w * dpr * H / W); }
   size(); window.addEventListener("resize", size);
 
@@ -37,7 +37,7 @@ export function createScene(canvas, { getState }) {
   const go = (c, tx, ty, v, dt) => { const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy); if (d < 2) return true; c.x += dx / d * Math.min(d, v * dt); c.y += dy / d * Math.min(d, v * dt); return false; };
 
   function update(dt, s) {
-    st.t += dt; intake(s); st.spawnT += dt;
+    st.t += dt; intake(s); st.spawnT += dt; for (const q of st.bank.coins) q.t += dt; st.bank.coins = st.bank.coins.filter(q => q.t < 1);
     if (st.spawnT > 0.35) { st.spawnT = 0; for (const [pid, q] of Object.entries(st.saleQty)) if (st.shoppers.length < 14) spawn(pid, q); st.saleQty = {}; }
     for (const c of st.shoppers) {
       const sx = SHELF_X[IDX[c.pid]] + SHELF_W / 2, lane = LANES[c.lane];
@@ -65,6 +65,16 @@ export function createScene(canvas, { getState }) {
     if (c.angry) txt(ctx, "!", x, y - 40, 16, "#f0647a", "center", 700);
     else if (c.state === "browse") txt(ctx, "?", x, y - 38, 12, "#ffd36b", "center", 700);
   };
+  // Staff figures. Drawn only for people you really hired (HR counts), so an empty payroll means an empty scene.
+  const UNI = { retail: "#4aa8ff", warehouse: "#f2a93b", factory: "#ff7a45", driver: "#6fd3a0", teller: "#c79bff" };
+  const worker = (x, y, kind, k, carry, walk) => {
+    const b = walk && Math.sin(st.t * 9 + k * 2) > 0 ? 1 : 0, look = k % 4;
+    px(ctx, x - 5, y - 6 + b, 4, 6, "#1a1f33"); px(ctx, x + 1, y - 6 + (1 - b), 4, 6, "#1a1f33");
+    px(ctx, x - 6, y - 18, 12, 13, UNI[kind]); px(ctx, x - 6, y - 12, 12, 2, "#e9edf7");
+    px(ctx, x - 5, y - 27, 10, 9, SKIN[look]); px(ctx, x - 6, y - 29, 12, 4, kind === "factory" || kind === "warehouse" ? "#ffd36b" : "#2a1d12");   // hard hat or hair
+    if (carry) { px(ctx, x - 8, y - 22, 16, 11, "#b8825a"); px(ctx, x - 8, y - 18, 16, 2, "#8d5a3c"); }
+  };
+  const staffN = (s, role) => (s.hr && s.hr.staff[role] ? s.hr.staff[role].n : 0);
   const truck = (x, y, color, dir = 1) => {
     const f = dir; px(ctx, x, y - 28, 64, 28, "#f6efe3"); px(ctx, f > 0 ? x + 64 : x - 20, y - 20, 20, 20, "#ffb84d"); px(ctx, x + 8, y, 12, 8, "#111"); px(ctx, x + 48, y, 12, 8, "#111"); px(ctx, x + 6, y - 22, 16, 16, color);
   };
@@ -81,7 +91,10 @@ export function createScene(canvas, { getState }) {
       txt(ctx, s.qty[p.id] ? p.name.split(" ")[0].toUpperCase() : "EMPTY", x + SHELF_W / 2, 28, 11, s.qty[p.id] ? "#e9edf7" : "#f0647a");
     });
     for (const L of LANES) { px(ctx, L.x - 20, L.y, 70, 36, "#10172b"); px(ctx, L.x - 16, L.y + 4, 62, 8, "#6fd3a0"); px(ctx, L.x + 10, L.y - 22, 22, 22, "#1a2848"); px(ctx, L.x + 14, L.y - 18, 14, 10, "#6fd3a0"); }
-    txt(ctx, "SELF CHECKOUT", 590, 160, 10, "#9aa7c4");
+    const rn = staffN(s, "retail");
+    for (let i = 0; i < Math.min(2, rn); i++) worker(LANES[i].x + 38, LANES[i].y + 2, "retail", i, false, false);          // cashiers stand behind the counters
+    for (let i = 0; i < Math.min(3, Math.max(0, rn - 2)); i++) { const x = 90 + ((Math.sin(st.t * 0.5 + i * 2.1) + 1) / 2) * 400; worker(x, 150 + i * 4, "retail", i + 2, Math.cos(st.t * 0.5 + i * 2.1) > 0, true); }   // extra staff restock the shelves
+    txt(ctx, rn ? `STAFF x${rn}` : "SELF CHECKOUT", 590, 160, 10, "#9aa7c4");
     px(ctx, 0, 220, 26, 70, "#101a30"); px(ctx, 4, 224, 18, 62, Math.sin(st.t * 3) > 0 ? "#0e3a2a" : "#12503a");  // automatic door
     txt(ctx, "ENTRANCE", 14, 304, 9, "#9aa7c4");
     for (const c of [...st.shoppers].sort((a, b) => a.y - b.y)) person(c);
@@ -102,6 +115,9 @@ export function createScene(canvas, { getState }) {
       txt(ctx, p.name.split(" ")[0].toUpperCase(), x + 60, 190, 9, units ? "#e9edf7" : "#f0647a");
     });
     for (let i = 0; i < 2; i++) { px(ctx, 450, 90 + i * 60, 60, 48, "#232c47"); px(ctx, 456, 98 + i * 60, 48, 40, "#0b1426"); txt(ctx, "DOCK " + (i + 1), 480, 86 + i * 60, 8, "#9aa7c4"); }
+    const wn = staffN(s, "warehouse"), unloading = st.inbound.some(t => (t.to === "wh" || t.to === undefined) && t.phase === "stop");
+    for (let i = 0; i < Math.min(5, wn); i++) { const ph = st.t * 0.6 + i * 1.9, x = unloading && i < 2 ? 450 + Math.abs(Math.sin(st.t * 1.6 + i)) * 0 + 8 + (Math.sin(st.t * 2 + i) + 1) * 24 : 60 + ((Math.sin(ph) + 1) / 2) * 360; worker(x, 236 + (i % 3) * 8, "warehouse", i, Math.cos(ph) > 0 || unloading && i < 2, true); }
+    txt(ctx, `${wn} handler${wn === 1 ? "" : "s"}`, 628, 12, 11, "#9aa7c4", "right");
     const f = st.forklift, bx = f.x; px(ctx, bx, 128, 22, 14, "#ffb84d"); px(ctx, bx - 8, 120, 6, 24, "#6b7390"); px(ctx, bx + 4, 122, 10, 7, "#6fd3a0");
     for (const t of st.inbound) if (t.to === "wh" || t.to === undefined) { truck(t.x, 262, BY[t.pid].color, -1); if (t.phase === "stop") txt(ctx, `+${t.qty.toLocaleString("en-US")}`, t.x + 32, 222, 11, "#6fd3a0", "center", 700); }
     for (const t of st.outbound) { truck(t.x, 262, BY[t.pid].color, 1); txt(ctx, "to shop", t.x + 32, 222, 9, "#9aa7c4"); }
@@ -152,6 +168,11 @@ export function createScene(canvas, { getState }) {
       txt(ctx, m.name.toUpperCase(), x + 60, y + 62, 8, "#e9edf7"); bar(x + 8, y + 70, 104, 7, m.health / 100, m.health < 40 ? "#f0647a" : m.health < 70 ? "#f2a93b" : "#6fd3a0", "#05070d");
       if (m.status === "broken") for (let k = 0; k < 3; k++) { const a = ((st.t * 0.6 + k / 3) % 1); ctx.globalAlpha = 1 - a; px(ctx, x + 40 + k * 14 + Math.sin(st.t * 3 + k) * 4, y - 4 - a * 26, 8, 8, "#6b7390"); ctx.globalAlpha = 1; }
     });
+    const crewN = staffN(s, "factory");
+    ms.forEach((m, i) => { if (i < crewN) { const x = 126 + (i % 3) * 138 + 60, y = 84 + Math.floor(i / 3) * 112 + 110; worker(x, y, "factory", i, false, m.status === "running"); } });   // one operator per machine, up to your crew size
+    const open = fx.pos.length > 0 || fx.prs.length > 0, dk = { x: 548, y: 236 };
+    px(ctx, dk.x, dk.y, 80, 72, "#10172b"); px(ctx, dk.x + 4, dk.y + 4, 72, 50, open ? "#243553" : "#05070d"); px(ctx, dk.x, dk.y + 56, 80, 4, "#f2a93b"); txt(ctx, "LOADING DOCK", dk.x + 40, dk.y + 66, 7, "#9aa7c4");
+    if (open) { truck(dk.x + 4, dk.y + 56, "#6aa9ff", 1); if (crewN > 0) worker(dk.x + 70 - ((Math.sin(st.t * 1.5) + 1) / 2) * 22, dk.y + 58, "factory", 3, true, true); }
     const made = fx.today ? Object.values(fx.today.made || {}).reduce((a, b) => a + b, 0) : 0, stock = Object.values(fx.fg.qty).reduce((a, b) => a + b, 0), crew = s.hr ? s.hr.staff.factory.n : 0;
     px(ctx, 548, 74, 80, 150, "#10172b"); txt(ctx, "BOTTLES", 588, 86, 9, "#9aa7c4");
     const rows = Math.min(10, Math.ceil(stock / 2000)); for (let r = 0; r < rows; r++) px(ctx, 558, 184 - r * 8, 60, 6, "#6fd3a0");
@@ -187,6 +208,11 @@ export function createScene(canvas, { getState }) {
     for (let i = 0; i < Math.min(6, Math.floor(Math.max(0, cash) / 10000)); i++) px(ctx, 346 + i * 18, 172, 14, 12, "#6fd3a0");
     const meters = [["Overdraft", od, BANK.overdraft.limit, "#f0647a"], ["Credit line", cr, BANK.credit.limit, "#f2a93b"], ["Loans", loans, Math.max(loans, 50000), "#6aa9ff"], ["Tax due", tax, Math.max(tax, 5000), "#c79bff"]];
     meters.forEach(([n, v, lim, col], i) => { const y = 56 + i * 46; txt(ctx, n.toUpperCase(), 490, y, 9, "#9aa7c4", "left"); bar(490, y + 8, 140, 10, lim ? v / lim : 0, col); txt(ctx, money(v), 630, y + 30, 10, v > 0 ? "#e9edf7" : "#6b7390", "right"); });
+    worker(165, 222, "teller", 1, false, false);                                          // teller behind the counter
+    if (st.bank.cash === null) st.bank.cash = cash;
+    if (Math.abs(cash - st.bank.cash) > 0.5 && st.bank.coins.length < 8) { const inn = cash > st.bank.cash; for (let i = 0; i < 4; i++) st.bank.coins.push({ t: -i * 0.12, inn }); }
+    st.bank.cash = cash;
+    for (const q of st.bank.coins) if (q.t >= 0) { const a = Math.min(1, q.t / 0.9), from = q.inn ? 60 : 400, to = q.inn ? 400 : 60, x = from + (to - from) * a, y = 230 - Math.sin(a * Math.PI) * 60; px(ctx, x, y, 8, 8, "#ffd36b"); px(ctx, x + 2, y + 2, 4, 4, "#c9822a"); }
     txt(ctx, od > 0 ? "OVERDRAFT: repay now" : "ACCOUNT OK", 330, 222, 11, od > 0 ? "#f0647a" : "#6fd3a0", "left", 700);
     txt(ctx, `${b ? b.loans.length : 0} loan${b && b.loans.length === 1 ? "" : "s"} open`, 330, 238, 10, "#9aa7c4", "left");
   }
@@ -201,7 +227,7 @@ export function createScene(canvas, { getState }) {
   function frame(now) { const dt = Math.min(0.1, (now - last) / 1000); last = now; const s = getState(); if (s) { update(dt, s); if (!document.querySelector("dialog[open]")) draw(s); } requestAnimationFrame(frame); }
   requestAnimationFrame(frame);
   return {
-    reset() { st.shoppers = []; st.pings = []; st.inbound = []; st.outbound = []; st.cursor = null; st.saleQty = {}; st.lostSeen = null; },
+    reset() { st.shoppers = []; st.pings = []; st.inbound = []; st.outbound = []; st.cursor = null; st.saleQty = {}; st.lostSeen = null; st.bank = { cash: null, coins: [] }; },
     setView(v) { if (VIEWS[v]) st.view = v; },
     get view() { return st.view; },
   };
