@@ -127,8 +127,9 @@ export function hrScreen(s, f = {}) {
       <div class="row">${btn("hire", `Hire +1 · fee ${money(H.recruitFee(s, r.id))}`, { id: r.id })}${btn("hireTemp", `Temp +1 (${td} d)`, { id: r.id, ghost: true })}${btn("fire", `Let go -1 · ${money(H.wageOf(s, r.id) * D.HR.severanceDays)}`, { id: r.id, ghost: true, dis: !H.permN(s, r.id) })}</div></div>`; }).join("");
   const w = D.HR.wageMult, t = D.HR.trainingBudget, wopts = [0.6, 0.8, 1, 1.2, 1.4, 1.6].map(x => [x, `×${x.toFixed(1)}${x === 1 ? " (normal)" : ""}`]), topts = [0, 100, 250, 500, 1000, 2000].map(x => [x, x ? money(x) + " / day" : "None"]);
   const temps = h.temps.map(x => `<div class="kv1"><div><span>${x.n} temp ${esc(H.ROLE[x.role].name.toLowerCase())}</span><b>ends day ${x.until}</b></div></div>`).join("");
-  return `<div class="card">${head("People", `${num(H.headcount(s))} staff · payroll ${money(pay)} / day`)}${kv([["Morale", dec(h.morale, 0) + "%"], ["Quit so far", h.quits], ["Paid so far", money(h.paidTotal)], ["Recruitment paid", money(h.recruitPaid)], ["Severance paid", money(h.severancePaid)]])}${meter(h.morale, h.morale < 40 ? "full" : h.morale < 60 ? "warn" : "")}
+  return `<div class="card">${head("People", `${num(H.headcount(s))} staff · payroll ${money(pay)} / day`)}${kv([["Morale", dec(h.morale, 0) + "%"], ["Quit so far", h.quits], ["Owed to staff now", money(h.accrued || 0)], ["Paid so far", money(h.paidTotal)], ["Recruitment paid", money(h.recruitPaid)], ["Severance paid", money(h.severancePaid)]])}${meter(h.morale, h.morale < 40 ? "full" : h.morale < 60 ? "warn" : "")}
       <div class="two"><label class="fld"><span>Wage level</span><select data-hrf="wage">${wopts.map(([v, l]) => opt(v, l, h.wageMult)).join("")}</select></label>
+      <label class="fld"><span>Payday</span><select data-hrf="payday">${D.PAYDAYS.map(x => opt(x.id, x.name, h.pay)).join("")}</select></label>
       <label class="fld"><span>Training budget</span><select data-hrf="training">${topts.map(([v, l]) => opt(v, l, h.training)).join("")}</select></label></div>
       <label class="fld"><span>Temp contract length</span>${sel("tempDays", D.HR.tempDays.map(x => [x, x + " days"]), td)}</label>
       <small class="muted">Hiring costs ${D.HR.recruitDays} days of wage. Letting someone go costs ${D.HR.severanceDays} days of wage. Temps cost ${Math.round(D.HR.tempPremium * 100)}% more, never quit, and leave when the contract ends. Shop staff add up to 10% sales, handlers cut transfer fees, sales reps help in tenders, service staff clear tickets, operators run machines, drivers drive your trucks.</small></div>${temps ? `<div class="card">${head("Temp contracts")}${temps}</div>` : ""}${rows}`;
@@ -179,7 +180,7 @@ export function statements(s) {
   const L = s.ledger, b = a => balance(L, a), t = totals(L);
   const nz = (a, label) => (Math.abs(b(a)) > 0.004 ? `<tr><td class="l">${label || ACCOUNTS[a].name}</td><td>${money2(b(a))}</td></tr>` : "");
   const rev = ["sales", "sales_b2b", "sales_ecom"].map(a => nz(a)).join(""), exp = ["cogs", ...OPEX].map(a => nz(a)).join(""), net = round2(t.revenue - t.costs);
-  const assets = ["cash", "receivables", "inventory", "inv_raw", "inv_fg", "transit", "machinery", "acc_deprec"].map(a => nz(a)).join(""), liab = ["overdraft", "payables", "tax_payable", "credit", "longdebt", "escrow"].map(a => nz(a)).join("");
+  const assets = ["cash", "receivables", "inventory", "inv_raw", "inv_fg", "transit", "machinery", "acc_deprec"].map(a => nz(a)).join(""), liab = ["overdraft", "payables", "tax_payable", "wages_payable", "credit", "longdebt", "escrow"].map(a => nz(a)).join("");
   const machGross = b("machinery"), financing = round2(b("capital") - openingGift(s) + b("overdraft") + b("credit") + b("longdebt")), investing = -machGross, cash = b("cash"), operating = round2(cash - financing - investing);
   const tbl = (title, rows, foot) => `<div class="card scroll"><b>${title}</b><table class="tbl fixed"><tbody>${rows}</tbody>${foot ? `<tfoot>${foot}</tfoot>` : ""}</table></div>`;
   return tbl("Income statement", `<tr><td class="l"><b>Revenue</b></td><td></td></tr>${rev}<tr><td class="l"><b>Expenses</b></td><td></td></tr>${exp}`, `<tr><td class="l">Net profit</td><td class="${cls(net)}">${money2(net)}</td></tr>`)
@@ -189,7 +190,7 @@ export function statements(s) {
     + `<small class="muted">Operating cash flow is what is left after investing and financing explain the rest of the cash. Opening stock was a gift from the owner, so it is not counted as cash capital. Return on assets ${dec(Kp.kpis(s).roa)}%, quick ratio ${dec(quick(s), 2)}.</small>`;
 }
 const openingGift = s => round2(s.startNetWorth - s.capital);
-const quick = s => { const L = s.ledger, b = a => balance(L, a), cur = b("overdraft") + b("payables") + b("tax_payable") + b("credit") + b("escrow"); return cur > 0 ? (b("cash") + b("receivables")) / cur : 99; };
+const quick = s => { const L = s.ledger, b = a => balance(L, a), cur = b("overdraft") + b("payables") + b("tax_payable") + b("wages_payable") + b("credit") + b("escrow"); return cur > 0 ? (b("cash") + b("receivables")) / cur : 99; };
 
 // Warning list. Each row jumps to the tab that fixes it.
 export function warningsCard(s) {

@@ -11,7 +11,7 @@ export const ROLE = Object.fromEntries(D.HR_ROLES.map(r => [r.id, r]));
 
 export function newHr(seed = 0) {
   const staff = {}; for (const r of D.HR_ROLES) staff[r.id] = { n: 0, skill: D.HR.skillStart };
-  return { rng: seedFrom(seed, 0x48a), staff, wageMult: D.HR.wageMult.def, training: D.HR.trainingBudget.def, morale: D.HR.morale.start, quits: 0, paidTotal: 0, temps: [], recruitPaid: 0, severancePaid: 0, hires: 0 };
+  return { rng: seedFrom(seed, 0x48a), staff, wageMult: D.HR.wageMult.def, training: D.HR.trainingBudget.def, morale: D.HR.morale.start, quits: 0, paidTotal: 0, temps: [], recruitPaid: 0, severancePaid: 0, hires: 0, pay: "weekly", accrued: 0, lastPay: 0, late: 0 };
 }
 export const ensureHr = s => { s.hr = s.hr || newHr(s.seed); if (!s.hr.temps) s.hr.temps = []; return s.hr; };
 export const headcount = s => D.HR_ROLES.reduce((a, r) => a + ensureHr(s).staff[r.id].n, 0);
@@ -42,6 +42,8 @@ export function fire(s, role, n = 1) {
   post(s.ledger, s.day, `Severance for ${n} ${ROLE[role].name.toLowerCase()}`, [{ acct: "wages", dr: fee }, { acct: "cash", cr: fee }], "sev:" + s.day + ":" + role + ":" + st.n); ensureHr(s).severancePaid = c(ensureHr(s).severancePaid + fee); return ok({ n: st.n, fee });
 }
 export function setWageMult(s, v) { const w = D.HR.wageMult; ensureHr(s).wageMult = clamp(Math.round((Number(v) || w.def) * 100) / 100, w.min, w.max); return ok({ wageMult: s.hr.wageMult }); }
+export const payday = s => D.PAYDAYS.find(x => x.id === ensureHr(s).pay) || D.PAYDAYS[1];
+export function setPayday(s, v) { const p = D.PAYDAYS.find(x => x.id === v); if (!p) return err("Unknown payday."); ensureHr(s).pay = p.id; return ok({ pay: p.id }); }
 export function setTraining(s, v) { const t = D.HR.trainingBudget; ensureHr(s).training = clamp(Math.round(Number(v) || 0), t.min, t.max); return ok({ training: s.hr.training }); }
 
 // ---------- effects (all are neutral until people are hired) ----------
@@ -67,8 +69,15 @@ export function hrDay(s) {
   const payroll = dailyPayroll(s);
   if (payroll > 0) {
     const rest = c(payroll - factoryPayroll(s));            // factory wages are paid by the factory (they become part of the goods made)
-    if (rest > 0) payOut(s, "wages", rest, `Wages for day ${s.day}`);
-    h.paidTotal = c(h.paidTotal + rest);
+    if (rest > 0) { post(s.ledger, s.day, `Wages earned, day ${s.day}`, [{ acct: "wages", dr: rest }, { acct: "wages_payable", cr: rest }], "hr:acc:" + s.day); h.accrued = c(h.accrued + rest); }
+  }
+  const pd = payday(s);
+  if (h.accrued > 0 && (pd.days === 1 || s.day % pd.days === 0)) {
+    const owed = h.accrued, cash = Math.max(0, balance(s.ledger, "cash")), paid = c(Math.min(cash, owed)), short = c(owed - paid), lines = [{ acct: "wages_payable", dr: owed }];
+    if (paid > 0) lines.push({ acct: "cash", cr: paid }); if (short > 0) lines.push({ acct: "overdraft", cr: short });
+    post(s.ledger, s.day, `Payday: wages for ${pd.id === "daily" ? "day " + s.day : "the period"}`, lines, "hr:pay:" + s.day);
+    h.paidTotal = c(h.paidTotal + owed); h.accrued = 0; h.lastPay = s.day;
+    if (short > 0) { h.late++; h.morale = c(clamp(h.morale - 4, 0, 100)); mailPost(s, { from: "HR", subject: "Payday paid from overdraft", body: `Cash was short by ${short.toFixed(2)} on payday. Staff noticed. Keep cash for wages.`, goto: ["hr", ""], level: "warn" }); }
   }
   const people = headcount(s);
   if (h.training > 0 && people > 0) {
@@ -76,7 +85,7 @@ export function hrDay(s) {
     for (const r of D.HR_ROLES) { const st = h.staff[r.id]; if (st.n) st.skill = c(clamp(st.skill + h.training / (D.HR.trainingPerSkill * people) * 0.05, 0.5, 2)); }
   }
   // morale drifts toward a target set by pay and training; overwork (too few operators) hurts
-  const cv = crew(s), target = clamp(55 + 60 * (h.wageMult - 1) + Math.min(15, h.training / 40) - (cv.coverage < 1 ? 15 * (1 - cv.coverage) : 0), 0, 100);
+  const cv = crew(s), target = clamp(55 + 60 * (h.wageMult - 1) + Math.min(15, h.training / 40) - pd.morale - (cv.coverage < 1 ? 15 * (1 - cv.coverage) : 0), 0, 100);
   h.morale = c(clamp(h.morale + (target - h.morale) * D.HR_EFFECTS.moraleDrift, 0, 100));
   // turnover: unhappy staff quit
   for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30); for (let i = permN(s, r.id); i > 0; i--) if (streamNext(h) < p) { st.n--; h.quits++; mailPost(s, { from: "HR", subject: `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} resigned`, body: `Morale is ${Math.round(h.morale)}%. Raise wages or training to keep people.`, goto: ["hr", ""], level: "warn" }); log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }

@@ -38,6 +38,7 @@ export const ACCOUNTS = {
   overflow:  { type:"expense",   name:"Storage overflow fees" },
   cogs_labor: { type:"expense",  name:"Production labour" },
   tax_payable: { type:"liability", name:"Income tax payable" },
+  wages_payable: { type:"liability", name:"Accrued wages" },
   bad_debt:  { type:"expense",   name:"Bad debt written off" },
 };
 const DEBIT_NORMAL = new Set(["asset", "expense"]);

@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -154,6 +154,7 @@ export const HR_ROLES = [
   { id: "driver",    name: "Drivers",              wage: 48, per: "truck",       note: "One driver for each truck on the road" },
   { id: "service",   name: "Service staff",        wage: 45, per: "desk",        note: "Resolves support tickets" },
 ];
+export const PAYDAYS = [{ id: "daily", name: "Daily", days: 1, morale: 0 }, { id: "weekly", name: "Weekly", days: 7, morale: 1 }, { id: "biweekly", name: "Every 2 weeks", days: 14, morale: 3 }, { id: "monthly", name: "Monthly", days: 30, morale: 6 }];
 export const HR = { wageMult: { min: 0.6, max: 1.6, def: 1.0 }, trainingBudget: { min: 0, max: 2000, def: 0 },
   morale: { start: 70, min: 0, max: 100 }, turnoverBase: 0.004, skillStart: 1.0, trainingPerSkill: 400,
   recruitDays: 4, severanceDays: 5, tempPremium: 0.25, tempDays: [7, 14, 30], needPer: { warehouse: 2, sales: 2, service: 2 } };

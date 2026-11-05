@@ -408,6 +408,7 @@ export function reconcile(s) {
   const fx = s.fx, fxv = o => c(Object.values(o.val).reduce((a, v) => a + v, 0));
   if (Math.abs(fxv(fx.raw) - balance(s.ledger, "inv_raw")) > 0.05) problems.push("Raw material value differs from the ledger.");
   if (Math.abs(fxv(fx.fg) - balance(s.ledger, "inv_fg")) > 0.05) problems.push("Factory finished goods differ from the ledger.");
+  if (Math.abs(balance(s.ledger, "wages_payable") - c((s.hr && s.hr.accrued) || 0)) > 0.05) problems.push("Accrued wages differ from the HR records.");
   if (Math.abs(balance(s.ledger, "tax_payable") - taxOwed(s)) > 0.05) problems.push("Tax payable differs from the tax records.");
   if (Math.abs(balance(s.ledger, "receivables") - c(receivable(s) + ((s.ecom && s.ecom.orders) || []).reduce((a, o) => a + o.amount, 0))) > 0.05) problems.push("Receivables differ from the open invoices and web orders.");
   if (Math.abs(c(fx.machines.reduce((a, m) => a + m.cost, 0) + ensureFleet(s).trucks.reduce((a, k) => a + k.cost, 0)) - balance(s.ledger, "machinery")) > 0.05) problems.push("Machinery differs from the ledger.");
@@ -446,6 +447,7 @@ export function validateSave(raw) {
   if (o && o.v === 20) { o.v = 21; o.econ = newEcon(o.seed); }
   if (o && o.v === 21) { o.v = 22; o.jshop = newJshop(); }
   if (o && o.v === 22) { o.v = 23; o.mods = defaultMods(); o.scn.rng = seedFrom(o.seed, 0x5c3); o.scn.last = {}; }
+  if (o && o.v === 23) { o.v = 24; if (o.hr) Object.assign(o.hr, { pay: "daily", accrued: 0, lastPay: 0, late: 0 }); o.ledger.bal.wages_payable = o.ledger.bal.wages_payable || 0; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

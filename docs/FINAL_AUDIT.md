@@ -32,7 +32,7 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 | Requirement | Status | Notes |
 |---|---|---|
 | Recruitment, dismissal, contracts, departments, salary, competency, training, morale, turnover, staffing needs, productivity, expenses | Done | Six departments; permanent and temp contracts (temps cost 25% more, never quit). |
-| **Payroll schedules** | **Missing** | Wages are paid every day. No weekly or monthly payday. |
+| **Payroll schedules** | **Done** | Non-factory wages accrue daily to an "Accrued wages" liability and are paid on a chosen payday (daily, weekly, every 2 weeks, monthly). Short cash on payday goes to overdraft and costs morale. Factory crew wages are still booked daily as production cost. |
 | Individual employees | **Partial** | Staff are headcount plus an average skill per department, not named people. |
 | Roles not interchangeable | Done | Each department has its own effect. |
 
