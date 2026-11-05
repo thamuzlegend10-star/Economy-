@@ -447,7 +447,7 @@ export function validateSave(raw) {
   if (o && o.v === 20) { o.v = 21; o.econ = newEcon(o.seed); }
   if (o && o.v === 21) { o.v = 22; o.jshop = newJshop(); }
   if (o && o.v === 22) { o.v = 23; o.mods = defaultMods(); o.scn.rng = seedFrom(o.seed, 0x5c3); o.scn.last = {}; }
-  if (o && o.v === 23) { o.v = 24; if (o.hr) Object.assign(o.hr, { pay: "daily", accrued: 0, lastPay: 0, late: 0 }); o.ledger.bal.wages_payable = o.ledger.bal.wages_payable || 0; }
+  if (o && o.v === 23) { o.v = 24; o.fx.annexArea = 0; if (o.hr) Object.assign(o.hr, { pay: "daily", accrued: 0, lastPay: 0, late: 0 }); o.ledger.bal.wages_payable = o.ledger.bal.wages_payable || 0; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

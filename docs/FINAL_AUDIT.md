@@ -7,7 +7,7 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 ## 2. Factory and manufacturing
 | Requirement | Status | Notes |
 |---|---|---|
-| Multiple factory types and facilities, construction or acquisition | **Partial** | One factory building that you rent and grow in m². No second site, no different factory types. |
+| Multiple factory types and facilities, construction or acquisition | **Partial** | Two sites: the main plant and a cheaper annex (80% rent per m², haulage cost per machine per day, needs the main plant for storage). Two machine classes (standard, high-speed). Still one product line (juice) and rented, not built or bought. |
 | Capacity and space, machine purchase, machine capacity | Done | Machines need floor space and operators; four machine types. |
 | Raw storage, BOM, finished goods | Done | Raw stock per material, bill of materials per juice, finished bottles. |
 | Scheduling, queue, progress | Done | Up to 5 batches per machine, days left and bottles done are shown. |

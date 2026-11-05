@@ -234,7 +234,7 @@ export const HR_EFFECTS = { moraleOutput: 0.15, retailBoost: 0.10, transferCut: 
 export const WARN = { cashLow: 3000, csiLow: 60, moraleLow: 40, healthLow: 40, storageHigh: 0.9, stockDays: 1.5 };
 
 // Factory building: rented floor area. Machines need floor space. Rent and utilities are paid every day and become part of the cost of the goods made that day.
-export const FACTORY = { minArea: 100, maxArea: 5000, areaSteps: [100, 250, 500, 1000, 2500], rentPerM2: 1.1, utilitiesPerM2: 0.12 };
+export const FACTORY = { minArea: 100, maxArea: 5000, areaSteps: [100, 250, 500, 1000, 2500], rentPerM2: 1.1, utilitiesPerM2: 0.12, sites: [{ id: "main", name: "Main plant", rentMult: 1, haul: 0 }, { id: "annex", name: "Annex (industrial estate)", rentMult: 0.8, haul: 40, maxArea: 2500 }] };
 
 // Forecasting: z is the service level multiplier for safety stock (1.65 is about 95%). window is how many days of history are used.
 export const FORECAST = { window: 14, minPoints: 3, z: 1.65, minSafetyDays: 1, reviewDays: 7, errorWindow: 10, lateDayRisk: 1 };

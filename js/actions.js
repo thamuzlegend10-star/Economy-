@@ -15,7 +15,7 @@ import * as Ml from "./mail.js";
 import * as Js from "./juiceshop.js";
 import * as Sn from "./scenario.js";
 
-export const newForms = () => ({ vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, jm: {}, jcarrier: "hired", ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
+export const newForms = () => ({ fsite: "main", vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, jm: {}, jcarrier: "hired", ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const r = (res, msg) => (res && res.ok ? { ok: true, msg } : { ok: false, error: (res && res.error) || "Not possible." });
 
@@ -31,8 +31,8 @@ export function act(s, f, name, a = {}) {
   const id = a.id, n = a.id != null && /^\d+$/.test(String(a.id)) ? Number(a.id) : a.id;
   switch (name) {
     // factory
-    case "buyMachine": return r(F.buyMachine(s, { type: id }), "Machine bought and its operators hired.");
-    case "rentFactory": return r(F.rentFactory(s, f.farea), "Factory space rented.");
+    case "buyMachine": return r(F.buyMachine(s, { type: id, site: f.fsite }), "Machine bought and its operators hired.");
+    case "rentFactory": return r(F.rentFactory(s, f.farea, f.fsite), "Factory space rented.");
     case "qadd": return r(F.queueBatch(s, { machine: n, juice: f.q.juice, qty: f.q.qty }), "Batch queued.");
     case "qdrop": return r(F.dropBatch(s, { machine: n, id: a.batch }), "Batch removed.");
     case "advBuy": { const x = Fc.retailAdvice(s, id); if (!x.qty) return { ok: false, error: "No purchase is advised for this product right now." }; const o = E.placeOrders(s, { supplier: x.supplier, lines: [{ pid: id, qty: x.qty }] }); return r(o, `Ordered ${x.qty.toLocaleString("en-US")}. Arrives day ${o.eta}.`); }

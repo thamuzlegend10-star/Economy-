@@ -26,3 +26,19 @@ test("payroll: old v23 saves migrate to daily payday", () => {
   const s = mk(); const raw = JSON.parse(JSON.stringify(s)); raw.v = 23; delete raw.hr.pay; delete raw.hr.accrued; delete raw.ledger.bal.wages_payable;
   const r = E.validateSave(raw); assert.ok(r.ok, r.error); assert.equal(r.state.hr.pay, "daily"); assert.equal(r.state.hr.accrued, 0);
 });
+
+import * as F from "../js/factory.js";
+test("factory: annex needs the main plant, is cheaper per m2, adds haulage, and reconciles", () => {
+  const s = mk(); assert.equal(F.rentFactory(s, 200, "annex").ok, false);
+  assert.ok(F.rentFactory(s, 300).ok); const rent0 = F.factoryRent(s);
+  assert.ok(F.rentFactory(s, 250, "annex").ok); const rent1 = F.factoryRent(s), pm2 = F.factoryRentPerM2(s);
+  assert.ok(Math.abs((rent1 - rent0) - 250 * pm2 * 0.8) < 0.02, "annex rent is 80% per m2");
+  assert.equal(F.quoteMachine(s, "std", "annex").ok, true); assert.ok(F.buyMachine(s, { type: "std", site: "annex" }).ok);
+  assert.equal(F.siteOf(s.fx.machines[0]), "annex"); assert.equal(F.annexHaul(s), 40); assert.equal(F.factorySpaceFree(s, "main"), 300);
+  assert.equal(F.quoteMachine(s, "fast", "annex").ok, true);
+  days(s, 3);
+});
+test("factory: old saves get an empty annex", () => {
+  const s = mk(); const raw = JSON.parse(JSON.stringify(s)); raw.v = 23; delete raw.fx.annexArea; delete raw.hr.pay; delete raw.hr.accrued;
+  const r = E.validateSave(raw); assert.ok(r.ok, r.error); assert.equal(r.state.fx.annexArea, 0);
+});
