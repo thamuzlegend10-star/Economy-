@@ -42,3 +42,21 @@ test("factory: old saves get an empty annex", () => {
   const s = mk(); const raw = JSON.parse(JSON.stringify(s)); raw.v = 23; delete raw.fx.annexArea; delete raw.hr.pay; delete raw.hr.accrued;
   const r = E.validateSave(raw); assert.ok(r.ok, r.error); assert.equal(r.state.fx.annexArea, 0);
 });
+
+test("employees: every head has a name and start day, kept in step with hire, fire and quits", () => {
+  const s = mk(); H.hire(s, "retail", 3); let cr = H.syncCrew(s, "retail"); assert.equal(cr.length, 3);
+  assert.ok(cr.every(p => p.name.includes(" ") && p.since === 1)); assert.equal(new Set(cr.map(p => p.id)).size, 3);
+  H.fire(s, "retail", 1); assert.equal(H.syncCrew(s, "retail").length, 2);
+  const u = mk(), v = mk(); H.hire(u, "retail", 3); H.hire(v, "retail", 3); assert.deepEqual(H.syncCrew(u, "retail").map(p => p.name), H.syncCrew(v, "retail").map(p => p.name));
+  s.hr.morale = 0; for (let i = 0; i < 40 && s.hr.quits === 0; i++) { runDay(s); } assert.equal(H.syncCrew(s, "retail").length, s.hr.staff.retail.n);
+});
+
+import * as Fl from "../js/fleet.js";
+test("dock: handlers load faster and a busy dock queues the next trip", () => {
+  const s = mk(); const slow = Fl.loadTime(s, 600); H.hire(s, "warehouse", 3); assert.ok(Fl.loadTime(s, 600) < slow);
+  assert.equal(Fl.loadTime(s, 1), D.TRANSPORT.loadDays);
+  Fl.dockState(s).free.fill(0.5); assert.equal(Fl.dockWait(s), 0.5);
+  const t = mk(); Fl.dockState(t).free[0] = 0.25; assert.equal(Fl.dockWait(t), 0);
+  Fl.dockState(t).free[1] = 0.4; assert.equal(Fl.dockWait(t), 0.25);
+  const d0 = t.day; t.day = d0 + 1; assert.equal(Fl.dockWait(t), 0, "dock is empty again the next day");
+});

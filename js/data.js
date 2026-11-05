@@ -245,4 +245,4 @@ export const TRUCKS = [
   { id: "van",   name: "Delivery van", capacity: 6000,  price: 14000, life: 400, speed: 700, fuelPerKm: 0.22, wear: 1.5, serviceCost: 300 },
   { id: "truck", name: "Box truck",    capacity: 30000, price: 48000, life: 500, speed: 600, fuelPerKm: 0.55, wear: 2.0, serviceCost: 900 },
 ];
-export const TRANSPORT = { loadDays: 0.25, localKm: 15, breakdownBelow: 30, breakdownChance: 0.25, repairMult: 3, downMin: 1, downMax: 2, restoreTo: 100, tripLog: 30 };
+export const TRANSPORT = { loadDays: 0.25, docks: 2, loadSpacePerDay: 400, handlerBoost: 0.5, localKm: 15, breakdownBelow: 30, breakdownChance: 0.25, repairMult: 3, downMin: 1, downMax: 2, restoreTo: 100, tripLog: 30 };

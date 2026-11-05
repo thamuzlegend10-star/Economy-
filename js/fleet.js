@@ -17,6 +17,10 @@ function payOut(s, acct, amount, memo, ref) {
   const lines = [{ acct, dr: amount }]; if (paid > 0) lines.push({ acct: "cash", cr: paid }); if (short > 0) lines.push({ acct: "overdraft", cr: short });
   post(s.ledger, s.day, memo, lines, ref);
 }
+// Loading dock: D.TRANSPORT.docks bays, each loads one trip at a time. Time to load grows with the cargo and shrinks with warehouse handlers; a trip that finds every bay busy today waits in the queue.
+export const loadTime = (s, space) => c(clamp(space / (D.TRANSPORT.loadSpacePerDay * (1 + D.TRANSPORT.handlerBoost * ((s.hr && s.hr.staff.warehouse.n) || 0))), D.TRANSPORT.loadDays, 1.5));
+export function dockState(s) { const f = ensureFleet(s); if (!f.dock || f.dock.day !== s.day || f.dock.free.length !== D.TRANSPORT.docks) f.dock = { day: s.day, free: Array(D.TRANSPORT.docks).fill(0) }; return f.dock; }
+export const dockWait = s => c(Math.min(...dockState(s).free));
 export const idleTrucks = s => ensureFleet(s).trucks.filter(t => t.status === "idle" && t.busyUntil <= s.day);
 export const trucksOut = s => ensureFleet(s).trucks.filter(t => t.status === "out").length;
 export const driversFree = s => s.hr.staff.driver.n - trucksOut(s);
@@ -45,14 +49,15 @@ export function planTrip(s, { km, space, prep = 0 } = {}) {
   if (driversFree(s) <= 0) return err("No free driver. Hire a driver in HR.");
   const used = []; let cap = 0, drivers = driversFree(s);
   for (const k of idle) { if (used.length >= drivers) break; used.push(k); cap += TRUCK[k.type].capacity; if (cap >= space) break; }
-  const rounds = Math.max(1, Math.ceil(space / cap)), speed = Math.min(...used.map(k => TRUCK[k.type].speed)), oneWay = km / speed, load = D.TRANSPORT.loadDays;
-  const days = Math.max(1, Math.ceil(prep + load + oneWay * (2 * rounds - 1) - 1e-9)), back = Math.max(days, Math.ceil(prep + load + oneWay * 2 * rounds - 1e-9));
+  const rounds = Math.max(1, Math.ceil(space / cap)), speed = Math.min(...used.map(k => TRUCK[k.type].speed)), oneWay = km / speed, load = loadTime(s, space), wait = dockWait(s);
+  const days = Math.max(1, Math.ceil(prep + wait + load + oneWay * (2 * rounds - 1) - 1e-9)), back = Math.max(days, Math.ceil(prep + wait + load + oneWay * 2 * rounds - 1e-9));
   const fuel = c(used.reduce((a, k) => a + rounds * 2 * km * TRUCK[k.type].fuelPerKm, 0));
-  return { ok: true, trucks: used.map(k => k.id), rounds, days, back, fuel, km, capacity: cap, errors: [] };
+  return { ok: true, trucks: used.map(k => k.id), rounds, days, back, fuel, km, capacity: cap, load, wait, errors: [] };
 }
 // Send the trucks. Pays fuel now, wears the trucks, may break one down. Returns the extra days the goods are delayed.
 export function dispatch(s, plan, kind) {
   const f = ensureFleet(s); let delay = 0;
+  if (plan.load !== undefined) { const d = dockState(s), i = d.free.indexOf(Math.min(...d.free)); d.free[i] = c(d.free[i] + plan.load); }
   for (const id of plan.trucks) {
     const k = f.trucks.find(x => x.id === id), t = TRUCK[k.type]; k.status = "out"; k.busyUntil = s.day + plan.back; k.km += plan.km * 2 * plan.rounds; k.trips += plan.rounds; f.km += plan.km * 2 * plan.rounds;
     const broke = k.health < D.TRANSPORT.breakdownBelow && streamNext(f) < D.TRANSPORT.breakdownChance;
@@ -64,7 +69,7 @@ export function dispatch(s, plan, kind) {
     }
   }
   payOut(s, "delivery", plan.fuel, `Fuel for ${kind}`, "fuel:" + s.day + ":" + f.tripSeq); f.fuelPaid = c(f.fuelPaid + plan.fuel);
-  f.trips.push({ id: ++f.tripSeq, day: s.day, kind, km: plan.km, trucks: plan.trucks.slice(), rounds: plan.rounds, fuel: plan.fuel, eta: s.day + plan.days + delay, delay }); if (f.trips.length > D.TRANSPORT.tripLog) f.trips.shift();
+  f.trips.push({ id: ++f.tripSeq, day: s.day, kind, km: plan.km, trucks: plan.trucks.slice(), rounds: plan.rounds, fuel: plan.fuel, load: plan.load || 0, wait: plan.wait || 0, eta: s.day + plan.days + delay, delay }); if (f.trips.length > D.TRANSPORT.tripLog) f.trips.shift();
   return delay;
 }
 // Daily: trucks come home, broken trucks are repaired, depreciation is booked.

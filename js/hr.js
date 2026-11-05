@@ -9,6 +9,16 @@ const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
 export const ROLE = Object.fromEntries(D.HR_ROLES.map(r => [r.id, r]));
 
+// Named people. The headcount is what the economy uses; the roster gives each of those heads a name and a start day, kept in step with it.
+const FIRST = ["Ayu", "Budi", "Citra", "Dewi", "Eko", "Fajar", "Gita", "Hadi", "Indra", "Joko", "Kiki", "Lestari", "Mawar", "Nanda", "Putra", "Rani", "Sari", "Tono", "Umar", "Vina", "Wati", "Yusuf", "Zahra", "Agus", "Bayu", "Dian", "Fitri", "Galih", "Hana", "Irfan"];
+const LAST = ["Santoso", "Wijaya", "Pratama", "Lubis", "Siregar", "Nasution", "Hutapea", "Simanjuntak", "Harahap", "Kusuma", "Saputra", "Hidayat", "Purnama", "Rahman", "Tan", "Lim"];
+const hash = (a, b, c) => { let x = (a * 374761393 + b * 668265263 + c * 2246822519) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return (x ^ (x >>> 16)) >>> 0; };
+export function syncCrew(s, role) {
+  const h = ensureHr(s); h.seq = h.seq || 0; const st = h.staff[role]; st.crew = st.crew || [];
+  while (st.crew.length < st.n) { const k = ++h.seq, x = hash(s.seed | 0, k, 7); st.crew.push({ id: k, name: `${FIRST[x % FIRST.length]} ${LAST[(x >>> 8) % LAST.length]}`, since: s.day, skill: c(clamp(st.skill + ((x >>> 16) % 21 - 10) / 100, 0.5, 2)) }); }
+  if (st.crew.length > st.n) st.crew.length = Math.max(0, st.n);
+  return st.crew;
+}
 export function newHr(seed = 0) {
   const staff = {}; for (const r of D.HR_ROLES) staff[r.id] = { n: 0, skill: D.HR.skillStart };
   return { rng: seedFrom(seed, 0x48a), staff, wageMult: D.HR.wageMult.def, training: D.HR.trainingBudget.def, morale: D.HR.morale.start, quits: 0, paidTotal: 0, temps: [], recruitPaid: 0, severancePaid: 0, hires: 0, pay: "weekly", accrued: 0, lastPay: 0, late: 0 };
@@ -30,7 +40,7 @@ export function hire(s, role, n = 1, contract = "perm", days = 14) {
   const h = ensureHr(s), st = h.staff[role], fee = recruitFee(s, role, n);
   if (fee > balance(s.ledger, "cash") + 0.004) return err(`Not enough cash for the recruitment fee: $${fee.toFixed(2)}.`);
   if (contract === "temp") { days = Math.round(Number(days)); if (!D.HR.tempDays.includes(days)) return err("Choose a contract length."); h.temps.push({ role, n, until: s.day + days }); }
-  st.skill = c((st.skill * st.n + D.HR.skillStart * n) / (st.n + n)); st.n += n; h.hires += n;
+  st.skill = c((st.skill * st.n + D.HR.skillStart * n) / (st.n + n)); st.n += n; h.hires += n; syncCrew(s, role);
   if (fee > 0) { post(s.ledger, s.day, `Recruitment of ${n} ${ROLE[role].name.toLowerCase()}`, [{ acct: "wages", dr: fee }, { acct: "cash", cr: fee }], "hire:" + s.day + ":" + role + ":" + h.hires); h.recruitPaid = c(h.recruitPaid + fee); }
   return ok({ n: st.n, fee });
 }
@@ -38,7 +48,7 @@ export function fire(s, role, n = 1) {
   if (!ROLE[role]) return err("Unknown role."); const st = ensureHr(s).staff[role]; n = Math.round(Number(n)); if (!Number.isFinite(n) || n < 1) return err("Choose how many.");
   if (n > permN(s, role)) return err(permN(s, role) ? `You can let go of only ${permN(s, role)} permanent staff. Temps leave when their contract ends.` : "Only temps are left here. They leave when their contract ends.");
   const fee = c(wageOf(s, role) * D.HR.severanceDays * n); if (fee > balance(s.ledger, "cash") + 0.004) return err(`Not enough cash for severance pay: $${fee.toFixed(2)}.`);
-  st.n -= n; ensureHr(s).morale = clamp(ensureHr(s).morale - 2 * n, 0, 100);
+  st.n -= n; syncCrew(s, role); ensureHr(s).morale = clamp(ensureHr(s).morale - 2 * n, 0, 100);
   post(s.ledger, s.day, `Severance for ${n} ${ROLE[role].name.toLowerCase()}`, [{ acct: "wages", dr: fee }, { acct: "cash", cr: fee }], "sev:" + s.day + ":" + role + ":" + st.n); ensureHr(s).severancePaid = c(ensureHr(s).severancePaid + fee); return ok({ n: st.n, fee });
 }
 export function setWageMult(s, v) { const w = D.HR.wageMult; ensureHr(s).wageMult = clamp(Math.round((Number(v) || w.def) * 100) / 100, w.min, w.max); return ok({ wageMult: s.hr.wageMult }); }
@@ -65,7 +75,7 @@ export const serviceCapacity = s => ensureHr(s).staff.service.n * D.SRV.perStaff
 export function hrDay(s) {
   const h = ensureHr(s);
   for (const t of h.temps.filter(x => x.until <= s.day)) { h.staff[t.role].n = Math.max(0, h.staff[t.role].n - t.n); log(s, `${t.n} temporary ${ROLE[t.role].name.toLowerCase()} finished their contract.`); }
-  h.temps = h.temps.filter(x => x.until > s.day);
+  h.temps = h.temps.filter(x => x.until > s.day); for (const r of D.HR_ROLES) syncCrew(s, r.id);
   const payroll = dailyPayroll(s);
   if (payroll > 0) {
     const rest = c(payroll - factoryPayroll(s));            // factory wages are paid by the factory (they become part of the goods made)
@@ -88,7 +98,7 @@ export function hrDay(s) {
   const cv = crew(s), target = clamp(55 + 60 * (h.wageMult - 1) + Math.min(15, h.training / 40) - pd.morale - (cv.coverage < 1 ? 15 * (1 - cv.coverage) : 0), 0, 100);
   h.morale = c(clamp(h.morale + (target - h.morale) * D.HR_EFFECTS.moraleDrift, 0, 100));
   // turnover: unhappy staff quit
-  for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30); for (let i = permN(s, r.id); i > 0; i--) if (streamNext(h) < p) { st.n--; h.quits++; mailPost(s, { from: "HR", subject: `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} resigned`, body: `Morale is ${Math.round(h.morale)}%. Raise wages or training to keep people.`, goto: ["hr", ""], level: "warn" }); log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }
+  for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30); for (let i = permN(s, r.id); i > 0; i--) if (streamNext(h) < p) { const cr = syncCrew(s, r.id), who = cr.length ? cr.splice(hash(s.day, st.n, cr.length) % cr.length, 1)[0] : null; st.n--; h.quits++; mailPost(s, { from: "HR", subject: `${who ? who.name : "A " + ROLE[r.id].name.toLowerCase().replace(/s$/, "")} resigned`, body: `${who ? who.name + " (" + ROLE[r.id].name.toLowerCase().replace(/s$/, "") + ", since day " + who.since + ") left. " : ""}Morale is ${Math.round(h.morale)}%. Raise wages or training to keep people.`, goto: ["hr", ""], level: "warn" }); log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }
 }
 function payOut(s, acct, amount, memo) {
   amount = c(amount); if (amount <= 0) return;

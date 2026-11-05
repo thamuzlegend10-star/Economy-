@@ -25,7 +25,7 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 | Warehouse to shop, supplier to shop or warehouse, supplier to factory | Done | Choose "My own trucks" on orders, raw orders and transfers. |
 | Factory to shop transport of juice | Done | Factory, Juice to shop: pick bottles, choose your own trucks or a hired carrier. Goods go through goods-in-transit and arrive on the shop shelf after the trip. Raw materials and factory goods already count against warehouse space, so no separate factory-to-warehouse move was added. |
 | Juice sold in the shop | Done | Juice has its own shelf, price and demand (price, location, rivals, economy, satisfaction). Cost of goods follows the bottles. A juice draws shoppers only after you stock it once. |
-| Delivery routes, loading and unloading | **Partial** | Distance sets time and fuel. Loading is a fixed quarter day. No route map and no dock queue. |
+| Delivery routes, loading and unloading | **Partial** | Distance sets time and fuel. Loading time depends on cargo and warehouse handlers, there are 2 dock bays and a trip that finds both busy queues (shown in the fleet screen and the trip log). Still no drawn route map. |
 | Trucks tied to real deliveries | Done | The city and yard scenes draw trucks from real orders and the real fleet. |
 
 ## 4. Human resources
@@ -33,7 +33,7 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 |---|---|---|
 | Recruitment, dismissal, contracts, departments, salary, competency, training, morale, turnover, staffing needs, productivity, expenses | Done | Six departments; permanent and temp contracts (temps cost 25% more, never quit). |
 | **Payroll schedules** | **Done** | Non-factory wages accrue daily to an "Accrued wages" liability and are paid on a chosen payday (daily, weekly, every 2 weeks, monthly). Short cash on payday goes to overdraft and costs morale. Factory crew wages are still booked daily as production cost. |
-| Individual employees | **Partial** | Staff are headcount plus an average skill per department, not named people. |
+| Individual employees | **Partial** | Every head has a name and start day (quits name the person). Skill and wage are still per role, not per person. |
 | Roles not interchangeable | Done | Each department has its own effect. |
 
 ## 5. Forecasting and planning
