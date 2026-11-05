@@ -10,6 +10,8 @@ import { trackArrival } from "./bi.js";
 import { newJshop, ensureJshop, juiceArrivals, juiceShopDay, shelfSpace, movingSpace, jshopValue, movesValue } from "./juiceshop.js";
 import { newEcon, econDay, expectedPrice, demandMood, priceLevel } from "./economy.js";
 import { newMail, mailPost } from "./mail.js";
+import { cleanMods, defaultMods, modOn, offMsg } from "./modules.js";
+import { seedFrom } from "./rng.js";
 import { newScn, scenarioDay, eventMult, delayed as scnDelayed } from "./scenario.js";
 import { newTax, taxDay, taxOwed } from "./accounting.js";
 import { receivable } from "./b2b.js";
@@ -42,7 +44,7 @@ export function cleanSetup(o = {}) {
     location: typeof o.location === "string" && hasLocation(o.location) && o.location !== "default" ? o.location : "id-medan-central",
     area: n(o.area, D.AREA, D.AREA.def), secPerDay: n(o.secPerDay, D.SECONDS_PER_DAY, D.SECONDS_PER_DAY.def),
     days: isInf ? 0 : n(o.days, D.DAYS, D.DAYS.def), capital: n(o.capital, D.CAPITAL, D.CAPITAL.def),
-    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free",
+    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods),
   };
 }
 export const MACHINE_PER_DAY = m => (D.MACHINES.find(x => x.id === m.type) || { perDay: 0 }).perDay;
@@ -53,7 +55,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), jshop: newJshop(), mail: newMail(), scn: newScn(o.scenario), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
+    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), jshop: newJshop(), mail: newMail(), scn: newScn(o.scenario, o.seed), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
   for (const sp of ALL_SUP) { s.supIdx[sp.id] = 1; }
@@ -201,6 +203,7 @@ export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired") 
 
 export function placeOrders(s, { supplier, lines, dest = "retail", carrier = "hired" } = {}) {
   if (s.ended) return err("The game is over.");
+  if (dest === "wh" && !modOn(s, "warehouse")) return err(offMsg("warehouse"));
   const q = quoteMulti(s, supplier, lines, dest, carrier);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
@@ -256,6 +259,7 @@ export function whRentQuote(s, extra) {
 }
 export function rentWarehouse(s, extra) {
   if (s.ended) return err("The game is over.");
+  if (!modOn(s, "warehouse")) return err(offMsg("warehouse"));
   const q = whRentQuote(s, extra);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
@@ -291,6 +295,7 @@ export function quoteTransfer(s, lines, carrier = "hired") {
 }
 export function sendToRetail(s, { lines, carrier = "hired" } = {}) {
   if (s.ended) return err("The game is over.");
+  if (!modOn(s, "warehouse")) return err(offMsg("warehouse"));
   const q = quoteTransfer(s, lines, carrier);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
@@ -440,6 +445,7 @@ export function validateSave(raw) {
   if (o && o.v === 19) { o.v = 20; o.mail = newMail(); o.scn = newScn("free"); o.scenario = "free"; }
   if (o && o.v === 20) { o.v = 21; o.econ = newEcon(o.seed); }
   if (o && o.v === 21) { o.v = 22; o.jshop = newJshop(); }
+  if (o && o.v === 22) { o.v = 23; o.mods = defaultMods(); o.scn.rng = seedFrom(o.seed, 0x5c3); o.scn.last = {}; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

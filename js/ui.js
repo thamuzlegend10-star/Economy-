@@ -1,4 +1,5 @@
 // HTML builders for each tab. Pure functions of the engine state: no game rules live here.
+import { tabOff, MODS, cleanMods } from "./modules.js";
 import * as E from "./engine.js";
 import * as D from "./data.js";
 import { getLocation } from "./locations.js";
@@ -43,9 +44,9 @@ export const NAV = [
   { id: "info", label: "Info", subs: [], iconOnly: true, action: true },
 ];
 const svg = id => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
-export function navHtml(ui) {
-  const main = NAV.map(n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}" ${n.iconOnly ? `aria-label="${n.label}${n.id === "mail" && ui.unread ? " (" + ui.unread + " unread)" : ""}"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}${n.iconOnly ? "" : `<span>${n.label}</span>`}</button>`).join("");
-  const cur = NAV.find(n => n.id === ui.main), subs = cur ? cur.subs : [];
+export function navHtml(ui, mods) {
+  const main = NAV.filter(n => !tabOff(mods, n.id)).map(n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}" ${n.iconOnly ? `aria-label="${n.label}${n.id === "mail" && ui.unread ? " (" + ui.unread + " unread)" : ""}"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}${n.iconOnly ? "" : `<span>${n.label}</span>`}</button>`).join("");
+  const cur = NAV.find(n => n.id === ui.main), subs = (cur ? cur.subs : []).filter(([id]) => !(cur.id === "warehouse" && id === "b2b" && tabOff(mods, "b2b")));
   const sub = subs.length > 1 ? subs.map(([id, label]) => `<button data-sub="${id}" class="${ui.sub[ui.main] === id ? "on" : ""}">${label}</button>`).join("") : "";
   return { main, sub };
 }
@@ -291,12 +292,21 @@ export function fleetScreen(s) {
     <div class="tcos">${buy}</div>${rows ? `<div class="card scroll"><table class="tbl"><thead><tr><th>Truck</th><th>Status</th><th>Health</th><th>Driven</th><th>Book value</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}${trips ? `<div class="card"><b>Recent trips</b>${trips}</div>` : ""}`;
 }
 
-// Plain-words list of the scenarios for the setup forms: what happens, what it does to you, and a hint.
-export const scenarioEffect = e => {
-  const pc = v => Math.round(Math.abs(v - 1) * 100);
-  const what = { demand: e.mult >= 1 ? `demand +${pc(e.mult)}%` : `demand -${pc(e.mult)}%`, cost: e.mult >= 1 ? `supplier prices +${pc(e.mult)}%` : `supplier prices -${pc(e.mult)}%`, delay: "deliveries arrive late", rival: e.mult >= 1 ? `rival prices +${pc(e.mult)}%` : `rival prices -${pc(e.mult)}%` }[e.kind] || e.kind;
-  return `${what} for ${e.days} days`;
+// Plain-words list of the scenarios for the setup forms: what can happen, how likely, what it does to you, and a hint.
+const pcOf = v => Math.round(Math.abs(v - 1) * 100), sign = v => (v >= 1 ? "+" : "-");
+export const scenarioEffect = p => {
+  const [a, b] = Array.isArray(p.mult) ? p.mult : [p.mult, p.mult], r = a === b ? `${sign(a)}${pcOf(a)}%` : `${sign(a)}${Math.min(pcOf(a), pcOf(b))}% to ${sign(a)}${Math.max(pcOf(a), pcOf(b))}%`;
+  const what = { demand: `demand ${r}`, cost: `supplier prices ${r}`, delay: "deliveries arrive late", rival: `rival prices ${r}` }[p.kind] || p.kind;
+  const d = Array.isArray(p.days) ? p.days : [p.days, p.days];
+  return `${what} for ${d[0] === d[1] ? d[0] : d[0] + " to " + d[1]} days`;
 };
+export const scenarioChance = p => (p.after ? `${Math.round(p.chance * 100)}% a day for ${p.within} days after the ${p.after} ends` : `about ${Math.round(p.chance * 100)}% a day`);
 export function scenarioList(list, sel) {
-  return list.map(s => `<button type="button" class="scn ${s.id === sel ? "on" : ""}" data-scn="${esc(s.id)}" aria-pressed="${s.id === sel}"><b>${esc(s.name)}</b><span>${esc(s.about || s.desc)}</span>${s.events.length ? `<ul>${s.events.map(e => `<li><em>Day ${e.day}</em> ${esc(e.title)}: ${esc(scenarioEffect(e))}</li>`).join("")}</ul>` : ""}${s.tip ? `<small>Tip: ${esc(s.tip)}</small>` : ""}</button>`).join("");
+  return list.map(s => `<button type="button" class="scn ${s.id === sel ? "on" : ""}" data-scn="${esc(s.id)}" aria-pressed="${s.id === sel}"><b>${esc(s.name)}</b><span>${esc(s.about || s.desc)}</span>${s.pool.length ? `<ul>${s.pool.map(e => `<li><em>${esc(e.title)}</em> ${esc(scenarioChance(e))}: ${esc(scenarioEffect(e))}</li>`).join("")}</ul>` : ""}${s.tip ? `<small>Tip: ${esc(s.tip)}</small>` : ""}</button>`).join("");
+}
+
+// Department switches for the setup forms (New game and the live lobby). prefix keeps the field ids apart.
+export function modsHtml(prefix, mods) {
+  const m = cleanMods(mods), bOff = !m.warehouse && !m.factory;
+  return MODS.map(x => `<label class="mod"><input type="checkbox" id="${prefix}${x.id}" ${m[x.id] ? "checked" : ""} ${x.id === "b2b" && bOff ? "disabled" : ""}><span><b>${esc(x.name)}</b><small>${esc(x.about)}${x.id === "b2b" && bOff ? " Needs the warehouse or the factory." : ""}</small></span></label>`).join("");
 }

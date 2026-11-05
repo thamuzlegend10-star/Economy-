@@ -213,3 +213,28 @@ html, body, * { scrollbar-width:none; -ms-overflow-style:none; }
 .scn b { font-size:.85rem; } .scn span, .scn li, .scn small { font-size:.72rem; color:var(--muted); line-height:1.35; overflow-wrap:anywhere; }
 .scn ul { margin:2px 0 0; padding-left:16px; } .scn em { font-style:normal; color:#f2a93b; } .scn small { color:#9aa7c4; }
 .scn.on { border-color:#f2a93b; background:rgba(242,169,59,.08); } .scn.on b { color:#f2a93b; }
+
+.mods { display:grid; gap:6px; } .mod { display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border:2px solid var(--px-hi); border-radius:6px; cursor:pointer; }
+.mod input { width:18px; height:18px; margin-top:2px; flex:none; accent-color:#f2a93b; } .mod span { display:grid; gap:2px; min-width:0; } .mod b { font-size:.85rem; } .mod small { font-size:.72rem; color:var(--muted); line-height:1.35; overflow-wrap:anywhere; }
+.mod:has(input:disabled) { opacity:.55; cursor:not-allowed; } .mod:has(input:checked) { border-color:#f2a93b; background:rgba(242,169,59,.07); }
+
+/* ---------- phones and small tablets ---------- */
+@media (max-width:700px) {
+  .hud { gap:5px; }
+  .pill { display:flex; justify-content:space-between; align-items:baseline; gap:6px; padding:6px 9px; }
+  .pill span { font-size:.56rem; letter-spacing:.07em; } .pill b { font-size:.95rem; line-height:1.2; } .k-time b { font-size:1rem; text-shadow:none; }
+  .scene-tabs { position:static; flex-wrap:nowrap; overflow-x:auto; padding:6px 2px 2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .scene-tabs::-webkit-scrollbar { display:none; width:0; height:0; }
+  .scene-tabs button { flex:none; min-height:34px; background:var(--px-lo); }
+  .stage-card { padding:3px; } .banner { left:6px; right:6px; top:6px; }
+  body { padding-bottom:44px; }
+  .navwrap { gap:2px; } .tabs { padding:3px; } .tabs button { min-height:36px; padding:4px 10px; font-size:.8rem; }
+  .card { padding:10px; }
+  dialog { padding:12px; width:100vw; max-height:100dvh; border-radius:0; } dialog.overlay .sheet { max-height:100dvh; }
+  .dlg-actions button { flex:1 1 auto; }
+}
+@media (pointer:coarse) {
+  button, select, input:not([type=checkbox]):not([type=radio]):not([type=range]) { min-height:42px; }
+  .mini { min-height:36px; } .scn, .mod { min-height:44px; }
+}
+@media (max-width:360px) { .pill { flex-wrap:wrap; gap:0 6px; } .pill span { font-size:.5rem; } .pill b { font-size:.85rem; } .k-time b { font-size:.9rem; } }

@@ -2,11 +2,12 @@
 // (the person running the session) can also inject an event at any time. Every event is announced in Mail and changes real numbers:
 //   rival: rival shop prices are multiplied (shoppers compare)   demand: shopper demand in the shop is multiplied    cost: supplier and vendor prices are multiplied    delay: supplier deliveries arrive one day late
 import * as D from "./data.js";
+import { streamNext, seedFrom } from "./rng.js";
 import { mailPost } from "./mail.js";
 import { log } from "./engine.js";
 import { totals, balance, round2 } from "./ledger.js";
 
-export const newScn = (id = "free") => ({ id, events: [], seq: 0 });
+export const newScn = (id = "free", seed = 0) => ({ id, events: [], seq: 0, rng: seedFrom(seed, 0x5c3), last: {} });
 export const ensureScn = s => (s.scn = s.scn || newScn());
 export const SCENARIO = Object.fromEntries(D.SCENARIOS.map(x => [x.id, x]));
 const activeAt = (s, kind) => ensureScn(s).events.filter(e => e.kind === kind && e.from <= s.day && e.until >= s.day);
@@ -14,15 +15,25 @@ export const eventMult = (s, kind) => activeAt(s, kind).reduce((a, e) => a * e.m
 export const delayed = s => activeAt(s, "delay").length > 0;
 
 function start(s, ev, how) {
-  const sc = ensureScn(s), e = { id: ++sc.seq, kind: ev.kind, mult: ev.mult || 1, from: s.day, until: s.day + ev.days - 1, title: ev.title, how };
+  const sc = ensureScn(s), e = { id: ++sc.seq, kind: ev.kind, mult: ev.mult || 1, from: s.day, until: s.day + ev.days - 1, title: ev.title, how, key: ev.key || null };
+  if (e.key) { sc.last = sc.last || {}; sc.last[e.key] = e.until; }
   sc.events.push(e); if (sc.events.length > 40) sc.events.shift();
   const txt = e.kind === "rival" ? `Rival shops ${e.mult >= 1 ? "raise" : "cut"} their prices by ${Math.round(Math.abs(e.mult - 1) * 100)}%` : e.kind === "demand" ? `Shopper demand ${e.mult >= 1 ? "up" : "down"} ${Math.round(Math.abs(e.mult - 1) * 100)}%` : e.kind === "cost" ? `Supplier prices ${e.mult >= 1 ? "up" : "down"} ${Math.round(Math.abs(e.mult - 1) * 100)}%` : "Supplier deliveries arrive one day late";
   mailPost(s, { from: how === "facilitator" ? "Facilitator" : "Market news", subject: e.title, body: `${ev.body || e.title} ${txt} for ${ev.days} days (until day ${e.until}).`, level: "warn" });
   log(s, `Event: ${e.title}.`); return e;
 }
+const between = (sc, [lo, hi]) => lo + (hi - lo) * streamNext(sc);
+// Each day every possible event of the scenario rolls its own chance. The rolls come from the game seed only, never from what the player does.
 export function scenarioDay(s) {
-  const sc = ensureScn(s), def = SCENARIO[sc.id];
-  if (def) for (const ev of def.events) if (ev.day === s.day) start(s, ev, "scenario");
+  const sc = ensureScn(s), def = SCENARIO[sc.id]; sc.last = sc.last || {}; if (!Number.isFinite(sc.rng)) sc.rng = seedFrom(s.seed, 0x5c3);
+  if (def) for (const p of def.pool || []) {
+    if (s.day < (p.minDay || 1) || sc.events.some(e => e.key === p.key && e.until >= s.day)) continue;
+    const last = sc.last[p.key];
+    if (last != null && s.day - last <= (p.cooldown || 0)) continue;
+    if (p.after) { const la = sc.last[p.after]; if (la == null || s.day <= la || s.day - la > p.within || (last != null && last >= la)) continue; }
+    if (streamNext(sc) >= p.chance) continue;
+    start(s, { key: p.key, kind: p.kind, mult: Math.round(between(sc, p.mult) * 100) / 100, days: Math.floor(between(sc, [p.days[0], p.days[1] + 0.999])), title: p.title, body: p.body }, "scenario");
+  }
   const ended = sc.events.filter(e => e.until === s.day - 1);
   for (const e of ended) mailPost(s, { from: e.how === "facilitator" ? "Facilitator" : "Market news", subject: `Over: ${e.title}`, body: "The market is back to normal.", level: "info" });
 }

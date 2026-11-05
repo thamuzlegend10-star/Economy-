@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 22;
+export const SAVE_VERSION = 23;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -211,17 +211,20 @@ export const MARKET = { rivalBase: 0.3, rivalPerCompetition: 0.7, rivalMax: 0.85
   prefPull: 0.05, prefShock: 0.02, prefMin: 0.85, prefMax: 1.15 };
 
 // Facilitator scenarios: scripted market events. kind: demand (shop demand ×mult), cost (supplier prices ×mult), delay (supplier deliveries one day late).
+// Scenarios. An event is not on a fixed day: every game day each possible event rolls its own chance (the seed decides the rolls, so everyone in a
+// live room sees the same events). chance = per day. mult and days are drawn from their range. cooldown = days of quiet after it ends.
+// after + within: only possible in the days right after the named event ended.
 export const SCENARIOS = [
-  { id: "free", name: "Free play", desc: "No scripted events.", about: "A calm market. Nothing is scripted, so your own choices decide the result. A facilitator can still announce events by hand.", tip: "Best for learning the basics.", events: [] },
-  { id: "boom", name: "Festival boom", desc: "A demand surge, then a slump.", about: "A city festival fills the streets and shoppers buy more. Then people run out of money and demand drops below normal.", tip: "Stock up before day 5. Do not overbuy for the slump.", events: [
-    { day: 5, kind: "demand", mult: 1.25, days: 8, title: "Festival season", body: "A city festival fills the streets." },
-    { day: 20, kind: "demand", mult: 0.85, days: 6, title: "Post-festival slump", body: "People spent their money and stay home." } ] },
-  { id: "supply", name: "Supply crunch", desc: "Prices climb and deliveries slip.", about: "A port strike makes goods dearer and trucks arrive late. Shelves can run empty even when you ordered on time.", tip: "Keep a bigger buffer. Order earlier and use a faster carrier.", events: [
-    { day: 4, kind: "cost", mult: 1.3, days: 10, title: "Port strike raises prices", body: "A port strike makes goods scarce." },
-    { day: 6, kind: "delay", mult: 1, days: 8, title: "Trucks stuck at the port", body: "Suppliers cannot ship on time." } ] },
-  { id: "pricewar", name: "Price war", desc: "A rival cuts prices, then fuel costs rise.", about: "A rival chain drops its prices and shoppers compare. Later a fuel surcharge raises what suppliers charge you.", tip: "Watch the Market tab. Match prices only if your margin can take it.", events: [
-    { day: 3, kind: "rival", mult: 0.85, days: 12, title: "Rival opens a discount chain", body: "Rival shops cut their prices. Shoppers compare." },
-    { day: 15, kind: "cost", mult: 1.15, days: 7, title: "Fuel surcharge", body: "Suppliers add a fuel surcharge." } ] },
+  { id: "free", name: "Free play", desc: "No random events.", about: "A calm market. Nothing happens by chance, so your own choices decide the result. A facilitator can still announce events by hand.", tip: "Best for learning the basics.", pool: [] },
+  { id: "boom", name: "Festival boom", desc: "Demand surges at random, then often slumps.", about: "Festivals can fill the streets and shoppers buy more. When one ends, people have often spent their money and demand drops below normal.", tip: "Keep spare stock for a surge. Do not overbuy right after one.", pool: [
+    { key: "festival", kind: "demand", mult: [1.15, 1.35], days: [5, 9], chance: 0.07, minDay: 3, cooldown: 8, title: "Festival season", body: "A city festival fills the streets." },
+    { key: "slump", kind: "demand", mult: [0.8, 0.92], days: [4, 8], chance: 0.35, after: "festival", within: 6, title: "Post-festival slump", body: "People spent their money and stay home." } ] },
+  { id: "supply", name: "Supply crunch", desc: "Prices climb and deliveries slip at random.", about: "A port strike can make goods dearer, and trucks can get stuck so deliveries arrive late. Shelves can run empty even when you ordered on time.", tip: "Keep a bigger buffer. Order earlier and use a faster carrier.", pool: [
+    { key: "strike", kind: "cost", mult: [1.2, 1.4], days: [6, 12], chance: 0.07, minDay: 3, cooldown: 8, title: "Port strike raises prices", body: "A port strike makes goods scarce." },
+    { key: "stuck", kind: "delay", mult: [1, 1], days: [5, 10], chance: 0.06, minDay: 3, cooldown: 8, title: "Trucks stuck at the port", body: "Suppliers cannot ship on time." } ] },
+  { id: "pricewar", name: "Price war", desc: "Rivals cut prices and fuel costs rise at random.", about: "A rival chain can drop its prices and shoppers compare. Fuel surcharges can raise what suppliers charge you.", tip: "Watch the Market tab. Match prices only if your margin can take it.", pool: [
+    { key: "discount", kind: "rival", mult: [0.78, 0.92], days: [8, 14], chance: 0.06, minDay: 2, cooldown: 8, title: "Rival opens a discount chain", body: "Rival shops cut their prices. Shoppers compare." },
+    { key: "fuel", kind: "cost", mult: [1.1, 1.2], days: [5, 9], chance: 0.05, minDay: 3, cooldown: 8, title: "Fuel surcharge", body: "Suppliers add a fuel surcharge." } ] },
 ];
 
 // Effect sizes of staff on the rest of the business (tunable). Everything is neutral until people are hired.

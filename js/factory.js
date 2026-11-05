@@ -1,6 +1,7 @@
 // Factory layer (spec modules PRD, MNT, PMN raw side): raw materials, machines, production runs, maintenance, depreciation,
 // and two-stage raw purchasing (requisition -> approval -> purchase order) with payment terms.
 // Pure functions on the game state `s`. State lives in s.fx. All money goes through the ledger.
+import { modOn, offMsg } from "./modules.js";
 import { mailPost } from "./mail.js";
 import { eventMult, delayed as scnDelayed } from "./scenario.js";
 import { priceLevel } from "./economy.js";
@@ -50,6 +51,7 @@ export const factoryUtilities = s => c(D.FACTORY.utilitiesPerM2 * ensureFactory(
 export const machineSpace = s => ensureFactory(s).machines.reduce((a, m) => a + MACHINE[m.type].space, 0);
 export const factorySpaceFree = s => ensureFactory(s).area - machineSpace(s);
 export function rentFactory(s, extra) {
+  if (!modOn(s, "factory")) return err(offMsg("factory"));
   if (s.ended) return err("The game is over."); const fx = ensureFactory(s); extra = Math.round(Number(extra));
   if (!Number.isFinite(extra) || extra < 1) return err("Choose how many m² to rent.");
   const add = fx.area ? extra : Math.max(extra, D.FACTORY.minArea), room = D.FACTORY.maxArea - fx.area;
@@ -70,6 +72,7 @@ export function quoteMachine(s, typeId) {
   q.ok = !q.errors.length; return q;
 }
 export function buyMachine(s, { type } = {}) {
+  if (!modOn(s, "factory")) return err(offMsg("factory"));
   if (s.ended) return err("The game is over.");
   const q = quoteMachine(s, type); if (q.error) return err(q.error); if (!q.ok) return err(q.errors[0]);
   const t = MACHINE[type], fx = ensureFactory(s);
@@ -158,6 +161,7 @@ export function quoteRaw(s, { vendor, lines, terms = "cod", carrier = "hired" } 
   q.ok = !q.errors.length; return q;
 }
 export function createPR(s, spec) {
+  if (!modOn(s, "factory")) return err(offMsg("factory"));
   const q = quoteRaw(s, spec); if (q.error) return err(q.error);
   const fx = ensureFactory(s), pr = { id: ++fx.prSeq, day: s.day, status: "pending", spec: { vendor: spec.vendor, terms: spec.terms || "cod", carrier: spec.carrier || "hired", lines: q.lines.map(l => ({ rid: l.rid, qty: l.qty })) }, estimate: q.total };
   fx.prs.push(pr); return ok({ pr });
@@ -173,6 +177,7 @@ export function rejectPR(s, id) {
   if (pr.status !== "pending") return err("This requisition is already " + pr.status + "."); pr.status = "rejected"; return ok({ pr });
 }
 export function placeRawOrder(s, spec) {
+  if (!modOn(s, "factory")) return err(offMsg("factory"));
   if (s.ended) return err("The game is over.");
   const q = quoteRaw(s, spec); if (q.error) return err(q.error); if (!q.ok) return err(q.errors[0]);
   const fx = ensureFactory(s), tm = TERM[q.terms], own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "raw pickup") : 0, late = (rnd(s) > VENDOR[q.vendor].reliability ? 1 : 0) + haul + (scnDelayed(s) ? 1 : 0);
@@ -187,7 +192,8 @@ export function placeRawOrder(s, spec) {
   return ok({ po, total: q.total, eta: po.eta });
 }
 export const rawIncoming = s => { const m = {}; for (const r of D.RAW) m[r.id] = 0; for (const po of ensureFactory(s).pos) for (const l of po.lines) m[l.rid] += l.qty; return m; };
-
+
+
 // --- diagnostics: returns the reason a machine is idle, for the UI ---
 export function factoryDiag(s, m) {
   if (m.downDays > 0) return { reason: "broken", label: `BROKEN \u2014 down ${m.downDays} more day${m.downDays > 1 ? "s" : ""}`, kind: "bad" };

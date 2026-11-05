@@ -11,7 +11,7 @@ import * as K from "./market.js";
 import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
 import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
-import { esc, money, money2, num } from "./ui.js";
+import { esc, money, money2, num, scenarioChance } from "./ui.js";
 import { rawLines } from "./actions.js";
 import * as Fc from "./forecast.js";
 import * as Ac from "./accounting.js";
@@ -282,7 +282,7 @@ export function facilitatorScreen(s, f, results = [], lv = null) {
   const rk = Sn.rank(results), mine = Sn.resultCard(s, Kp.scoreboard(s).total, f.team);
   const table = rk.length ? `<div class="scroll"><table class="tbl fixed"><thead><tr><th>#</th><th class="l">Team</th><th>Score</th><th>Net worth</th><th>Profit</th></tr></thead><tbody>${rk.map(r => `<tr><td>${r.place}</td><td class="l">${esc(r.name)}</td><td>${dec(r.score, 1)}</td><td>${money(r.netWorth)}</td><td class="${r.netProfit >= 0 ? "" : "warnc"}">${money(r.netProfit)}</td></tr>`).join("")}</tbody></table></div>` : `<small class="muted">No results loaded yet.</small>`;
   const guest = lv && lv.role === "guest";
-  return `${liveCard(lv)}<div class="card">${head("Scenario", def ? def.name : "Free play")}<small class="muted">${esc(def ? def.desc : "")}</small>${def && def.events.length ? `<small class="muted">Scripted: ${def.events.map(e => `day ${e.day} ${esc(e.title)}`).join(" · ")}</small>` : ""}${evs || `<small class="muted">No event is active right now.</small>`}</div>
+  return `${liveCard(lv)}<div class="card">${head("Scenario", def ? def.name : "Free play")}<small class="muted">${esc(def ? def.desc : "")}</small>${def && def.pool.length ? `<small class="muted">Can happen: ${def.pool.map(e => `${esc(e.title)} (${esc(scenarioChance(e))})`).join(" · ")}</small>` : ""}${evs || `<small class="muted">No event is active right now.</small>`}</div>
     ${guest ? `<div class="card">${head("Events", "Sent by the host")}<small class="muted">The host announces events. They arrive in your Mail and change your numbers.</small></div>` : `<div class="card">${head("Announce an event", lv ? "Sent to every player" : "The facilitator's lever")}
       <div class="two"><label class="fld"><span>Type</span>${sel("ev.kind", [["demand", "Demand"], ["cost", "Prices"], ["delay", "Delays"], ["rival", "Rival prices"]], ev.kind, false)}</label><label class="fld"><span>Length</span>${sel("ev.days", [1, 3, 5, 7, 10, 14, 21, 30].map(x => [x, x + " d"]), ev.days)}</label></div>
       ${ev.kind === "delay" ? "" : `<label class="fld"><span>Strength</span>${sel("ev.mult", [0.5, 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.5, 2].map(x => [x, "×" + x.toFixed(1)]), ev.mult)}</label>`}

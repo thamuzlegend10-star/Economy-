@@ -18,7 +18,7 @@ for (const [w, h] of sizes) {
       const out = [], vw = document.documentElement.clientWidth;
       if (document.documentElement.scrollWidth > vw + 1) out.push("page scrolls sideways " + document.documentElement.scrollWidth + ">" + vw);
       for (const el of document.querySelectorAll("body *")) {
-        if (el.closest(".scroll, dialog, .tabs, .toasts, canvas, .overlay")) continue;
+        if (el.closest(".scroll, dialog, .tabs, .scene-tabs, .toasts, canvas, .overlay")) continue;
         const cs = getComputedStyle(el); if (cs.display === "none" || !el.clientWidth) continue;
         if (el.scrollWidth > el.clientWidth + 1 && cs.overflowX === "visible" && el.children.length === 0) out.push(el.tagName + "." + el.className + " '" + (el.textContent || "").slice(0, 30) + "'");
         const rc = el.getBoundingClientRect(); if (rc.right > vw + 1 && rc.width > 0 && !el.closest(".ticker-wrap")) out.push("right edge " + el.tagName + "." + el.className + " " + Math.round(rc.right));

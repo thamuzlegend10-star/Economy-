@@ -27,11 +27,34 @@ test("mail: a machine breakdown sends mail", () => {
   assert.ok(s.mail.items.some(x => /broke down/.test(x.subject) && x.goto[0] === "factory"));
 });
 
-test("a scenario fires on its day, announces by mail, changes demand and ends", () => {
-  const s = mk({ scenario: "boom" }); assert.equal(s.scn.id, "boom"); const base = E.expectedDemand(s, "milk");
-  while (s.day < 5) runDay(s); assert.ok(Sn.eventMult(s, "demand") > 1); assert.ok(s.mail.items.some(m => /Festival/.test(m.subject)));
-  const d5 = E.expectedDemand(s, "milk"); assert.ok(d5 > 0);
-  while (s.day < 14) runDay(s); assert.equal(Sn.eventMult(s, "demand"), 1); assert.ok(s.mail.items.some(m => /Over: Festival/.test(m.subject)));
+const eventsOf = (scenario, seed, days = 40) => { const s = mk({ scenario, seed, days: 60, capital: 20000 }); const seen = []; while (s.day <= days && !s.ended) { runDay(s); } return s.scn.events.map(e => ({ key: e.key, kind: e.kind, mult: e.mult, from: e.from, until: e.until, title: e.title })); };
+
+test("scenario events are random: not on a fixed day, within their ranges, repeatable per seed", () => {
+  const firsts = new Set(); let any = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const ev = eventsOf("boom", seed), fest = ev.filter(e => e.key === "festival");
+    for (const e of fest) { any++; assert.ok(e.mult >= 1.15 && e.mult <= 1.35, "festival strength"); assert.ok(e.until - e.from + 1 >= 5 && e.until - e.from + 1 <= 9, "festival length"); assert.ok(e.from >= 3); }
+    if (fest[0]) firsts.add(fest[0].from);
+  }
+  assert.ok(any >= 10, "festivals do happen"); assert.ok(firsts.size >= 5, "first festival day varies: " + [...firsts]);
+  assert.deepEqual(eventsOf("boom", 7), eventsOf("boom", 7)); assert.notDeepEqual(eventsOf("boom", 7), eventsOf("boom", 8));
+});
+
+test("a slump only follows a festival, and never overlaps it", () => {
+  let slumps = 0;
+  for (let seed = 1; seed <= 40; seed++) { const ev = eventsOf("boom", seed, 45); for (const sl of ev.filter(e => e.key === "slump")) { slumps++; const f = ev.filter(e => e.key === "festival" && e.until < sl.from); assert.ok(f.length, "slump without a festival"); assert.ok(sl.from - Math.max(...f.map(e => e.until)) <= 6); assert.ok(sl.mult < 1); } }
+  assert.ok(slumps >= 3);
+});
+
+test("event rate is sensible: free play has none, the others a few per month", () => {
+  assert.equal(eventsOf("free", 3).length, 0);
+  for (const sc of ["boom", "supply", "pricewar"]) { let n = 0; for (let seed = 1; seed <= 25; seed++) n += eventsOf(sc, seed, 30).length; assert.ok(n / 25 > 0.5 && n / 25 < 5, `${sc} averages ${n / 25} events`); }
+});
+
+test("a random event is announced by mail, changes demand and ends", () => {
+  let s = null; for (let seed = 1; seed < 60 && !s; seed++) { const t = mk({ scenario: "boom", seed }); const base = E.expectedDemand(t, "milk"); while (t.day < 30 && !Sn.activeEvents(t).some(e => e.key === "festival")) runDay(t); if (Sn.activeEvents(t).some(e => e.key === "festival")) { s = t; s.base = base; } }
+  assert.ok(s, "found a festival"); assert.ok(Sn.eventMult(s, "demand") > 1); assert.ok(s.mail.items.some(m => /Festival/.test(m.subject)));
+  while (Sn.eventMult(s, "demand") > 1 && s.day < 60) runDay(s); assert.ok(s.mail.items.some(m => /Over: Festival/.test(m.subject)));
 });
 
 test("cost events raise supplier and vendor prices; delay events add a day to deliveries", () => {
@@ -68,6 +91,32 @@ import * as Dx from "../js/data.js";
 test("scenario list explains every scenario in plain words", () => {
   const h = UIx.scenarioList(Dx.SCENARIOS, "supply");
   for (const s of Dx.SCENARIOS) { assert.ok(h.includes(s.name)); assert.ok(s.about && s.about.length > 30, s.id); }
-  assert.match(h, /Port strike raises prices: supplier prices \+30% for 10 days/); assert.match(h, /deliveries arrive late for 8 days/); assert.match(h, /rival prices -15% for 12 days/);
+  assert.match(h, /Port strike raises prices<\/em> about 7% a day: supplier prices \+20% to \+40% for 6 to 12 days/); assert.match(h, /deliveries arrive late for 5 to 10 days/); assert.match(h, /rival prices -8% to -22% for 8 to 14 days/);
+  assert.match(UIx.scenarioList(Dx.SCENARIOS, "boom"), /35% a day for 6 days after the festival ends/);
   assert.ok(h.includes('class="scn on" data-scn="supply"') && !h.includes('class="scn on" data-scn="free"'));
+});
+
+import { cleanMods, MODS } from "../js/modules.js";
+import * as B from "../js/b2b.js";
+import * as Jx from "../js/juiceshop.js";
+test("modules: choices are cleaned, b2b needs a warehouse or a factory", () => {
+  assert.deepEqual(cleanMods(), { warehouse: true, factory: true, b2b: true }); assert.deepEqual(cleanMods({ factory: false }), { warehouse: true, factory: false, b2b: true });
+  assert.deepEqual(cleanMods({ warehouse: false, factory: false }), { warehouse: false, factory: false, b2b: false }); assert.deepEqual(cleanMods({ warehouse: "no", junk: 1 }), cleanMods()); assert.equal(MODS.length, 3);
+  assert.deepEqual(E.cleanSetup({ mods: { b2b: false } }).mods, { warehouse: true, factory: true, b2b: false });
+});
+test("modules: a turned-off department refuses its actions", () => {
+  const s = mk({ mods: { warehouse: false, factory: false } }); assert.equal(s.mods.b2b, false);
+  assert.match(E.rentWarehouse(s, 100).error, /Warehouse department is turned off/); assert.match(E.placeOrders(s, { supplier: "harbor", dest: "wh", lines: [{ pid: "noodles", qty: 1000 }] }).error, /Warehouse/);
+  assert.match(E.sendToRetail(s, { lines: [] }).error, /Warehouse/); assert.match(F.rentFactory(s, 100).error, /Factory/); assert.match(F.buyMachine(s, { type: "std" }).error, /Factory/); assert.match(Jx.moveJuice(s, { lines: [] }).error, /Factory/);
+  assert.match(B.placeBid(s, { tender: 1, price: 1 }).error, /B2B/);
+  assert.ok(E.placeOrders(s, { supplier: "local", lines: [{ pid: "noodles", qty: 500 }] }).ok, "the shop still buys stock");
+  for (let i = 0; i < 12; i++) runDay(s); assert.equal(s.b2b.open.length, 0); assert.ok(E.reconcile(s).ok);
+});
+test("modules: b2b only offers goods from a department that is on", () => {
+  const nofac = mk({ mods: { factory: false } }); for (let i = 0; i < 15; i++) runDay(nofac); const a = nofac.b2b.open; assert.ok(a.length > 0); assert.ok(a.every(t => !!E.PRODUCT[t.pid]), "retail goods only");
+  const nowh = mk({ mods: { warehouse: false } }); for (let i = 0; i < 15; i++) runDay(nowh); const b = nowh.b2b.open; assert.ok(b.length > 0); assert.ok(b.every(t => !E.PRODUCT[t.pid]), "juice only");
+});
+test("modules: an older save loads with everything on and a scenario stream", () => {
+  const s = mk(); const o = JSON.parse(E.serialize(s)); o.v = 22; delete o.mods; delete o.scn.rng; delete o.scn.last;
+  const r = E.validateSave(JSON.stringify(o)); assert.ok(r.ok, r.error); assert.deepEqual(r.state.mods, { warehouse: true, factory: true, b2b: true }); assert.ok(Number.isFinite(r.state.scn.rng));
 });

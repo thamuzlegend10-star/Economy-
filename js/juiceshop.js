@@ -1,5 +1,6 @@
 // Selling your own juice in the shop. Juice is made in the factory, moved to the shop by truck (yours or a hired carrier), put on a juice shelf,
 // priced by you, and sold to shoppers each day. Every step posts to the ledger: factory goods -> goods in transit -> shop inventory -> sales and cost of goods.
+import { modOn, offMsg } from "./modules.js";
 import { post, balance, round2 } from "./ledger.js";
 import * as D from "./data.js";
 import { getLocation } from "./locations.js";
@@ -48,6 +49,7 @@ export function quoteMove(s, lines, carrier = "hired") {
   return { lines: out, carrier, plan, fee, space, value, days, eta: s.day + days, errors, ok: !errors.length };
 }
 export function moveJuice(s, { lines, carrier = "hired" } = {}) {
+  if (!modOn(s, "factory")) return err(offMsg("factory"));
   if (s.ended) return err("The game is over.");
   const q = quoteMove(s, lines, carrier); if (q.error) return err(q.error); if (!q.ok) return err(q.errors[0]);
   const js = ensureJshop(s), own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "juice to shop") : 0;

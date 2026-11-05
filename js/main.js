@@ -5,13 +5,15 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261105a";
+import { createScene } from "./scene.js?v=20261105b";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
 import { createLocationPicker } from "./locationpicker.js";
 import { startFit } from "./fit.js";
 import * as Lv from "./live.js";
+import { morph } from "./morph.js";
+import { MODS, cleanMods, defaultMods, tabOff, sceneOff } from "./modules.js";
 
 const $ = id => document.getElementById(id);
 const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-save"];
@@ -30,16 +32,15 @@ function broadcast(text, kind = "") {
   if (_bseen.has(key) && now - _bseen.get(key) < 5000) return;
   _bseen.set(key, now);
   const prefix = kind === "err" ? "\u26a0 " : "";
-  _bq.push(prefix + text);
-  if (_bq.length > 12) _bq.shift();
+  _bq.unshift(prefix + text);                                     // newest first
+  if (_bq.length > 12) _bq.pop();
   const el = document.getElementById("tickerText");
   if (!el) return;
   el.textContent = _bq.join("  \u2756  ");
-  // Restart scroll animation by forcing a reflow
-  el.style.animation = "none";
-  void el.offsetWidth;
-  el.style.animation = "";
+  // The scroll only restarts for a message that arrives after a quiet spell, so a burst of messages never makes the bar jump back and forth.
+  if (now - _brestart > 8000) { _brestart = now; el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }
 }
+let _brestart = 0;
 const toast = broadcast; // alias so existing call sites work
 const save = () => { if (s) ls.set(SAVE_KEY, E.serialize(s)); lastSave = performance.now(); };
 
@@ -76,18 +77,23 @@ function viewFor() {
   return UI.soon(...SOON[m]);
 }
 const setHtml = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } }, setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
-function renderNav() { const n = UI.navHtml(ui); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
+function applyScenes() {
+  document.querySelectorAll("#sceneTabs [data-scene]").forEach(b => { b.hidden = !!s && sceneOff(s.mods, b.dataset.scene); });
+  if (s && sceneOff(s.mods, scene.view)) { scene.setView("store"); document.querySelectorAll("#sceneTabs button").forEach(x => { const on = x.dataset.scene === "store"; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); }); }
+}
+function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "retail"; const n = UI.navHtml(ui, s && s.mods); applyScenes(); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
 function goto(main, sub) { ui.main = main; if (sub) ui.sub[main] = sub; renderNav(); renderAll(true); }
-let lastHtml = "";
+let lastHtml = "", pressing = false;
+$("view").addEventListener("pointerdown", () => { pressing = true; });
+addEventListener("pointerup", () => { pressing = false; }); addEventListener("pointercancel", () => { pressing = false; });
 function renderView(force) {
   if (!s) { lastHtml = ""; $("view").innerHTML = `<div class="card"><p>No game yet. Open the menu and start a new game.</p></div>`; return; }
   const a = document.activeElement;
-  if (!force && a && a.closest && a.closest("#view") && /INPUT|SELECT/.test(a.tagName)) return;      // never rebuild while someone types
+  if (!force && a && a.closest && a.closest("#view") && /INPUT|SELECT|TEXTAREA/.test(a.tagName)) return;      // never touch a field someone is using
+  if (!force && pressing) return;                                                                         // nor while a finger or mouse button is down
   const html = viewFor();
-  if (html === lastHtml) return;                                    // nothing changed: no layout, no paint
-  lastHtml = html; const y = window.scrollY;
-  $("view").innerHTML = html;
-  window.scrollTo(0, y);
+  if (!force && html === lastHtml) return;                          // nothing changed: no layout, no paint
+  lastHtml = html; morph($("view"), html);                          // patch in place: keeps scroll, open menus and the focused field
 }
 function renderAll(force) { if (s && Ml.unread(s) !== ui.unread) { ui.unread = Ml.unread(s); renderNav(); } renderHud(); renderView(force); lastView = performance.now(); }
 
@@ -222,17 +228,23 @@ $("fileIn").onchange = async () => {
 // setup form
 const picker = createLocationPicker({ root: $("globeDlg"), getArea: () => Number($("sAreaN").value) || D.AREA.def, onPick: id => { chosenLoc = id; readSetup(); } });
 $("sLocBtn").onclick = () => picker.open(chosenLoc);
+// Department switches (New game form and live lobby). B2B turns itself off when neither the warehouse nor the factory is on.
+const readMods = prefix => { const m = {}; for (const x of MODS) { const el = $(prefix + x.id); m[x.id] = el ? el.checked : true; } return cleanMods(m); };
+function bindMods(boxId, prefix) {
+  const box = $(boxId), draw = m => { box.innerHTML = UI.modsHtml(prefix, m); };
+  draw(defaultMods()); box.addEventListener("change", () => draw(readMods(prefix)));
+}
 function setupValues() {
   const inf = $("sDaysInf") && $("sDaysInf").checked;
   const dVal = inf ? 0 : $("sDays").value;
-  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value });
+  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod") });
 }
 function readSetup() {
   const c = setupValues(), info = E.siteInfo(c.location, c.area), cap = E.capacityOf(c.area);
   $("sLocLabel").textContent = LOC.getLocation(c.location).name;
   const isInf = !c.days;
-  const rentTerm = isInf ? " \xc2\xb7 <b>Infinite days mode</b>" : ` \xc2\xb7 <b>${UI.money(info.rent * c.days)}</b> for ${c.days} days`;
-  $("rentBox").innerHTML = `<div class="big"><b>${UI.money2(info.rentM2)}</b> / m\xc2\xb2 / day</div><div>Total rent: <b>${UI.money2(info.rent)}</b> per day${rentTerm}</div>
+  const rentTerm = isInf ? " · <b>Infinite days mode</b>" : ` · <b>${UI.money(info.rent * c.days)}</b> for ${c.days} days`;
+  $("rentBox").innerHTML = `<div class="big"><b>${UI.money2(info.rentM2)}</b> / m² / day</div><div>Total rent: <b>${UI.money2(info.rent)}</b> per day${rentTerm}</div>
     <div>Storage: <b>${UI.num(cap)}</b> space (about ${UI.num(cap)} noodles, or half as many milk)</div><div class="muted">Estimated sales: ${UI.money(info.revenue)} per day at full stock.</div>`;
   const total = c.secPerDay * c.days;
   $("lenNote").textContent = isInf ? "Infinite days mode. Game runs continuously without a day limit." : `The whole game takes about ${Math.floor(total / 60)} min ${total % 60} s of real time.`;
@@ -289,7 +301,7 @@ $("lBack").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "men
 $("lHost").onclick = () => enterLive("host"); $("lJoin").onclick = () => enterLive("guest");
 $("lLeave").onclick = () => { leaveLive(); $("lJoinBox").hidden = false; $("lLobby").hidden = true; };
 $("lStart").onclick = () => {
-  if (!live) return; const c = setupValues(), r = live.start({ ...c, secPerDay: $("lSec").value, days: $("lDays").value, capital: $("lCap").value, scenario: $("lScn").value, seed: undefined });
+  if (!live) return; const c = setupValues(), r = live.start({ ...c, secPerDay: $("lSec").value, days: $("lDays").value, capital: $("lCap").value, scenario: $("lScn").value, mods: readMods("lMod"), seed: undefined });
   if (!r.ok) toast(r.error, "err");
 };
 
@@ -314,3 +326,5 @@ renderAll(true);
 if (s) { openMenu("menuMain"); $("mNote").textContent = s.ended ? "Your last game is finished. Start a new one." : "Your game is paused. Tap Continue."; menuPaused = !s.ended; }
 else { openMenu("menuMain"); $("mContinue").hidden = true; }
 requestAnimationFrame(t => { prev = t; lastView = t; requestAnimationFrame(loop); });
+
+bindMods("sMods", "sMod"); bindMods("lMods", "lMod");

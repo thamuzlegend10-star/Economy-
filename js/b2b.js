@@ -1,6 +1,7 @@
 // Wholesale and B2B tenders (spec module 5). Institutional buyers post tenders; the player bids against rival suppliers.
 // Winner: price, reputation and fulfilment record. Delivery comes from the warehouse (retail goods) or the factory (juices).
 // Late or missing delivery costs money and reputation. Uses its own random stream.
+import { modOn, offMsg } from "./modules.js";
 import { post, balance, round2 } from "./ledger.js";
 import * as D from "./data.js";
 import { streamNext, seedFrom } from "./rng.js";
@@ -35,6 +36,7 @@ export function available(s, pid) {
 // ---------- daily: resolve closed tenders, apply late penalties, open new ones ----------
 export const receivable = s => c((ensureB2B(s).ar || []).reduce((a, x) => a + x.amount, 0));
 export function b2bDay(s) {
+  if (!modOn(s, "b2b")) return;
   const b = ensureB2B(s); b.ar = b.ar || [];
   for (const x of b.ar.filter(v => v.due <= s.day)) {                // buyers pay on their credit terms; a few never pay
     if (streamNext(b) < D.B2B.buyers.find(y => y.id === x.buyer).risk) { post(s.ledger, s.day, `Bad debt: ${BUYER[x.buyer].name} did not pay invoice #${x.id}`, [{ acct: "bad_debt", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.badDebt = c((b.badDebt || 0) + x.amount); mailPost(s, { from: BUYER[x.buyer].name, subject: `Invoice #${x.id} will not be paid`, body: `$${x.amount.toFixed(2)} is written off as bad debt.`, goto: ["finance", "ledger"], level: "bad" }); log(s, `${BUYER[x.buyer].name} did not pay invoice #${x.id}. Written off $${x.amount.toFixed(2)}.`); }
@@ -51,15 +53,17 @@ export function b2bDay(s) {
   if (b.history.length > 60) b.history.splice(0, b.history.length - 60);
 }
 function mkTender(s, b, kind) {
-  const buyer = D.B2B.buyers[ri(b, 0, D.B2B.buyers.length - 1)], pid = buyer.want[ri(b, 0, buyer.want.length - 1)];
+  const buyer = D.B2B.buyers[ri(b, 0, D.B2B.buyers.length - 1)], want = buyer.want.filter(p => (PRODUCT[p] ? modOn(s, "warehouse") : modOn(s, "factory")));
+  if (!want.length) return null;                                     // this buyer only wants goods from a department that is off
+  const pid = want[ri(b, 0, want.length - 1)];
   const qty = Math.round(rr(b, buyer.qty[0], buyer.qty[1]) / 100) * 100;
   return { id: ++b.seq, kind, buyer: buyer.id, pid, qty, ceiling: c(refPrice(pid) * buyer.ceiling), due: s.day + ri(b, buyer.dueDays[0], buyer.dueDays[1]), penalty: buyer.penalty, posted: s.day, bid: null };
 }
 function open(s, b) {
-  const t = mkTender(s, b, "tender"); t.closes = s.day + D.B2B.openDays; b.open.push(t);
+  const t = mkTender(s, b, "tender"); if (!t) return; t.closes = s.day + D.B2B.openDays; b.open.push(t);
 }
 function openFixed(s, b) {
-  const t = mkTender(s, b, "fixed");
+  const t = mkTender(s, b, "fixed"); if (!t) return;
   mailPost(s, { from: BUYER[t.buyer].name, subject: "Fixed offer", body: "", goto: ["b2b", "market"], level: "info", _t: t }); t.price = c(refPrice(t.pid) * (1 - D.B2B.fixedDeals.discount)); t.qty = Math.round(t.qty * 0.6 / 100) * 100; t.due = s.day + 3; t.closes = s.day + 2; b.open.push(t);
   mailPost(s, { from: BUYER[t.buyer].name, subject: "Fixed offer: take it or leave it", body: `${t.qty.toLocaleString("en-US")} ${itemInfo(t.pid).name} at $${t.price.toFixed(2)} each, deliver by day ${t.due}. The offer closes on day ${t.closes}.`, goto: ["b2b", "market"], level: "info" });
 }
@@ -67,6 +71,7 @@ function openFixed(s, b) {
 // ---------- bidding ----------
 export function placeBid(s, { tender, price } = {}) {
   if (s.ended) return err("The game is over.");
+  if (!modOn(s, "b2b")) return err(offMsg("b2b"));
   const b = ensureB2B(s), t = b.open.find(x => x.id === tender); if (!t) return err("This tender is closed.");
   if (t.kind !== "tender") return err("Fixed deals are accepted, not bid on.");
   price = c(Number(price)); if (!Number.isFinite(price) || price <= 0) return err("Enter a price per unit.");
@@ -75,6 +80,7 @@ export function placeBid(s, { tender, price } = {}) {
 }
 export function withdrawBid(s, tender) { const t = ensureB2B(s).open.find(x => x.id === tender); if (!t) return err("This tender is closed."); t.bid = null; return ok(); }
 export function acceptDeal(s, tender) {
+  if (!modOn(s, "b2b")) return err(offMsg("b2b"));
   if (s.ended) return err("The game is over.");
   const b = ensureB2B(s), t = b.open.find(x => x.id === tender); if (!t) return err("This deal is gone.");
   if (t.kind !== "fixed") return err("This one is a tender: place a bid.");
