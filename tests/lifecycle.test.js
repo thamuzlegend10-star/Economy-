@@ -68,3 +68,12 @@ test("a mid-game save reloads and the game carries on to the same ending", () =>
   const v = E.validateSave(snap); assert.ok(v.ok, v.error); assert.equal(v.state.day, 30); assert.ok(E.reconcile(v.state).ok);
   const s2 = v.state; while (!s2.ended) E.tick(s2, 0.5); assert.ok(E.reconcile(s2).ok); assert.ok(full.ended);
 });
+
+test("saves from another device: BOM and padding tolerated, newer and result files get a clear message", async () => {
+  const E2 = await import("../js/engine.js"), D2 = await import("../js/data.js");
+  const s = E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 30, capital: 40000, seed: 8 }), raw = E2.serialize(s);
+  assert.ok(E2.validateSave("﻿  " + raw + "\n").ok);
+  const newer = E2.validateSave(JSON.stringify({ ...JSON.parse(raw), v: D2.SAVE_VERSION + 1 })); assert.ok(!newer.ok && newer.newer && /newer/.test(newer.error));
+  assert.match(E2.validateSave(JSON.stringify({ game: "economy-result" })).error, /result file/);
+  assert.match(E2.validateSave("not json").error, /not a save/);
+});

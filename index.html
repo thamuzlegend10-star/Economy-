@@ -87,8 +87,9 @@
       <button class="primary big" id="mNew">New game</button>
       <button class="primary big alt" id="mLive">Play with friends</button>
       <div class="menu-row"><button class="ghost" id="mHelp">How to play</button><button class="ghost" id="mImport">Load save file</button><button class="ghost" id="mExport">Download save</button></div>
+      <div class="menu-row"><button class="ghost" id="mCopy">Copy save text</button><button class="ghost" id="mPaste">Paste save text</button></div>
       <button class="ghost" id="mClose" hidden>Back to game</button>
-      <small class="muted build-tag">Build 20261105c · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
+      <small class="muted build-tag">Build 20261106a · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
     </div>
     <p class="muted small center" id="mNote"></p>
   </div>
@@ -156,7 +157,7 @@
   </div>
 </dialog>
 
-<input type="file" id="fileIn" accept="application/json,.json" hidden><input type="file" id="resIn" accept="application/json,.json" multiple hidden>
+<input type="file" id="fileIn" hidden><input type="file" id="resIn" accept="application/json,.json" multiple hidden>
 <script type="module" src="js/main.js?v=20261106a"></script>
 <script>
   window.addEventListener("error", function (e) { var s = document.getElementById("status"); if (s && !window.__economyBooted) { s.textContent = "Game failed to start: " + (e.message || "script error") + ". Reload the page."; } });

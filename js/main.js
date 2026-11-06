@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261105c";
+import { createScene } from "./scene.js?v=20261106a";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -214,6 +214,8 @@ $("mExport").onclick = () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([E.serialize(s)], { type: "application/json" })); a.download = "economy-save.json"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 $("mImport").onclick = () => $("fileIn").click();
+$("mCopy").onclick = async () => { if (!s) { toast("There is no game to save yet.", "err"); return; } const txt = E.serialize(s); try { await navigator.clipboard.writeText(txt); toast("Save copied. Paste it on the other device with Paste save text.", "ok"); } catch { window.prompt("Copy this text (Ctrl+C), then paste it on the other device:", txt); } };
+$("mPaste").onclick = () => { const txt = window.prompt("Paste the save text here:"); if (!txt) return; const v = E.validateSave(txt); if (!v.ok) { $("mNote").textContent = v.error; toast(v.newer ? "Save is newer than this build." : v.old ? "Old save: not supported." : "Could not load that text.", "err"); return; } adopt(v.state); closeMenu(); toast("Save loaded.", "ok"); };
 $("resIn").onchange = async () => {
   const files = [...$("resIn").files]; $("resIn").value = ""; let bad = 0;
   for (const f of files) { const r = Sn.parseResult(await f.text()); if (r) ui.results.push(r); else bad++; }
@@ -222,7 +224,7 @@ $("resIn").onchange = async () => {
 $("fileIn").onchange = async () => {
   const f = $("fileIn").files[0]; $("fileIn").value = ""; if (!f) return;
   const v = E.validateSave(await f.text());
-  if (!v.ok) { $("mNote").textContent = v.error; toast(v.old ? "Old save: not supported." : "Could not load that file.", "err"); return; }
+  if (!v.ok) { $("mNote").textContent = v.error; toast(v.newer ? "Save is newer than this build." : v.old ? "Old save: not supported." : "Could not load that file.", "err"); return; }
   adopt(v.state); closeMenu(); toast("Save loaded.", "ok");
 };
 

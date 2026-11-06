@@ -433,8 +433,10 @@ export function finalReport(s) {
 }
 export const serialize = s => JSON.stringify(s);
 export function validateSave(raw) {
-  let o; try { o = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return err("Save file is not valid JSON."); }
+  let o; try { o = typeof raw === "string" ? JSON.parse(raw.replace(/^\uFEFF/, "").trim()) : raw; } catch { return err("That is not a save. Use the file the game downloaded (economy-save.json), or the text from Copy save text."); }
   if (!o || typeof o !== "object") return err("Save file is empty.");
+  if (o.game === "economy-result") return err("That is a team result file. Load it in Mail, Facilitator. A game save is economy-save.json.");
+  if (Number.isFinite(o.v) && o.v > D.SAVE_VERSION) return { ok: false, newer: true, error: "This save is from a newer build than the one this device loaded. Hard refresh the page (Ctrl+Shift+R, or clear the site data on a phone) and load it again." };
   if (o && o.v === 11) { o.v = 12; o.wh = { area: 0, qty: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])), val: Object.fromEntries(D.PRODUCTS.map(p => [p.id, 0])) }; for (const sp of D.WH_SUPPLIERS) o.supIdx[sp.id] = 1; delete o.supStock; }
   if (o && o.v === 12) { o.v = 13; o.fx = newFactory(); }
   if (o && o.v === 13) { o.v = 14; o.b2b = newB2B(o.seed); o.mrp = newMrp(); }
