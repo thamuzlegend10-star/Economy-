@@ -401,6 +401,19 @@ export function tick(s, dt) {
 export function advanceSteps(s, n) { while (n-- > 0 && !s.ended) stepOnce(s); }
 
 // ---------- integrity, report, save ----------
+// A save whose stock records and ledger drifted apart (an old build, or a bug since fixed) is repaired the way a stock count is: the physical stock is the truth,
+// and the difference is booked as a visible "Stock count adjustment" in the ledger. Only stock accounts, and only for a difference that is small against the books.
+export function repairStock(s) {
+  const t = totals(s.ledger), cap = Math.max(1000, 0.25 * t.assets), fxv = o => c(Object.values(o.val).reduce((a, v) => a + v, 0)), out = [];
+  const phys = { inventory: c(Object.values(s.val).reduce((a, v) => a + v, 0) + Object.values((s.wh && s.wh.val) || {}).reduce((a, v) => a + v, 0) + jshopValue(s)), inv_raw: s.fx ? fxv(s.fx.raw) : 0, inv_fg: s.fx ? fxv(s.fx.fg) : 0 };
+  if (!Object.values(phys).every(Number.isFinite)) return out;
+  for (const [acct, v] of Object.entries(phys)) {
+    const diff = c(balance(s.ledger, acct) - v); if (Math.abs(diff) <= 0.05 || Math.abs(diff) > cap) continue;
+    post(s.ledger, s.day, `Stock count adjustment (${acct.replace("_", " ")})`, diff > 0 ? [{ acct: "cogs", dr: diff }, { acct, cr: diff }] : [{ acct, dr: -diff }, { acct: "cogs", cr: -diff }], "repair:" + acct + ":" + s.day);
+    out.push(`${acct.replace("_", " ")} ${diff > 0 ? "written down" : "written up"} by ${Math.abs(diff).toFixed(2)}`);
+  }
+  return out;
+}
 export function reconcile(s) {
   const t = totals(s.ledger), val = c(Object.values(s.val).reduce((a, v) => a + v, 0) + Object.values((s.wh && s.wh.val) || {}).reduce((a, v) => a + v, 0) + jshopValue(s)), problems = [];
   if (!t.balanced) problems.push("Ledger is not balanced.");
@@ -455,8 +468,10 @@ export function validateSave(raw) {
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");
   for (const p of D.PRODUCTS) if (!Number.isFinite(o.qty[p.id]) || o.qty[p.id] < 0) return err("Save file is damaged.");
-  const r = reconcile(o); if (!r.ok) return err("Save file does not reconcile: " + r.problems[0]);
-  return ok({ state: o });
+  let r = reconcile(o), repaired = [];
+  if (!r.ok) { repaired = repairStock(o); if (repaired.length) r = reconcile(o); }
+  if (!r.ok) return err("Save file does not reconcile: " + r.problems[0]);
+  return ok({ state: o, repaired });
 }
 
 // ---------- site preview (used by the location picker; changes nothing) ----------

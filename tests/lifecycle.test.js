@@ -77,3 +77,14 @@ test("saves from another device: BOM and padding tolerated, newer and result fil
   assert.match(E2.validateSave(JSON.stringify({ game: "economy-result" })).error, /result file/);
   assert.match(E2.validateSave("not json").error, /not a save/);
 });
+
+test("a save whose stock drifted from the ledger is repaired by a visible stock count adjustment", async () => {
+  const E2 = await import("../js/engine.js"), Ac2 = await import("../js/accounting.js");
+  const s = E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 30, capital: 40000, seed: 12 });
+  for (let i = 0; i < 4; i++) { const d = s.day; while (!s.ended && s.day === d) E2.tick(s, 0.5); }
+  const j = JSON.parse(E2.serialize(s)); j.val.noodles = Math.round((j.val.noodles + 37.4) * 100) / 100;     // physical stock worth more than the ledger says
+  const v = E2.validateSave(JSON.stringify(j)); assert.ok(v.ok, v.error); assert.equal(v.repaired.length, 1); assert.ok(E2.reconcile(v.state).ok);
+  assert.ok(Ac2.journal(v.state, "cogs", 3).some(e => /Stock count adjustment/.test(e.memo)));
+  j.val.noodles = j.val.noodles - 74.8; assert.ok(E2.validateSave(JSON.stringify(j)).ok);                      // and the other way
+  j.val.noodles += 9e6; assert.ok(!E2.validateSave(JSON.stringify(j)).ok, "a huge gap is still refused");
+});
