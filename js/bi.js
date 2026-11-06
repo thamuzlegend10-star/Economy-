@@ -1,5 +1,5 @@
 // Business intelligence dashboard numbers (spec module 13). Everything here is read from the ledger and from counters the game keeps while it runs.
-import { totals, balance, round2 } from "./ledger.js";
+import { totals, balance, round2, DEPTS, newDp } from "./ledger.js";
 import { PRODUCT } from "./engine.js";
 import * as D from "./data.js";
 
@@ -28,4 +28,18 @@ export function bi(s) {
     costMix: [["Goods", balance(s.ledger, "cogs") + balance(s.ledger, "cogs_labor")], ["Wages", balance(s.ledger, "wages")], ["Rent and utilities", balance(s.ledger, "rent") + balance(s.ledger, "utilities")], ["Shipping", balance(s.ledger, "delivery")], ["Marketing", balance(s.ledger, "marketing")], ["Interest and fees", balance(s.ledger, "interest") + balance(s.ledger, "fees")], ["Tax", balance(s.ledger, "tax")], ["Other", balance(s.ledger, "depreciation") + balance(s.ledger, "maintenance") + balance(s.ledger, "repairs") + balance(s.ledger, "penalties") + balance(s.ledger, "overflow") + balance(s.ledger, "bad_debt")]].map(([name, v]) => ({ name, v: c(v) })).filter(x => x.v > 0.004),
     series: s.history.slice(-60).map(h => ({ day: h.day, revenue: h.revenue, net: h.net, cash: h.cash })),
   };
+}
+
+// Profit and loss per department, with a trend: the last 7 days against the 7 before. Revenue departments earn, the others cost.
+export function trendOf(now, before, eps = 1) { if (now == null || before == null) return { dir: 0, pct: null }; const d = now - before; return { dir: Math.abs(d) < Math.max(eps, Math.abs(before) * 0.05) ? 0 : d > 0 ? 1 : -1, pct: Math.abs(before) > eps ? c(d / Math.abs(before) * 100) : null }; }
+export function deptPL(s) {
+  const dp = s.ledger.dp || newDp(), h = s.history, n = h.length, at = (i, k) => (i >= 0 && i < n && h[i].dp ? h[i].dp[k] || 0 : null);
+  return DEPTS.map(([id, name]) => { const v = dp[id] || { rev: 0, cost: 0 }, a = n ? at(n - 1, id) : null, b = n > 7 ? at(n - 8, id) : null, z = n > 14 ? at(n - 15, id) : null;
+    const last7 = a != null && b != null ? c(a - b) : null, prev7 = b != null && z != null ? c(b - z) : null;
+    return { id, name, rev: c(v.rev), cost: c(v.cost), net: c(v.rev - v.cost), last7, prev7, trend: trendOf(last7, prev7) }; }).filter(r => r.rev > 0.004 || r.cost > 0.004);
+}
+export function kpiTrends(s) {
+  const h = s.history, n = h.length; if (n < 8) return {};
+  const sum = (from, to, f) => h.slice(Math.max(0, from), to).reduce((a, x) => a + f(x), 0), m = f => { const w = sum(n - 7, n, f), p = n >= 14 ? sum(n - 14, n - 7, f) : null; return trendOf(w, p); };
+  return { revenue: m(x => x.revenue), net: m(x => x.net) };
 }

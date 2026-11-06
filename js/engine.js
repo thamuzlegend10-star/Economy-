@@ -44,7 +44,7 @@ export function cleanSetup(o = {}) {
     location: typeof o.location === "string" && hasLocation(o.location) && o.location !== "default" ? o.location : "id-medan-central",
     area: n(o.area, D.AREA, D.AREA.def), secPerDay: n(o.secPerDay, D.SECONDS_PER_DAY, D.SECONDS_PER_DAY.def),
     days: isInf ? 0 : n(o.days, D.DAYS, D.DAYS.def), capital: n(o.capital, D.CAPITAL, D.CAPITAL.def),
-    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods),
+    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal",
   };
 }
 export const MACHINE_PER_DAY = m => (D.MACHINES.find(x => x.id === m.type) || { perDay: 0 }).perDay;
@@ -100,7 +100,7 @@ function demandFor(s, p) {
   const L = getLocation(s.location), price = s.prices[p.id];
   const area = Math.pow(s.area / D.AREA.def, 0.3);
   const pf = clamp(Math.pow(expectedPrice(s, p) / price, p.elast * L.priceSens * priceCut(s, p.cat)), 0.01, 2.5);
-  return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s) * csiFactor(s) * eventMult(s, "demand") * demandMood(s, p.cat);
+  return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s) * csiFactor(s) * eventMult(s, "demand") * demandMood(s, p.cat) * D.diff(s).demand;
 }
 export const expectedDemand = (s, pid) => Math.round(demandFor(s, PRODUCT[pid]));
 
@@ -383,7 +383,7 @@ function closeDay(s) {
   if (repay > 0) post(s.ledger, day, "Overdraft repaid from cash", [{ acct: "overdraft", dr: repay }, { acct: "cash", cr: repay }]);
   s.overdraftDays = balance(s.ledger, "overdraft") > 0 ? s.overdraftDays + 1 : 0;
   const tt = totals(s.ledger), net = c(tt.revenue - tt.costs - s.today.p0);
-  const rep = { day, revenue: s.today.rev, cogs: s.today.cogs, shipping: s.today.ship, rent, net, units: { ...s.today.units }, lost: { ...s.today.lost }, arrivals: s.today.arrivals, cash: c(balance(s.ledger, "cash")), inventoryValue: c(balance(s.ledger, "inventory")) };
+  const rep = { day, dp: Object.fromEntries(Object.entries(s.ledger.dp || {}).map(([k, v]) => [k, c(v.rev - v.cost)])), revenue: s.today.rev, cogs: s.today.cogs, shipping: s.today.ship, rent, net, units: { ...s.today.units }, lost: { ...s.today.lost }, arrivals: s.today.arrivals, cash: c(balance(s.ledger, "cash")), inventoryValue: c(balance(s.ledger, "inventory")) };
   if (day % 7 === 0) mailPost(s, { from: "Management", subject: `Week ${day / 7} report`, body: `Revenue today $${Math.round(rep.revenue).toLocaleString("en-US")}, net today $${Math.round(rep.net).toLocaleString("en-US")}, cash $${Math.round(rep.cash).toLocaleString("en-US")}. Open Data Explorer for the full picture.`, goto: ["data", "bi"] });
   s.history.push(rep); if (s.history.length > 90) s.history.shift(); s.lastReport = rep;
   log(s, `Day ${day} closed: revenue $${rep.revenue.toFixed(0)}, net $${net.toFixed(0)}.`);
@@ -448,6 +448,7 @@ export function validateSave(raw) {
   if (o && o.v === 21) { o.v = 22; o.jshop = newJshop(); }
   if (o && o.v === 22) { o.v = 23; o.mods = defaultMods(); o.scn.rng = seedFrom(o.seed, 0x5c3); o.scn.last = {}; }
   if (o && o.v === 23) { o.v = 24; o.fx.annexArea = 0; if (o.hr) Object.assign(o.hr, { pay: "daily", accrued: 0, lastPay: 0, late: 0 }); o.ledger.bal.wages_payable = o.ledger.bal.wages_payable || 0; }
+  if (o && o.v === 24) { o.v = 25; const b = a => o.ledger.bal[a] || 0, fin = c(-b("capital") - (o.startNetWorth - o.capital) + -b("overdraft") + -b("credit") + -b("longdebt")), inv = -b("machinery"); o.ledger.old = []; o.ledger.cf = { customers: 0, suppliers: 0, wages: 0, tax: 0, investing: inv, financing: fin, other: c(b("cash") + b("overdraft") - fin - inv) }; o.ledger.cf.est = true; }
   if (o.v !== D.SAVE_VERSION) return { ok: false, old: true, error: "This save is from an older version of the game. The game changed completely, so old saves cannot be used. Start a new game." };
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");

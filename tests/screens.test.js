@@ -50,3 +50,12 @@ test("navigation lists every module and no sub tab is empty-named", () => {
   const ids = UI.NAV.map(n => n.id); for (const id of ["factory", "b2b", "hr", "marketing", "ecom", "data"]) assert.ok(ids.includes(id), id);
   for (const n of UI.NAV) for (const [id, label] of n.subs) assert.ok(id && label);
 });
+
+test("new screens render: department P&L, cash flow, paged ledger, customers, class analytics", async () => {
+  const E2 = await import("../js/engine.js"), Sn2 = await import("../js/scenario.js"), Kp2 = await import("../js/kpi.js"), A2 = await import("../js/actions.js");
+  const s = E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 40, capital: 40000, seed: 5 }); for (let i = 0; i < 10; i++) { const d = s.day; while (!s.ended && s.day === d) E2.tick(s, 0.5); }
+  const f = A2.newForms(), sb = Kp2.scoreboard(s), card = Sn2.parseResult(JSON.stringify(Sn2.resultCard(s, sb.total, "T1", sb)));
+  const bi = SC.biScreen(s), st = SC.statements(s), lg = SC.ledgerScreen(s, { gl: "all", glp: 1 }), mk = SC.marketing(s, f), fa = SC.facilitatorScreen(s, f, [card, { ...card, name: "T2", score: 20 }]);
+  assert.ok(bi.includes("by department") && st.includes("Received from customers") && lg.includes("Page 2") && mk.includes("Response time") && fa.includes("Class analytics") && fa.includes('data-resreport="0"'));
+  assert.ok(!/undefined|NaN/.test(bi + st + lg + mk + fa));
+});

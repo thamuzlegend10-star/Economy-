@@ -83,6 +83,7 @@ export function act(s, f, name, a = {}) {
     case "loan": return r(Bk.takeLoan(s, { kind: f.loan.kind, amount: f.loan.amount, termDays: f.loan.kind === "long" ? 365 : f.loan.term }), "Loan paid out.");
     // scoring
     case "weights": return r(Kp.setWeights(s, f.w), "Weights saved.");
+    case "glPage": f.glp = Math.max(0, (f.glp || 0) + num(a.dir)); return { ok: true, msg: "" };
     case "weightsReset": f.w = {}; return r(Kp.setWeights(s, Object.fromEntries(D.KPIS.map(k => [k.id, k.weight]))), "Default weights restored.");
   }
   return { ok: false, error: "Unknown action." };

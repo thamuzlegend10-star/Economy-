@@ -17,7 +17,7 @@ export const newId = (rand = Math.random) => Math.floor(rand() * 2 ** 31).toStri
 // Settings the host chooses. Validated by the same rules as a normal new game; the seed is fixed for everyone.
 export function cleanSettings(o = {}) {
   const base = E.cleanSetup({ ...o, seed: Number.isFinite(o.seed) ? o.seed : Math.floor(Math.random() * 2147483648) });
-  return { location: base.location, area: base.area, secPerDay: base.secPerDay, days: Math.min(base.days || 60, 60), capital: base.capital, seed: base.seed, scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: base.mods };
+  return { location: base.location, area: base.area, secPerDay: base.secPerDay, days: Math.min(base.days || 60, 60), capital: base.capital, seed: base.seed, scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: base.mods, difficulty: base.difficulty };
 }
 export function cleanScore(c) {
   if (!c || typeof c !== "object") return null;

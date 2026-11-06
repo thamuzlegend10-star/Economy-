@@ -11,15 +11,15 @@ export const newEcon = (seed = 0) => ({ rng: seedFrom(seed, 0xec0), conf: 1, inf
 export const ensureEcon = s => (s.econ = s.econ || newEcon(s.seed));
 
 // Rival prices: three rival shops move in slow waves around the local reference price. A scenario event can start a rival price cut.
-export function rivalPrices(s, p) {
-  const L = getLocation(s.location), cut = s.scn ? s.scn.events.filter(e => e.kind === "rival" && e.from <= s.day && e.until >= s.day).reduce((a, e) => a * e.mult, 1) : 1;
-  return [0, 1, 2].map(i => c2(p.ref * L.power * cut * (1 + 0.05 * Math.sin(s.day * 0.6 + i * 2.1 + p.base % 7) + 0.02 * (i - 1))));
+export function rivalPrices(s, p, day = s.day) {
+  const L = getLocation(s.location), cut = s.scn ? s.scn.events.filter(e => e.kind === "rival" && e.from <= day && e.until >= day).reduce((a, e) => a * e.mult, 1) : 1;
+  return [0, 1, 2].map(i => c2(p.ref * L.power * cut * (1 + 0.05 * Math.sin(day * 0.6 + i * 2.1 + p.base % 7) + 0.02 * (i - 1))));
 }
-export const rivalAvg = (s, p) => { const r = rivalPrices(s, p); return r.reduce((a, b) => a + b, 0) / r.length; };
+export const rivalAvg = (s, p, day = s.day) => { const r = rivalPrices(s, p, day); return r.reduce((a, b) => a + b, 0) / r.length; };
 // The price shoppers expect: partly the local reference, partly what rivals charge. More competition means rivals weigh more.
-export function expectedPrice(s, p) {
+export function expectedPrice(s, p, day = s.day) {
   const L = getLocation(s.location), w = clamp(D.MARKET.rivalBase + D.MARKET.rivalPerCompetition * L.competition, 0, D.MARKET.rivalMax);
-  return (1 - w) * p.ref * L.power + w * rivalAvg(s, p);
+  return (1 - w) * p.ref * L.power + w * rivalAvg(s, p, day);
 }
 export const demandMood = (s, cat) => ensureEcon(s).conf * (ensureEcon(s).pref[cat] || 1);
 export const priceLevel = s => ensureEcon(s).infl;

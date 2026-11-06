@@ -91,7 +91,7 @@ export function hrDay(s) {
   }
   const people = headcount(s);
   if (h.training > 0 && people > 0) {
-    payOut(s, "wages", h.training, `Training budget for day ${s.day}`);
+    payOut(s, "wages", h.training, `Training budget for day ${s.day}`); h.trainPaid = c((h.trainPaid || 0) + h.training);
     for (const r of D.HR_ROLES) { const st = h.staff[r.id]; if (st.n) st.skill = c(clamp(st.skill + h.training / (D.HR.trainingPerSkill * people) * 0.05, 0.5, 2)); }
   }
   // morale drifts toward a target set by pay and training; overwork (too few operators) hurts

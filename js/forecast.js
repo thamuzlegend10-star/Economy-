@@ -5,6 +5,8 @@ import * as D from "./data.js";
 import { PRODUCT, WEEK, expectedDemand, distanceKm, unitCost, spaceFree, whFree } from "./engine.js";
 import { JUICE } from "./factory.js";
 import { round2 } from "./ledger.js";
+import { expectedPrice } from "./economy.js";
+import { getLocation } from "./locations.js";
 
 const c = round2;
 const sum = a => a.reduce((x, y) => x + y, 0);
@@ -27,7 +29,19 @@ export function model(s, pid, pts = series(s, pid)) {
 // Forecast for the day k days after the last closed day (k = 1 is the day in progress). Weekday pattern is put back.
 export function forecastDay(s, pid, k, m = model(s, pid)) {
   const lastClosed = s.history.length ? s.history[s.history.length - 1].day : s.day - 1, day = lastClosed + k;
-  return Math.max(0, (m.level + m.trend * k) * WEEK[day % 7]);
+  return Math.max(0, (m.level + m.trend * k) * WEEK[day % 7] * outlook(s, pid, day));
+}
+// What is known about the future that the sales history cannot show: rival prices (they follow a known wave and any announced cut) and scenario events already running.
+// Both are compared with their average over the history window, so the forecast moves only by the difference.
+const evMult = (s, day) => (s.scn ? s.scn.events.filter(e => e.kind === "demand" && e.from <= day && e.until >= day).reduce((a, e) => a * e.mult, 1) : 1);
+export function outlook(s, pid, day) {
+  const p = D.PRODUCTS.find(x => x.id === pid); if (!p || !s.history.length) return 1;
+  const L = getLocation(s.location), price = Math.max(0.01, s.prices[pid]), ex = p.elast * L.priceSens;
+  const at = d => Math.pow(expectedPrice(s, p, d) / price, ex) * evMult(s, d);
+  const last = s.history[s.history.length - 1].day; let base = 0, n = 0;
+  for (let d = Math.max(1, last - D.FORECAST.window + 1); d <= last; d++) { base += at(d); n++; }
+  const f = n ? at(day) / (base / n) : 1;
+  return Math.min(1.5, Math.max(0.6, f));
 }
 export const forecastTotal = (s, pid, days, from = 1) => { const m = model(s, pid); let t = 0; for (let k = from; k < from + days; k++) t += forecastDay(s, pid, k, m); return t; };
 export const dailyAverage = (s, pid, days = 7) => forecastTotal(s, pid, days) / days;

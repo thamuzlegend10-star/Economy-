@@ -74,7 +74,7 @@ export function juiceArrivals(s) {
 export function juiceDemand(s, j) {
   const L = getLocation(s.location), price = ensureJshop(s).prices[j.id], area = Math.pow(s.area / D.AREA.def, 0.3);
   const pf = clamp(Math.pow(expectedPrice(s, j) / price, j.elast * L.priceSens * priceCut(s, "drinks")), 0.01, 2.5);
-  return j.base * D.JUICE_SHOP.share * L.demand * L.cat.drinks * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, "drinks") * retailBoost(s) * csiFactor(s) * eventMult(s, "demand") * demandMood(s, "drinks");
+  return j.base * D.JUICE_SHOP.share * L.demand * L.cat.drinks * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, "drinks") * retailBoost(s) * csiFactor(s) * eventMult(s, "demand") * demandMood(s, "drinks") * D.diff(s).demand;
 }
 // Runs at day close, before service satisfaction is worked out, so juice stockouts count as missed sales.
 export function juiceShopDay(s) {

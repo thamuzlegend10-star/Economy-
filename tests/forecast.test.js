@@ -106,3 +106,15 @@ test("forecast and queue screens render without junk and the full flow stays bal
   for (const h of [SC.forecast(s), SC.factoryMachines(s, f), SC.factoryMrp(s)]) { assert.ok(h.length > 100); assert.ok(!/undefined|NaN|Infinity|\[object/.test(h)); }
   assert.ok(balance(s.ledger, "inv_fg") >= 0);
 });
+
+test("forecast reads the known rival price wave and running events, not only past sales", async () => {
+  const E = await import("../js/engine.js"), Fc = await import("../js/forecast.js");
+  const s = E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 80, capital: 100000, seed: 4 });
+  for (let i = 0; i < 20; i++) { const d = s.day; while (!s.ended && s.day === d) E.tick(s, 0.5); }
+  const pid = "noodles", base = Fc.forecastDay(s, pid, 1);
+  s.scn.events.push({ id: 99, kind: "rival", mult: 0.7, from: s.day, until: s.day + 5, title: "t", how: "x" });   // rivals cut prices from today
+  assert.ok(Fc.forecastDay(s, pid, 1) < base, "a rival cut lowers the forecast");
+  s.scn.events.length = 0; s.scn.events.push({ id: 98, kind: "demand", mult: 1.3, from: s.day, until: s.day + 5, title: "t", how: "x" });
+  assert.ok(Fc.forecastDay(s, pid, 1) > base, "a running demand event raises it");
+  assert.ok(Fc.outlook(s, pid, s.day + 30) >= 0.6 && Fc.outlook(s, pid, s.day + 30) <= 1.5);
+});

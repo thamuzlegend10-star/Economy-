@@ -120,3 +120,32 @@ test("modules: an older save loads with everything on and a scenario stream", ()
   const s = mk(); const o = JSON.parse(E.serialize(s)); o.v = 22; delete o.mods; delete o.scn.rng; delete o.scn.last;
   const r = E.validateSave(JSON.stringify(o)); assert.ok(r.ok, r.error); assert.deepEqual(r.state.mods, { warehouse: true, factory: true, b2b: true }); assert.ok(Number.isFinite(r.state.scn.rng));
 });
+
+test("difficulty moves demand and event chance; old saves count as normal", async () => {
+  const E2 = await import("../js/engine.js"), D2 = await import("../js/data.js");
+  const mk = d => E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 40, capital: 40000, seed: 21, difficulty: d });
+  const dem = s => E2.expectedDemand(s, "noodles") / E2.WEEK[s.day % 7] / s.noise;
+  const easy = dem(mk("easy")), normal = dem(mk("normal")), hard = dem(mk("hard"));
+  assert.ok(easy > normal * 1.05 && normal > hard * 1.05, `${easy} ${normal} ${hard}`);
+  assert.equal(E2.cleanSetup({ difficulty: "nonsense" }).difficulty, "normal");
+  assert.equal(D2.diff({}).demand, 1);
+  const s = mk("hard"); assert.equal(s.difficulty, "hard"); const v = E2.validateSave(JSON.parse(JSON.stringify(s))); assert.ok(v.ok);
+});
+
+test("result card v2 carries the scorecard; analytics and the team report use it", async () => {
+  const E2 = await import("../js/engine.js"), Kp2 = await import("../js/kpi.js"), Sn2 = await import("../js/scenario.js");
+  const mkc = (seed, name) => { const s = E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 40, capital: 40000, seed }); for (let i = 0; i < 9; i++) { const d = s.day; while (!s.ended && s.day === d) E2.tick(s, 0.5); } const sb = Kp2.scoreboard(s); return Sn2.resultCard(s, sb.total, name, sb); };
+  const a = mkc(1, "Alpha"), b = mkc(2, "Beta"), pa = Sn2.parseResult(JSON.stringify(a)), pb = Sn2.parseResult(JSON.stringify(b));
+  assert.ok(pa.kpis.length > 5 && pa.depts.length >= 1 && pa.cash_flow && pa.customers);
+  assert.equal(Sn2.parseResult(JSON.stringify({ game: "economy-result", score: 50, netWorth: 1000, kpis: "x", depts: 5 })).kpis.length, 0);   // junk shapes are ignored, not trusted
+  const an = Sn2.analytics(Sn2.rank([pa, pb])); assert.equal(an.n, 2); assert.ok(an.kpis[0].mean <= an.kpis[an.kpis.length - 1].mean && an.hints.length >= 1);
+  assert.equal(Sn2.analytics([]), null);
+  const html = Sn2.reportHtml({ ...pa, name: "<b>Alpha</b>" }); assert.ok(html.includes("Scorecard") && !html.includes("<b>Alpha</b>") && html.includes("&lt;b&gt;Alpha"));
+  assert.deepEqual(Sn2.rank([pa, pb]).map(r => r.idx).sort(), [0, 1]);
+});
+
+test("hard difficulty raises the number of random events over many games", async () => {
+  const E2 = await import("../js/engine.js"), D2 = await import("../js/data.js"), Sn2 = await import("../js/scenario.js");
+  const scn = D2.SCENARIOS.find(x => x.pool && x.pool.length).id, count = d => { let n = 0; for (let seed = 1; seed <= 12; seed++) { const s = E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 40000, seed, scenario: scn, difficulty: d }); for (let k = 0; k < 40; k++) Sn2.scenarioDay(s), s.day++; n += s.scn.events.length; } return n; };
+  assert.ok(count("hard") > count("easy"), "more events on hard");
+});

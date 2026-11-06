@@ -1,5 +1,5 @@
 // Static game data for the retail simulation. Pure data, no DOM.
-export const SAVE_VERSION = 24;
+export const SAVE_VERSION = 25;
 
 // Three products. Space is how much storage one unit takes. elast is how strongly demand reacts to the selling price.
 // base is the daily demand at the reference price in a neutral district.
@@ -183,7 +183,10 @@ export const BANK = {
   longTerm:  { rate: 0.0003, minAmount: 25000 },
 };
 // Income tax: every periodDays the game assesses tax on cumulative profit above what was already taxed (losses carry forward, nothing is refunded). It is paid dueDays later.
-export const TAX = { rate: 0.18, periodDays: 7, dueDays: 3 };
+// Difficulty: how generous the market is. Demand multiplies every shopper count; events scales the chance of random scenario events (the same dice are rolled, only the bar moves).
+export const DIFFICULTY = { easy: { name: "Easy", demand: 1.1, events: 0.6 }, normal: { name: "Normal", demand: 1, events: 1 }, hard: { name: "Hard", demand: 0.9, events: 1.5 } };
+export const diff = s => DIFFICULTY[s && s.difficulty] || DIFFICULTY.normal;
+export const TAX = { rate: 0.18, periodDays: 7, dueDays: 3, machineAllow: 0.1, trainExtra: 0.5 };   // allowances: 10% of machine cost, and training spend counts 50% extra
 
 // ---------- Service and customer satisfaction ----------
 export const SRV = { neutralCsi: 80, demandPerPoint: 0.004, demandMin: 0.8, demandMax: 1.1, csiDrift: 0.15, webLateChance: 0.06, csiStart: 80, ticketRate: 0.004, perStaffPerDay: 40, lateDeliveryHit: 0.5, defectHit: 1.5, stockoutHit: 0.01, repGain: 0.02 };

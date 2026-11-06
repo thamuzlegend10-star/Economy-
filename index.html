@@ -88,7 +88,7 @@
       <button class="primary big alt" id="mLive">Play with friends</button>
       <div class="menu-row"><button class="ghost" id="mHelp">How to play</button><button class="ghost" id="mImport">Load save file</button><button class="ghost" id="mExport">Download save</button></div>
       <button class="ghost" id="mClose" hidden>Back to game</button>
-      <small class="muted build-tag">Build 20261105b · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
+      <small class="muted build-tag">Build 20261105c · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
     </div>
     <p class="muted small center" id="mNote"></p>
   </div>
@@ -107,6 +107,7 @@
     <label class="field"><span>5. Scenario</span><select id="sScn"></select><small class="muted" id="scnNote"></small></label>
     <div class="scn-list" id="scnList"></div>
     <div class="field"><span>6. Departments</span><div class="mods" id="sMods"></div><small class="muted">Turn off what you do not want to play. The shop and its sales are always on.</small></div>
+    <label class="field"><span>7. Difficulty</span><select id="sDiff"><option value="easy">Easy: more shoppers, fewer bad events</option><option value="normal" selected>Normal</option><option value="hard">Hard: fewer shoppers, more bad events</option></select></label>
     <div class="dlg-actions"><button class="ghost" id="sBack">Back</button><button class="primary" id="sStart">Open the shop</button></div>
   </div>
   <div id="menuLive" hidden>
@@ -124,6 +125,7 @@
         <div class="two"><label>Starting capital<select id="lCap"><option value="20000">$20,000 (hard)</option><option value="40000" selected>$40,000</option><option value="80000">$80,000</option><option value="150000">$150,000 (easy)</option></select></label><label>Scenario<select id="lScn"></select></label></div>
         <small class="muted" id="lScnNote"></small>
         <div class="field"><span>Departments</span><div class="mods" id="lMods"></div></div>
+        <label class="field"><span>Difficulty</span><select id="lDiff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
         <small class="muted">Everyone gets the same shop, market and start time. Location and shop size come from the New game form.</small>
       </div>
       <p class="muted small" id="lNote"></p>

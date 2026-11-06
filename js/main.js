@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261105b";
+import { createScene } from "./scene.js?v=20261105c";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -121,7 +121,8 @@ $("tabs").addEventListener("click", e => {
 $("subtabs").addEventListener("click", e => { const b = e.target.closest("[data-sub]"); if (b) goto(ui.main, b.dataset.sub); });
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
-  if (t.dataset.resexport) { const card = Sn.resultCard(s, Kp.scoreboard(s).total, ui.f.team), a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(card)], { type: "application/json" })); a.download = `economy-result-${(card.name || "team").replace(/[^a-z0-9]+/gi, "-")}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast("Result saved. Hand the file to the facilitator.", "ok"); return; }
+  if (t.dataset.resexport) { const sb = Kp.scoreboard(s), card = Sn.resultCard(s, sb.total, ui.f.team, sb), a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(card)], { type: "application/json" })); a.download = `economy-result-${(card.name || "team").replace(/[^a-z0-9]+/gi, "-")}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast("Result saved. Hand the file to the facilitator.", "ok"); return; }
+  if (t.dataset.resreport != null) { const sb = Kp.scoreboard(s), card = t.dataset.resreport === "me" ? Sn.resultCard(s, sb.total, ui.f.team, sb) : (ui.results || [])[Number(t.dataset.resreport)]; if (!card) return; const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([Sn.reportHtml(card)], { type: "text/html" })); a.download = `economy-report-${(card.name || "team").replace(/[^a-z0-9]+/gi, "-")}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast("Report saved. Open it in a browser; print to make a PDF.", "ok"); return; }
   if (t.dataset.respick) { $("resIn").click(); return; }
   if (t.dataset.liveleave) { leaveLive(); toast("You left the room. You keep playing on your own.", "ok"); renderAll(true); return; }
   if (t.dataset.resclear) { ui.results = []; renderAll(true); return; }
@@ -237,7 +238,7 @@ function bindMods(boxId, prefix) {
 function setupValues() {
   const inf = $("sDaysInf") && $("sDaysInf").checked;
   const dVal = inf ? 0 : $("sDays").value;
-  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod") });
+  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod"), difficulty: $("sDiff").value });
 }
 function readSetup() {
   const c = setupValues(), info = E.siteInfo(c.location, c.area), cap = E.capacityOf(c.area);
@@ -301,7 +302,7 @@ $("lBack").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "men
 $("lHost").onclick = () => enterLive("host"); $("lJoin").onclick = () => enterLive("guest");
 $("lLeave").onclick = () => { leaveLive(); $("lJoinBox").hidden = false; $("lLobby").hidden = true; };
 $("lStart").onclick = () => {
-  if (!live) return; const c = setupValues(), r = live.start({ ...c, secPerDay: $("lSec").value, days: $("lDays").value, capital: $("lCap").value, scenario: $("lScn").value, mods: readMods("lMod"), seed: undefined });
+  if (!live) return; const c = setupValues(), r = live.start({ ...c, secPerDay: $("lSec").value, days: $("lDays").value, capital: $("lCap").value, scenario: $("lScn").value, mods: readMods("lMod"), difficulty: $("lDiff").value, seed: undefined });
   if (!r.ok) toast(r.error, "err");
 };
 

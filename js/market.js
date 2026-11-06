@@ -91,16 +91,20 @@ export function ecomDay(s) {
 }
 
 // ================= customer service =================
-export const newSrv = () => ({ csi: D.SRV.csiStart, backlog: 0, tickets: 0, resolved: 0 });
-export const ensureSrv = s => (s.srv = s.srv || newSrv());
+export const newSrv = () => ({ csi: D.SRV.csiStart, backlog: 0, tickets: 0, resolved: 0, resp: 0, loyal: D.SRV.csiStart, lostEma: 0, types: { general: 0, late: 0, stockout: 0 } });
+export const ensureSrv = s => { const v = (s.srv = s.srv || newSrv()); if (v.resp == null) Object.assign(v, { resp: 0, loyal: v.csi, lostEma: 0, types: { general: v.tickets, late: 0, stockout: 0 } }); return v; };
+// Customer measures. Response time: days a ticket waits (queue length over what staff clear per day). Loyalty: satisfaction averaged slowly, so one bad week does not erase it.
+// Retention: the share of shoppers who come back, lowered by unmet demand (stock-outs) and by satisfaction below the neutral score.
+export const retention = s => { const v = ensureSrv(s); return clamp(100 - 100 * v.lostEma - Math.max(0, D.SRV.neutralCsi - v.csi) * 0.6, 0, 100); };
 // Customer satisfaction moves demand: above the neutral score shoppers come back and tell others, below it they stay away.
 export const csiFactor = s => clamp(1 + D.SRV.demandPerPoint * ((s.srv ? s.srv.csi : D.SRV.neutralCsi) - D.SRV.neutralCsi), D.SRV.demandMin, D.SRV.demandMax);
 export function srvDay(s) {
   const v = ensureSrv(s), t = s.today, sold = Object.values(t.units).reduce((a, b) => a + b, 0), lost = Object.values(t.lost).reduce((a, b) => a + b, 0);
   const web = s.ecom && s.ecom.today ? s.ecom.today : { orders: 0, lost: 0, late: 0 }, lateWeb = s.ecom ? s.ecom.orders.filter(o => o.late).length : 0;
-  const tickets = Math.round(sold * D.SRV.ticketRate / 4 + web.orders * D.SRV.ticketRate * 25 + lateWeb * D.SRV.lateDeliveryHit);
-  v.tickets += tickets; v.backlog += tickets; const done = Math.min(v.backlog, Math.floor(serviceCapacity(s))); v.backlog -= done; v.resolved += done;
+  const gen = Math.round(sold * D.SRV.ticketRate / 4 + web.orders * D.SRV.ticketRate * 25), late = Math.round(lateWeb * D.SRV.lateDeliveryHit), out = Math.round((lost + web.lost) * D.SRV.stockoutHit), tickets = gen + late + out;
+  v.types.general += gen; v.types.late += late; v.types.stockout += out;
+  v.tickets += tickets; v.backlog += tickets; const done = Math.min(v.backlog, Math.floor(serviceCapacity(s))); v.backlog -= done; v.resolved += done; v.resp = c(v.resp + ((v.backlog > 0 ? v.backlog / Math.max(1, Math.floor(serviceCapacity(s))) : 0) - v.resp) * 0.3);
   const lostShare = (lost + web.lost) / Math.max(1, sold + lost + web.orders + web.lost), backlogShare = v.backlog / Math.max(40, sold * 0.05 + 40);
   const target = clamp(95 - 140 * lostShare - 12 * Math.min(1, backlogShare) - 4 * lateWeb + 6 * (retailBoost(s) - 1) * 10, 0, 100);
-  v.csi = c(clamp(v.csi + (target - v.csi) * D.SRV.csiDrift, 0, 100));
+  v.csi = c(clamp(v.csi + (target - v.csi) * D.SRV.csiDrift, 0, 100)); v.loyal = c(v.loyal + (v.csi - v.loyal) * 0.05); v.lostEma = c(v.lostEma + (lostShare - v.lostEma) * 0.2);
 }

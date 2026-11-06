@@ -1,7 +1,7 @@
 # Final audit (Phase 8)
 
 Checked against every section of the master prompt. Status words: **Done** (works, tested), **Partial** (works but narrower than the prompt), **Missing** (not built).
-Evidence: 156 tests pass (`npm test`), including a 60 day full-lifecycle run (`tests/lifecycle.test.js`) that reconciles the books and checks the trial balance after every day, proves determinism, and reloads a mid-game save. Browser audits (`tools/e2e-loop.mjs`, `tools/audit-scrollbars.mjs`) are clean at five viewport sizes.
+Evidence: 204 tests pass (`npm test`), including a 60 day full-lifecycle run (`tests/lifecycle.test.js`) that reconciles the books and checks the trial balance after every day, proves determinism, and reloads a mid-game save. Browser audits (`tools/e2e-loop.mjs`, `tools/audit-scrollbars.mjs`) are clean at five viewport sizes.
 Save format is v22. Saves from v11 on migrate step by step. Older saves are refused.
 
 ## 2. Factory and manufacturing
@@ -41,20 +41,20 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 |---|---|---|
 | History, forecast, weekday seasonality, trend, inventory forecast, raw demand, safety stock, reorder point, EOQ, lead-time forecast, purchase advice, production planning | Done | Advice buttons place real orders and queue real batches. |
 | Considers stock, incoming, planned production, B2B contracts, supplier reliability, storage | Done | In `mrp.js` and `forecast.js`. |
-| Longer seasons, competitor analysis feeding the forecast | **Partial** | Only a weekday pattern and trend. Competitor prices are shown but do not feed the forecast. |
+| Longer seasons, competitor analysis feeding the forecast | **Partial** | The forecast now reads the known rival price wave and any running or announced demand and rival events, compared with their average over the history window (clamped to 0.6x-1.5x). The game itself has no yearly seasons, so there is no season to forecast; only the weekday pattern, trend, rivals and events. |
 
 ## 6. Customer service
 | Requirement | Status | Notes |
 |---|---|---|
 | Satisfaction, tickets, service capacity, staff skill, demand effect, service cost | Done | Satisfaction moves shop demand, so the loop closes. |
-| Response time, retention and loyalty as separate measures, complaint types | **Partial** | The ticket backlog stands in for response time, and satisfaction stands in for loyalty. |
+| Response time, retention and loyalty as separate measures, complaint types | **Done** | Response time (queue over daily clearing capacity), loyalty (slow average of satisfaction), retention (lowered by stock-outs and low satisfaction) and complaints sorted by cause (general, late delivery, out of stock) are shown in Marketing. These are modelled measures, not tracked individual shoppers. |
 
 ## 7. Business intelligence
 | Requirement | Status | Notes |
 |---|---|---|
 | Revenue, net and gross profit, operating costs, cash flow, assets, liabilities, ROA, market share, satisfaction, morale, turnover, factory efficiency, delivery and supplier performance, overall score | Done | Data Explorer: Scoring, Dashboard, Forecast, Competitors; Finance: Statements, Ledger. Figures read from the ledger and counters. |
 | Charts, daily comparison, warnings, financial reports | Done | 60 day line chart, revenue and cost bars, warnings card. |
-| Department performance, trends | **Partial** | Shown through KPIs and operation tables, not a profit and loss per department. No trend arrows. |
+| Department performance, trends | **Done** | Profit and loss per department (shop, web, B2B, factory, marketing, people, logistics, finance, general), tallied from every ledger line by entry reference, with a 7-day vs previous-7-day trend arrow. Departments are assigned by reference prefix, so rent and storage fees sit under General. |
 | Market share | Approximation | Uses a modelled rival volume; labelled as such. |
 
 ## 8. Accounting
@@ -62,9 +62,9 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 |---|---|---|
 | Payables, receivables (aging), inventory valuation, COGS, labour, payroll, transport, maintenance, depreciation, loans, interest, opex, revenue, tax | Done | Double entry on every posting; reconcile cross-checks stock, machinery, trucks, payables, receivables, tax and credit. |
 | Income statement, balance sheet, trial balance | Done | |
-| Cash flow statement | **Partial** | Operating cash is the remainder after investing and financing. |
-| General ledger | **Partial** | Shows the latest 1,500 entries, as the save keeps only those. |
-| Tax | **Partial** | Flat rate on cumulative profit, losses carried forward. No deductions. |
+| Cash flow statement | **Done** | Direct method, tallied exactly on every posting: received from customers, paid to suppliers, wages, tax, other operating, investing, financing. Saves from before v25 start from an estimate. |
+| General ledger | **Done** | The latest 1,500 entries are kept in full and up to 14,000 older ones as compact rows, paged in the Ledger tab. Beyond that, the oldest are dropped from the list (balances and cash-flow totals still include them). |
+| Tax | **Done** | Flat rate on taxable profit, losses carried forward, with two allowances: 10% of machine cost and +50% of training spend. Still one rate, no tax brackets or VAT. |
 
 ## 9. Market and economic realism
 | Requirement | Status | Notes |
@@ -79,8 +79,9 @@ Save format is v22. Saves from v11 on migrate step by step. Older saves are refu
 | Requirement | Status | Notes |
 |---|---|---|
 | Facilitator controls, scenarios, event injection | Done (local) | Four scenarios plus live events. |
-| Team name, results, ranking | Partial | Result files handed in, loaded and ranked. |
-| Student and team management, live multiplayer, server-authoritative validation, difficulty, learning analytics, per-team end reports | **Missing** | The game is single-player and local. There is no server round trip, so nothing is validated by a server. Reason: the earlier retail rewrite removed multiplayer; rebuilding it needs a server design you have not chosen yet. |
+| Team name, results, ranking | Done (local) | Result files handed in, loaded and ranked, with a per-team report. |
+| Difficulty, per-team end report, learning analytics | **Done (local)** | Easy/Normal/Hard sets shopper numbers (+10%/-10%) and random-event chance (x0.6/x1.5), also chosen by the host in a live room. Each team can download an HTML end report (scorecard, department P&L, cash flow, customers; prints to PDF). The facilitator loads result files and sees class average, median, weakest measures, bankruptcies, loss makers and plain-language hints. |
+| Student roster management, server-authoritative validation | **Missing** | Live rooms exist, but scores are reported by each player's own device and there is no server of ours to check them, so a modified client can lie. Result files can also be edited. A real fix needs a server that runs the simulation, which this static site does not have. There is no student account or roster system either. |
 
 ## 11. Visual simulation
 | Area | Status | Notes |
@@ -99,7 +100,36 @@ Batch tail trickle, stale raw quantities after a vendor change, machines breakin
 ## Known limitations
 - A careless script that accepts every B2B deal without stock pays large breach penalties and goes bankrupt. That is by design, not a bug. The lifecycle script only takes deals it can fill and survives 60 days without loans.
 - Progress is local to one browser. There is no cloud save.
-- Rotate the database password, secret keys and Metered credentials that were pasted in chat earlier.
+
+## Suggested next work, in priority order
+1. A server that runs the simulation and checks scores (needs your decision; fixes cheating and gives rosters).
+2. A second product line for the factory (juice only today), per-person skill and wage, a drawn delivery route map, built or bought factories.
+
+## 10. Multiplayer and education
+| Requirement | Status | Notes |
+|---|---|---|
+| Facilitator controls, scenarios, event injection | Done (local) | Four scenarios plus live events. |
+| Team name, results, ranking | Done (local) | Result files handed in, loaded and ranked, with a per-team report. |
+| Difficulty, per-team end report, learning analytics | **Done (local)** | Easy/Normal/Hard sets shopper numbers (+10%/-10%) and random-event chance (x0.6/x1.5), also chosen by the host in a live room. Each team can download an HTML end report (scorecard, department P&L, cash flow, customers; prints to PDF). The facilitator loads result files and sees class average, median, weakest measures, bankruptcies, loss makers and plain-language hints. |
+| Student roster management, server-authoritative validation | **Missing** | Live rooms exist, but scores are reported by each player's own device and there is no server of ours to check them, so a modified client can lie. Result files can also be edited. A real fix needs a server that runs the simulation, which this static site does not have. There is no student account or roster system either. |
+
+## 11. Visual simulation
+| Area | Status | Notes |
+|---|---|---|
+| Retail | Done | Store, shelves with real stock, shoppers for real sales and missed sales, cashiers and shelf staff drawn from the real retail headcount, self-checkout when you hire nobody. |
+| Warehouse | Done | Racks, real stock, forklift, trucks for real deliveries, handlers drawn from the real headcount. |
+| Factory, Transport, Bank | Done | Factory operators, dock and truck (section 2); bank shows vault, credit, loans, tax, a teller and coins flying when cash really moves. |
+| Performance | Done | 60 frames per second in every scene (headless Chromium, 90 frame sample). 60 days of simulation run in about 20 ms. |
+
+## 12. Department interconnection
+Verified end to end by the lifecycle test: marketing lifts demand, forecasts read sales history, MRP plans materials, purchase requisitions become orders, suppliers or your trucks deliver, factory crews make bottles, bottles sell through B2B (on credit) and the web store (through escrow), service satisfaction moves demand, every step is in the ledger, tax is assessed, and the dashboard reads it back. Juice now flows factory, truck, shop shelf, sale, ledger, and production advice counts the shop's juice demand.
+
+## Bugs found and fixed during the work
+Batch tail trickle, stale raw quantities after a vendor change, machines breaking down on the day they were bought, MRP header overflow at 320 px, factory tanks hidden behind the scene tabs, old cached CSS showing scrollbars. No open bugs are known.
+
+## Known limitations
+- A careless script that accepts every B2B deal without stock pays large breach penalties and goes bankrupt. That is by design, not a bug. The lifecycle script only takes deals it can fill and survives 60 days without loans.
+- Progress is local to one browser. There is no cloud save.
 
 ## Suggested next work, in priority order
 1. Payroll schedule, multiple factory sites.
@@ -113,4 +143,4 @@ Batch tail trickle, stale raw quantities after a vendor change, machines breakin
 - **Browser check:** two real browser pages played a full room against a stub of the Supabase client (BroadcastChannel): lobby, start, same settings, event from host reaches guest, leaderboard, no pause, no page errors.
 - **Not verified:** the real Supabase network connection. The sandbox cannot reach supabase.co, so the first real room is the first real test. If joining fails, the player sees "Could not connect to the room".
 - **Honest limits:** each player's shop runs on their own device, so scores are reported by the client and a determined cheater could edit theirs. Mitigations: scores use fixed default KPI weights, values are range-checked, a player can only post their own card. Closing a tab pauses that player's shop (browser throttling); leaving keeps their last score on the board. No reconnect after a refresh: a refreshed player continues solo.
-- **Tests:** 171 passing. Overflow audit clean at 5 viewports; no visible scrollbars.
+- **Tests:** 204 passing. Overflow audit clean at 5 viewports; no visible scrollbars.

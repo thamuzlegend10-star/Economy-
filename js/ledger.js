@@ -44,12 +44,26 @@ export const ACCOUNTS = {
 const DEBIT_NORMAL = new Set(["asset", "expense"]);
 export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor", "bad_debt"];
 export const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
-const MAX_ENTRIES = 1500;
+const MAX_ENTRIES = 1500, MAX_OLD = 14000;   // recent entries in full; older ones kept as one short text row each, so the whole game stays browsable
+// Cash-flow buckets (direct method). The counter-account of every cash movement decides the bucket.
+export const CF_BUCKETS = ["customers", "suppliers", "wages", "tax", "other", "investing", "financing"];
+const CF_OF = { sales: "customers", sales_b2b: "customers", sales_ecom: "customers", receivables: "customers",
+  inventory: "suppliers", inv_raw: "suppliers", inv_fg: "suppliers", payables: "suppliers", transit: "suppliers", cogs: "suppliers", escrow: "suppliers",
+  wages: "wages", wages_payable: "wages", cogs_labor: "wages", tax: "tax", tax_payable: "tax",
+  machinery: "investing", acc_deprec: "investing", capital: "financing", credit: "financing", longdebt: "financing" };
+export const newCf = () => Object.fromEntries(CF_BUCKETS.map(k => [k, 0]));
+// Departments: every income or expense line is tallied under the department that caused it, decided by the entry's reference.
+export const DEPTS = [["shop", "Shop"], ["web", "Web store"], ["b2b", "B2B sales"], ["factory", "Factory"], ["marketing", "Marketing"], ["people", "People"], ["logistics", "Logistics"], ["finance", "Finance and tax"], ["general", "General (rent, overflow)"]];
+const DEPT_OF = [[/^(sales|jsales|order|deliv|xfer|transfer|ovf)/, "shop"], [/^(web|ecom)/, "web"], [/^(b2b|ar:|pen:)/, "b2b"], [/^(prod|machine|pm:|dep:|conv|rawpo|rawdel)/, "factory"], [/^mkt/, "marketing"], [/^(hr:|hire|sev)/, "people"], [/^(fuel|trepair|truck|tsvc|tdep|ship)/, "logistics"], [/^(lint|tax|loan|fee|credit|od)/, "finance"]];
+export const deptOf = ref => { const r = String(ref || ""); for (const [re, d] of DEPT_OF) if (re.test(r)) return d; return "general"; };
+export const newDp = () => Object.fromEntries(DEPTS.map(([k]) => [k, { rev: 0, cost: 0 }]));
+const packLines = ls => ls.map(l => l.acct + (l.dr ? ":+" + l.dr : ":-" + l.cr)).join(",");
+export const unpackLines = str => str.split(",").map(x => { const i = x.indexOf(":"), v = Number(x.slice(i + 1)); return v >= 0 ? { acct: x.slice(0, i), dr: v } : { acct: x.slice(0, i), cr: -v }; });
 
 export function newLedger() {
   const bal = {};
   for (const k of Object.keys(ACCOUNTS)) bal[k] = 0;   // signed: debit +, credit -
-  return { seq: 0, bal, entries: [], archived: 0 };
+  return { seq: 0, bal, entries: [], archived: 0, old: [], cf: newCf(), dp: newDp() };
 }
 
 // lines: [{ acct, dr?: n, cr?: n }]. Throws if unbalanced or invalid. Returns the entry.
@@ -66,7 +80,16 @@ export function post(ledger, day, memo, lines, ref = null) {
   for (const l of lines) ledger.bal[l.acct] = round2(ledger.bal[l.acct] + (l.dr || 0) - (l.cr || 0));
   const e = { id: ++ledger.seq, day, memo, lines: lines.map(l => ({ ...l })), ref };
   ledger.entries.push(e);
-  if (ledger.entries.length > MAX_ENTRIES) { ledger.entries.splice(0, ledger.entries.length - MAX_ENTRIES); ledger.archived = ledger.seq - MAX_ENTRIES; }
+  const dp = ledger.dp || (ledger.dp = newDp()), dk = deptOf(ref), dd = dp[dk] || (dp[dk] = { rev: 0, cost: 0 });
+  for (const l of lines) { const ty = ACCOUNTS[l.acct].type; if (ty === "income") dd.rev = round2(dd.rev + (l.cr || 0) - (l.dr || 0)); else if (ty === "expense") dd.cost = round2(dd.cost + (l.dr || 0) - (l.cr || 0)); }
+  // cash flow: cash and overdraft together are the "cash position"; each other line's share of the movement goes to a bucket
+  if (lines.some(l => l.acct === "cash" || l.acct === "overdraft")) { const cf = ledger.cf || (ledger.cf = newCf()); for (const l of lines) if (l.acct !== "cash" && l.acct !== "overdraft") { const k = CF_OF[l.acct] || "other"; cf[k] = round2(cf[k] - ((l.dr || 0) - (l.cr || 0))); } }
+  if (ledger.entries.length > MAX_ENTRIES) {
+    const old = ledger.old || (ledger.old = []);
+    while (ledger.entries.length > MAX_ENTRIES) { const x = ledger.entries.shift(); old.push([x.id, x.day, x.memo, packLines(x.lines)]); }
+    if (old.length > MAX_OLD) old.splice(0, old.length - MAX_OLD);
+    ledger.archived = ledger.seq - MAX_ENTRIES - old.length;       // entries so old they are gone (their effect is still in every balance)
+  }
   return e;
 }
 
