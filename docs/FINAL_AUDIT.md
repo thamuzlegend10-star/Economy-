@@ -1,7 +1,7 @@
 # Final audit (Phase 8)
 
 Checked against every section of the master prompt. Status words: **Done** (works, tested), **Partial** (works but narrower than the prompt), **Missing** (not built).
-Evidence: 204 tests pass (`npm test`), including a 60 day full-lifecycle run (`tests/lifecycle.test.js`) that reconciles the books and checks the trial balance after every day, proves determinism, and reloads a mid-game save. Browser audits (`tools/e2e-loop.mjs`, `tools/audit-scrollbars.mjs`) are clean at five viewport sizes.
+Evidence: 205 tests pass (`npm test`), including a 60 day full-lifecycle run (`tests/lifecycle.test.js`) that reconciles the books and checks the trial balance after every day, proves determinism, and reloads a mid-game save. Browser audits (`tools/e2e-loop.mjs`, `tools/audit-scrollbars.mjs`) are clean at five viewport sizes.
 Save format is v22. Saves from v11 on migrate step by step. Older saves are refused.
 
 ## 2. Factory and manufacturing
@@ -143,4 +143,4 @@ Batch tail trickle, stale raw quantities after a vendor change, machines breakin
 - **Browser check:** two real browser pages played a full room against a stub of the Supabase client (BroadcastChannel): lobby, start, same settings, event from host reaches guest, leaderboard, no pause, no page errors.
 - **Not verified:** the real Supabase network connection. The sandbox cannot reach supabase.co, so the first real room is the first real test. If joining fails, the player sees "Could not connect to the room".
 - **Honest limits:** each player's shop runs on their own device, so scores are reported by the client and a determined cheater could edit theirs. Mitigations: scores use fixed default KPI weights, values are range-checked, a player can only post their own card. Closing a tab pauses that player's shop (browser throttling); leaving keeps their last score on the board. No reconnect after a refresh: a refreshed player continues solo.
-- **Tests:** 204 passing. Overflow audit clean at 5 viewports; no visible scrollbars.
+- **Tests:** 205 passing. Overflow audit clean at 5 viewports; no visible scrollbars.
