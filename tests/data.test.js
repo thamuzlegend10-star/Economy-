@@ -66,3 +66,11 @@ test("marketing has the five spec channels; six scenes are listed", () => {
   assert.deepEqual(D.SCENES.map(s => s.id), ["store", "warehouse", "city", "factory", "yard", "bank"]);
   assert.equal(D.HR_ROLES.length, 6);
 });
+
+test("index.html loads every module with the build number (import map) so cached old modules cannot mix with a new main.js", async () => {
+  const fs = await import("node:fs"), html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const map = JSON.parse(html.match(/<script type="importmap">(.*?)<\/script>/s)[1]).imports, ver = html.match(/js\/main\.js\?v=(\w+)/)[1];
+  const files = fs.readdirSync(new URL("../js/", import.meta.url)).filter(f => f.endsWith(".js") && f !== "main.js");
+  for (const f of files) assert.equal(map["./js/" + f], `./js/${f}?v=${ver}`, f + " must be in the import map with the same version as main.js");
+  assert.ok(!/modulepreload" href="js\/[a-z0-9]+\.js">/.test(html), "preload links carry the version too");
+});
