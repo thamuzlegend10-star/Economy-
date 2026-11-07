@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261107e";
+import { createScene } from "./scene.js?v=20261108b";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -20,7 +20,7 @@ const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }, del: k => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } } };
 
 let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central", lastSave = 0, lastView = 0, lastDay = 0, live = null, liveStartAt = 0, liveFirst = false;
-const ui = { results: [], unread: 0, f: newForms(), main: "finance", sub: { finance: "overview", retail: "location", warehouse: "stock", shipping: "co", factory: "machines", b2b: "market", data: "score", mail: "inbox" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
+const ui = { results: [], unread: 0, f: newForms(), main: "home", more: !matchMedia("(max-width:700px)").matches && /[?&]more=1/.test(location.search), sub: { finance: "overview", retail: "procurement", warehouse: "stock", shipping: "co", factory: "machines", b2b: "market", data: "score", mail: "inbox" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
 
 // ---------- small helpers ----------
 // ---------- news broadcast ticker ----------
@@ -46,11 +46,10 @@ const save = () => { if (s) ls.set(SAVE_KEY, E.serialize(s)); lastSave = perform
 
 // ---------- render ----------
 function renderHud() {
-  if (!s) { setText($("hDay"), "Day - / -"); setText($("hTime"), "-"); return; }
+  if (!s) { setText($("hDay"), "No game yet"); return; }
   const d = E.dashboard(s), tl = Math.ceil(E.timeLeft(s));
-  setText($("hDay"), s.days ? `Day ${Math.min(s.day, s.days)} / ${s.days}` : `Day ${s.day} / \u221e`);
-  setText($("hTime"), s.ended ? "Finished" : `${tl} second${tl === 1 ? "" : "s"}`);
-  document.querySelector(".k-time").classList.toggle("low", !s.ended && tl <= 5);
+  setText($("hDay"), (s.days ? `Day ${Math.min(s.day, s.days)} of ${s.days}` : `Day ${s.day}`) + (s.ended ? " · finished" : ` · ${tl}s left`));
+  document.querySelector(".k-day").classList.toggle("low", !s.ended && tl <= 5);
   setText($("hCash"), UI.money(d.cash));
   const n = $("hNet"); setText(n, UI.money(d.netProfit)); n.className = d.netProfit < 0 ? "neg" : d.netProfit > 0 ? "pos" : "";
   setText($("locLabel"), `${LOC.getLocation(s.location).city} · ${s.area} m²`);
@@ -62,6 +61,7 @@ function renderHud() {
 const SOON = { mail: ["Mail", "Messages from suppliers, the bank and the facilitator will be here."], data: ["Data Explorer", "Charts and tables to dig into your numbers will be here."] };
 function viewFor() {
   const m = ui.main, sub = ui.sub[m];
+  if (m === "home") return SC.homeScreen(s);
   if (m === "finance") return sub === "reports" ? UI.reports(s) : sub === "statements" ? SC.statements(s) : sub === "bank" ? SC.bank(s, ui.f) : sub === "ledger" ? SC.ledgerScreen(s, ui.f) : SC.warningsCard(s) + UI.dashboard(s);
   if (m === "factory") return sub === "raw" ? SC.factoryRaw(s, ui.f) : sub === "mrp" ? SC.factoryMrp(s) : sub === "juice" ? SC.factoryJuice(s, ui.f) : SC.factoryMachines(s, ui.f);
   if (m === "b2b") return sub === "contracts" ? SC.b2bContracts(s) : SC.b2bMarket(s, ui.f);
@@ -81,8 +81,8 @@ function applyScenes() {
   document.querySelectorAll("#sceneTabs [data-scene]").forEach(b => { b.hidden = !!s && sceneOff(s.mods, b.dataset.scene); });
   if (s && sceneOff(s.mods, scene.view)) { scene.setView("store"); document.querySelectorAll("#sceneTabs button").forEach(x => { const on = x.dataset.scene === "store"; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); }); }
 }
-function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "retail"; const n = UI.navHtml(ui, s && s.mods); applyScenes(); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
-function goto(main, sub) { ui.main = main; if (sub) ui.sub[main] = sub; renderNav(); renderAll(true); }
+function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "home"; const n = UI.navHtml(ui, s && s.mods); applyScenes(); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
+function goto(main, sub) { ui.main = main; ui.more = !matchMedia("(max-width:700px)").matches && !!UI.NAV.find(n => n.id === main && n.more) || (ui.more && !matchMedia("(max-width:700px)").matches); if (sub) ui.sub[main] = sub; renderNav(); renderAll(true); }
 let lastHtml = "", pressing = false;
 $("view").addEventListener("pointerdown", () => { pressing = true; });
 addEventListener("pointerup", () => { pressing = false; }); addEventListener("pointercancel", () => { pressing = false; });
@@ -114,6 +114,7 @@ function loop(now) {
 
 // ---------- tabs and view actions ----------
 $("tabs").addEventListener("click", e => {
+  const mb = e.target.closest("[data-more]"); if (mb) { ui.more = !ui.more; renderNav(); return; }
   const b = e.target.closest("[data-main]"); if (!b) return;
   if (b.dataset.main === "info") { openMenu("menuHelp"); return; }
   goto(b.dataset.main);
@@ -285,12 +286,12 @@ $("scnList").addEventListener("click", e => { const b = e.target.closest("[data-
 $("sStart").onclick = () => {
   const c = { ...setupValues(), scenario: $("sScn").value }; $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay;
   if (c.days) $("sDays").value = c.days;
-  adopt(E.newGame(c)); closeMenu(); toast("Shop open. Order stock in the Procurement tab.", "ok");
+  adopt(E.newGame(c)); closeMenu(); toast("Shop open. Order stock in Shop, Buy stock.", "ok");
 };
 
 function adopt(state, keepLive = false) {
   if (!keepLive) leaveLive();
-  s = state; ui.f = newForms(); paused = false; finalShown = !!s.ended; lastDay = s.day; ui.main = "finance"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }; ui.whbuy = { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }; ui.tr = { qty: {} };
+  s = state; ui.f = newForms(); paused = false; finalShown = !!s.ended; lastDay = s.day; ui.main = "home"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }; ui.whbuy = { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }; ui.tr = { qty: {} };
   renderNav();
   scene.reset(); save(); renderAll(true);
 }
@@ -353,3 +354,11 @@ else { openMenu("menuMain"); $("mContinue").hidden = true; }
 requestAnimationFrame(t => { prev = t; lastView = t; requestAnimationFrame(loop); });
 
 bindMods("sMods", "sMod"); bindMods("lMods", "lMod");
+
+// Live view: shown on wide screens, hidden by default on phones so the work area is first. The choice is remembered on this device.
+(function liveView() {
+  const box = $("live"), btn = $("liveToggle"); let want; try { want = localStorage.getItem("ec.live"); } catch { want = null; }
+  const apply = open => { box.classList.toggle("collapsed", !open); btn.textContent = open ? "Hide" : "Show"; btn.setAttribute("aria-expanded", String(open)); };
+  apply(want == null ? window.matchMedia("(min-width:900px)").matches : want === "1");
+  btn.addEventListener("click", () => { const open = box.classList.contains("collapsed"); apply(open); try { localStorage.setItem("ec.live", open ? "1" : "0"); } catch {} });
+})();

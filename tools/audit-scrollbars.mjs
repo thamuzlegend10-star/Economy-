@@ -16,7 +16,7 @@ for (const [w, h] of [[1280, 800], [390, 844], [320, 640]]) {
   await p.click("#mNew"); await scan(p, t + " new-game dialog"); await p.click("#sLocBtn"); await p.waitForTimeout(400); await scan(p, t + " map picker"); await p.keyboard.press("Escape");
   await p.click("#sStart"); await p.waitForTimeout(200);
   for (const [m, sb] of [["finance","overview"],["finance","reports"],["retail","location"],["retail","procurement"],["retail","store"],["retail","price"],["retail","tx"],["warehouse","stock"],["warehouse","procure"],["warehouse","send"],["warehouse","b2b"],["shipping","co"],["shipping","tx"],["b2b"],["mail"],["data"]]) {
-    await p.click(`[data-main="${m}"]`); if (sb) await p.click(`[data-sub="${sb}"]`); await scan(p, `${t} ${m}/${sb || ""}`); }
+    (await p.locator(`[data-main="${m}"]`).count() || await p.click("[data-more]")); await p.click(`[data-main="${m}"]`); if (sb) await p.click(`[data-sub="${sb}"]`); await scan(p, `${t} ${m}/${sb || ""}`); }
   await p.click('[data-main="retail"]'); await p.click('[data-sub="procurement"]'); await p.click("#poOpen"); await scan(p, t + " order dialog"); await p.keyboard.press("Escape");
   await p.click('[data-main="finance"]'); await p.click('[data-sub="overview"]'); await p.click("#spOpen"); await scan(p, t + " space dialog"); await p.keyboard.press("Escape");
   await p.click("#bHelp").catch(() => {}); await scan(p, t + " help"); await p.keyboard.press("Escape");

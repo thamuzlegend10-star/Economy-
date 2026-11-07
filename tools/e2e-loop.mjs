@@ -7,10 +7,10 @@ for (const [w, h] of sizes) {
   const ctx = await b.newContext({ viewport: { width: w, height: h } }); const p = await ctx.newPage();
   p.on("pageerror", e => errs.push("PE " + e.message)); p.on("console", m => { if (m.type() === "error" && !/fonts|ERR_|Failed to load/.test(m.text())) errs.push("CE " + m.text()); });
   await p.goto("http://localhost:8765/index.html"); await p.waitForTimeout(300);
-  await p.click("#mNew"); await p.fill("#sSec", "10"); await p.fill("#sDays", "5"); await p.click("#sStart"); await p.waitForTimeout(200);
+  await p.click("#mNew"); await p.evaluate(() => { const d = document.getElementById("sAdv"); if (d) d.open = true; }); await p.fill("#sSec", "10"); await p.fill("#sDays", "5"); await p.click("#sStart"); await p.waitForTimeout(200);
   for (const [m, sb] of [["finance","overview"],["retail","location"],["retail","procurement"],["retail","store"],["retail","price"],["retail","tx"],["warehouse",""],["shipping","co"],["shipping","fleet"],["shipping","tx"],["finance","reports"],["factory","machines"],["factory","raw"],["factory","mrp"],["factory","juice"],["b2b","market"],["b2b","contracts"],["hr",""],["marketing",""],["ecom",""],["finance","statements"],["finance","ledger"],["finance","bank"],["warehouse","b2b"],["mail","inbox"],["mail","facilitator"],["data","score"],["data","forecast"],["data","market"],["data","bi"]]) {
     const t = sb === "procurement" ? "buy" : sb === "co" ? "ship" : m + "/" + sb;
-    await p.click(`[data-main="${m}"]`); if (sb) await p.click(`[data-sub="${sb}"]`);
+    (await p.locator(`[data-main="${m}"]`).count() || await p.click("[data-more]")); await p.click(`[data-main="${m}"]`); if (sb) await p.click(`[data-sub="${sb}"]`);
     if (t === "retail/location") { await p.click("#spOpen"); await p.screenshot({path:`/tmp/sp-${w}.png`}); await p.click("#spSubmit"); }
     if (t === "buy") { await p.click("#poOpen"); await p.selectOption("#poQty-noodles","10000"); await p.selectOption("#poQty-milk","3000"); await p.selectOption("#poQty-earbuds","1000"); await p.screenshot({path:`/tmp/po-${w}.png`}); await p.click("#poSubmit"); await p.click('[data-main="retail"]'); await p.click('[data-sub="procurement"]'); }
         await p.waitForTimeout(150);

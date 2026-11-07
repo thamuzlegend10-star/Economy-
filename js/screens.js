@@ -198,6 +198,22 @@ const openingGift = s => round2(s.startNetWorth - s.capital);
 const quick = s => { const L = s.ledger, b = a => balance(L, a), cur = b("overdraft") + b("payables") + b("tax_payable") + b("wages_payable") + b("credit") + b("escrow"); return cur > 0 ? (b("cash") + b("receivables")) / cur : 99; };
 
 // Warning list. Each row jumps to the tab that fixes it.
+// ================= HOME =================
+// One screen that answers "what do I do now?": the next steps first, then big buttons for the jobs done most.
+export function homeScreen(s) {
+  const d = E.dashboard(s), w = Kp.warnings(s), empty = d.inventoryUnits <= 0, lost = s.today ? Object.values(s.today.lost).reduce((a, b) => a + b, 0) : 0;
+  const steps = [];
+  if (empty) steps.push({ level: "bad", text: "Your shelves are empty. Shoppers cannot buy anything.", go: ["retail", "procurement"], label: "Buy stock" });
+  for (const x of w) if (steps.length < 3) steps.push({ level: x.level, text: x.text, go: x.where, label: "Open" });
+  if (!steps.length) steps.push({ level: "ok", text: s.day <= 2 ? "Check your prices against the competition before the first rush." : "Nothing needs you right now. Keep stock above what you sell each day.", go: s.day <= 2 ? ["retail", "price"] : ["retail", "procurement"], label: s.day <= 2 ? "Prices" : "Buy stock" });
+  const head = empty ? "Buy your first stock" : w.length ? `${w.length} thing${w.length > 1 ? "s" : ""} to look at` : "The shop is running well";
+  const tile = (go, sub, title, line) => `<button class="tile" data-goto="${go}"${sub ? ` data-gsub="${sub}"` : ""}><b>${title}</b><small>${line}</small></button>`;
+  const when = s.days ? `Day ${Math.min(s.day, s.days)} of ${s.days}` : `Day ${s.day}`;
+  return `<div class="card hero"><small>${when}</small><h2>${esc(head)}</h2>
+    ${steps.map(x => `<div class="step ${x.level}"><span>${esc(x.text)}</span><button class="mini" data-goto="${x.go[0]}" data-gsub="${x.go[1] || ""}">${esc(x.label)}</button></div>`).join("")}</div>
+  <div class="tiles">${tile("retail", "procurement", "Buy stock", `${num(d.inventoryUnits)} units in the shop`)}${tile("retail", "price", "Set prices", "What shoppers pay")}${tile("hr", "", "Staff", `${num(H.headcount(s))} people`)}${tile("finance", "overview", "Money", `Cash ${money(d.cash)}`)}</div>
+  <div class="card"><div class="kv1"><div><span>Sold today</span><b>${money(s.today ? s.today.rev : 0)}</b></div><div><span>Net profit so far</span><b class="${d.netProfit < 0 ? "neg" : "pos"}">${money(d.netProfit)}</b></div><div><span>Shoppers missed today</span><b>${num(lost)}</b></div><div><span>Rent per day</span><b>${money2(E.dailyRent(s.location, s.area))}</b></div></div></div>`;
+}
 export function warningsCard(s) {
   const w = Kp.warnings(s); if (!w.length) return "";
   return `<div class="card">${head("Warnings", w.length + " to look at")}${w.map(x => `<div class="warnrow ${x.level}"><span>${esc(x.text)}</span><button class="mini ghost" data-goto="${x.where[0]}" data-gsub="${x.where[1]}">Open</button></div>`).join("")}</div>`;

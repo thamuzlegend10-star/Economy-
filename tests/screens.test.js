@@ -59,3 +59,13 @@ test("new screens render: department P&L, cash flow, paged ledger, customers, cl
   assert.ok(bi.includes("by department") && st.includes("Received from customers") && lg.includes("Page 2") && mk.includes("Response time") && fa.includes("Class analytics") && fa.includes('data-resreport="0"'));
   assert.ok(!/undefined|NaN/.test(bi + st + lg + mk + fa));
 });
+
+test("home screen: next step first, big tiles, empty shelves flagged; nav keeps five core tabs and folds the rest under More", async () => {
+  const E2 = await import("../js/engine.js"), UI2 = await import("../js/ui.js");
+  const s = E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 30, capital: 40000, seed: 5 });
+  const h = SC.homeScreen(s); assert.ok(h.includes("Buy stock") && h.includes("Set prices") && h.includes("Staff") && h.includes("Money") && !/undefined|NaN/.test(h));
+  s.val = Object.fromEntries(Object.keys(s.val).map(k => [k, 0])); for (const k of Object.keys(s.stock || {})) s.stock[k] = 0;
+  const n = UI2.navHtml({ main: "home", sub: {}, more: false, unread: 0 }, s.mods), open = UI2.navHtml({ main: "home", sub: {}, more: true, unread: 0 }, s.mods);
+  assert.equal((n.main.match(/data-main=/g) || []).length, 5 + 1);          // Home, Shop, Warehouse, Money, Staff + Help
+  assert.ok(n.main.includes('data-more="1"') && !n.main.includes('data-main="factory"') && open.main.includes('data-main="factory"') && open.main.includes('data-main="mail"'));
+});

@@ -16,6 +16,8 @@ const dayWord = n => (n === 1 ? "1 day" : n + " days");
 
 // ---------- navigation: main tabs and sub tabs (the layout of a business-sim control room) ----------
 const ICON = {
+  home: '<path d="M2 7.5L8 2.5l6 5M3.5 6.5V13h9V6.5M6.5 13V9.5h3V13"/>',
+  more: '<circle cx="3.5" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="12.5" cy="8" r="1"/>',
   finance: '<text x="8" y="12.5" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor" stroke="none">$</text>',
   retail: '<path d="M2 6l1-3h10l1 3v1H2zM3 7v6h10V7M7 13v-3h2v3"/>',
   warehouse: '<path d="M1 7l7-4 7 4v6H1zM5 13V9h6v4"/>',
@@ -29,23 +31,29 @@ const ICON = {
   marketing: '<path d="M2 6v4h3l5 3V3L5 6zM12 6.5a2.5 2.5 0 010 3"/>',
   ecom: '<path d="M1.5 2.5h2l1.6 7h7l1.2-5H4"/><circle cx="6" cy="12.5" r="1.1"/><circle cx="11" cy="12.5" r="1.1"/>',
 };
+// Core tabs are always on screen. The rest sit behind "More" so a new player sees five things, not twelve.
 export const NAV = [
-  { id: "finance", label: "Finance", subs: [["overview", "Overview"], ["reports", "Reports"], ["statements", "Statements"], ["ledger", "Ledger"], ["bank", "Bank"]] },
-  { id: "retail", label: "Retail", subs: [["location", "Location"], ["procurement", "Procurement"], ["store", "Store"], ["price", "Retail Sales & Price"], ["tx", "Transactions"]] },
-  { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock & Storage"], ["procure", "Bulk Procurement"], ["send", "Send to Retail"], ["b2b", "Send to B2B"]] },
-  { id: "factory", label: "Factory", subs: [["machines", "Machines"], ["raw", "Raw & Purchasing"], ["mrp", "MRP"], ["juice", "Juice to shop"]] },
-  { id: "shipping", label: "Shipping", subs: [["co", "Transport Company"], ["fleet", "My Fleet"], ["tx", "Transactions"]] },
-  { id: "b2b", label: "B2B", subs: [["market", "Market"], ["contracts", "Contracts"]] },
-  { id: "hr", label: "HR", subs: [] },
-  { id: "marketing", label: "Marketing", subs: [] },
-  { id: "ecom", label: "E-commerce", subs: [] },
-  { id: "mail", label: "Mail", subs: [["inbox", "Inbox"], ["facilitator", "Facilitator"]], iconOnly: true },
-  { id: "data", label: "Data Explorer", subs: [["score", "Scoring"], ["forecast", "Forecast"], ["market", "Competitors"], ["bi", "Dashboard"]] },
-  { id: "info", label: "Info", subs: [], iconOnly: true, action: true },
+  { id: "home", label: "Home", subs: [] },
+  { id: "retail", label: "Shop", subs: [["procurement", "Buy stock"], ["price", "Prices"], ["store", "Store"], ["location", "Location"], ["tx", "History"]] },
+  { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock"], ["procure", "Buy in bulk"], ["send", "Move to shop"], ["b2b", "Move to B2B"]] },
+  { id: "finance", label: "Money", subs: [["overview", "Overview"], ["reports", "Reports"], ["statements", "Statements"], ["ledger", "Ledger"], ["bank", "Bank"]] },
+  { id: "hr", label: "Staff", subs: [] },
+  { id: "factory", more: true, label: "Factory", subs: [["machines", "Machines"], ["raw", "Materials"], ["mrp", "Planning"], ["juice", "Juice to shop"]] },
+  { id: "shipping", more: true, label: "Delivery", subs: [["co", "Hire transport"], ["fleet", "My trucks"], ["tx", "History"]] },
+  { id: "b2b", more: true, label: "B2B", subs: [["market", "Market"], ["contracts", "Contracts"]] },
+  { id: "marketing", more: true, label: "Marketing", subs: [] },
+  { id: "ecom", more: true, label: "Web store", subs: [] },
+  { id: "mail", more: true, label: "Mail", subs: [["inbox", "Inbox"], ["facilitator", "Facilitator"]] },
+  { id: "data", more: true, label: "Insights", subs: [["score", "Score"], ["forecast", "Forecast"], ["market", "Competitors"], ["bi", "Dashboard"]] },
+  { id: "info", label: "Help", subs: [], action: true },
 ];
-const svg = id => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
+const svg = id => `<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
 export function navHtml(ui, mods) {
-  const main = NAV.filter(n => !tabOff(mods, n.id)).map(n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}" ${n.iconOnly ? `aria-label="${n.label}${n.id === "mail" && ui.unread ? " (" + ui.unread + " unread)" : ""}"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}${n.iconOnly ? "" : `<span>${n.label}</span>`}</button>`).join("");
+  const on = NAV.filter(n => !tabOff(mods, n.id)), open = !!ui.more;
+  const btn = n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}"${n.id === "mail" && ui.unread ? ` aria-label="Mail, ${ui.unread} unread"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${n.label}</span></button>`;
+  const core = on.filter(n => !n.more && !n.action), more = on.filter(n => n.more), help = on.filter(n => n.action);
+  const moreBtn = more.length ? `<button data-more="1" class="more${open ? " open" : ""}" aria-expanded="${!!open}">${svg("more")}${!open && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${open ? "Less" : "More"}</span></button>` : "";
+  const main = core.map(btn).join("") + moreBtn + (open ? `<div class="moregrp">${more.map(btn).join("")}</div>` : "") + help.map(btn).join("");
   const cur = NAV.find(n => n.id === ui.main), subs = (cur ? cur.subs : []).filter(([id]) => !(cur.id === "warehouse" && id === "b2b" && tabOff(mods, "b2b")));
   const sub = subs.length > 1 ? subs.map(([id, label]) => `<button data-sub="${id}" class="${ui.sub[ui.main] === id ? "on" : ""}">${label}</button>`).join("") : "";
   return { main, sub };
@@ -186,7 +194,7 @@ export function spaceForm(s, extra, mode = "shop") {
 
 export function buy(s, ui) {
   const open = s.orders.length;
-  return `<div class="card"><b>Procurement</b><p class="muted">Raise a purchase order: pick a supplier, then a quantity for each of the three products. All items in one order ship together and pay one shipping fee. You see the total and the delivery day before you submit.</p>
+  return `<div class="card"><b>Buy stock</b><p class="muted">Raise a purchase order: pick a supplier, then a quantity for each of the three products. All items in one order ship together and pay one shipping fee. You see the total and the delivery day before you submit.</p>
     <button class="big" id="poOpen">New purchase order</button>
     <small class="note">${open ? `${open} shipment${open > 1 ? "s" : ""} on the way. See Deliveries.` : "No shipments on the way."}</small></div>`;
 }
@@ -275,7 +283,7 @@ export function finalReport(s) {
 export const HELP = `<h4>More tabs</h4><p>Factory: buy machines, buy raw materials (requisition, then order, with payment terms) and let MRP plan purchases. B2B: bid on tenders and deliver contracts. HR, Marketing, E-commerce and Finance → Bank add people, awareness, a webstore and loans. Data Explorer shows your weighted score.</p><h4>The goal</h4><p>Rent a shop, buy stock, set prices, and finish the chosen number of days with the most profit.</p>
 <h4>Location and size</h4><p>Pick a place on the map. Each place has its own customers, rent per m² and competition. The m² you rent sets how much stock you can hold, and you pay rent every day.</p>
 <h4>Three products</h4><ul><li>Instant noodles: many sales, small margin.</li><li>Fresh milk: steady sales, takes twice the space.</li><li>Earbuds: few sales, big margin, little space.</li></ul>
-<h4>Buying</h4><p>In Procurement, raise a purchase order: pick a supplier, then a quantity for each of the three products from the list. You see the total, the bulk discounts and the delivery time before you submit. Suppliers never run out. They differ in price, distance, shipping and reliability. The fastest delivery is one day.</p>
+<h4>Buying</h4><p>In Shop, Buy stock, raise a purchase order: pick a supplier, then a quantity for each of the three products from the list. You see the total, the bulk discounts and the delivery time before you submit. Suppliers never run out. They differ in price, distance, shipping and reliability. The fastest delivery is one day.</p>
 <h4>Deliveries and sales</h4><p>Trucks bring goods on their arrival day, and the goods go into inventory by themselves. Customers buy automatically while stock lasts. There is no shelf work and there are no staff.</p>
 <h4>Prices</h4><p>In Store, use - and + to change each price. Too high and fewer people buy. Too low and you earn little per unit.</p>
 <h4>Time</h4><p>One day lasts the number of real seconds you chose. The timer runs by itself. Use Pause if you need a break. If rent cannot be paid from cash, it becomes an overdraft, and three days of overdraft ends the game.</p>`;

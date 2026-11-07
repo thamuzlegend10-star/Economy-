@@ -1,7 +1,7 @@
 import { createRequire } from "module"; const require = createRequire(import.meta.url.replace("tools/e2e-morph.mjs", "package.json"));
 const { chromium } = require("playwright");
 const b = await chromium.launch(), p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage(); const errs = []; p.on("pageerror", e => errs.push(e.message));
-await p.goto("http://localhost:8765/index.html"); await p.waitForFunction(() => window.__economyBooted); await p.click("#mNew"); await p.fill("#sSec", "10"); await p.click("#sStart"); await p.waitForTimeout(500);
+await p.goto("http://localhost:8765/index.html?more=1"); await p.waitForFunction(() => window.__economyBooted); await p.click("#mNew"); await p.evaluate(() => { const d = document.getElementById("sAdv"); if (d) d.open = true; }); await p.fill("#sSec", "10"); await p.click("#sStart"); await p.waitForTimeout(500);
 for (const [tab, sub] of [["retail", "store"], ["finance", "overview"], ["marketing", null], ["hr", null], ["factory", "machines"]]) {
   await p.evaluate(([t, s]) => { document.querySelector(`[data-main="${t}"]`).click(); if (s) document.querySelector(`[data-sub="${s}"]`)?.click(); }, [tab, sub]); await p.waitForTimeout(300);
   await p.evaluate(() => { const v = document.querySelector("#view"); v.querySelectorAll("*").forEach((e, i) => { e.__k = i; }); window.__n = v.querySelectorAll("*").length; });

@@ -5,7 +5,7 @@ const b = await chromium.launch(); const errs = []; let fail = 0; const ok = (c,
 for (const [w, h] of [[320, 640], [390, 844], [1280, 800]]) {
   const p = await (await b.newContext({ viewport: { width: w, height: h } })).newPage();
   p.on("pageerror", e => errs.push(e.message));
-  await p.goto("http://localhost:8765/index.html"); await p.click("#mNew"); await p.fill("#sSec", "10"); await p.fill("#sDays", "10"); await p.selectOption("#sCap", { index: 3 }).catch(() => {}); await p.click("#sStart"); await p.waitForTimeout(200);
+  await p.goto("http://localhost:8765/index.html?more=1"); await p.click("#mNew"); await p.evaluate(() => { const d = document.getElementById("sAdv"); if (d) d.open = true; }); await p.fill("#sSec", "10"); await p.fill("#sDays", "10"); await p.selectOption("#sCap", { index: 3 }).catch(() => {}); await p.click("#sStart"); await p.waitForTimeout(200);
   await p.click('[data-main="warehouse"]'); ok(await p.isVisible("#whRentOpen"), "rent button visible");
   await p.click("#whRentOpen"); await p.selectOption("#spExtra", "1000"); await p.screenshot({ path: `/tmp/wh-rent-${w}.png` }); await p.click("#spSubmit");
   await p.click('[data-sub="procure"]'); await p.click("#whPoOpen"); await p.selectOption("#poQty-noodles", "100000"); await p.screenshot({ path: `/tmp/wh-po-${w}.png` });
@@ -17,7 +17,7 @@ for (const [w, h] of [[320, 640], [390, 844], [1280, 800]]) {
   await p.click("#trOpen"); await p.selectOption("#trQty-noodles", "5000"); await p.screenshot({ path: `/tmp/wh-send-${w}.png` }); await p.click("#trSubmit"); await p.waitForTimeout(150);
   ok(await p.evaluate(() => window.__economy.state.orders.some(o => o.kind === "transfer")), "transfer shipment exists");
   ok(await p.evaluate(() => window.__economy.E.reconcile(window.__economy.state).ok), "books reconcile");
-  await p.click('[data-main="warehouse"]'); await p.click('[data-sub="b2b"]'); ok(await p.isVisible(".soon"), "B2B placeholder");
+  await p.click('[data-main="warehouse"]'); await p.click('[data-sub="b2b"]'); ok(await p.isVisible("#view .card"), "B2B contracts screen");
   const sideways = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1); ok(!sideways, `no sideways scroll at ${w}`);
 }
 console.log(fail ? "FAILED " + fail : "warehouse flow OK", "errors", errs); await b.close(); process.exit(fail ? 1 : 0);

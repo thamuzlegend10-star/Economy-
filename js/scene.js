@@ -186,7 +186,7 @@ export function createScene(canvas, { getState }) {
     px(ctx, 0, 0, W, H, "#22352f"); px(ctx, 0, 0, W, 70, "#26324f"); px(ctx, 0, 70, W, 250, "#2a2f3f"); px(ctx, 0, 250, W, 40, "#3a3f4f"); for (let x = 0; x < W; x += 40) px(ctx, x + 8, 268, 22, 3, "#d9d3b8");
     px(ctx, 20, 14, 120, 46, "#171d30"); txt(ctx, "TRUCK YARD", 80, 38, 11, "#f2a93b", "center", 700);
     txt(ctx, `${f.trucks.length} truck${f.trucks.length === 1 ? "" : "s"} · ${drivers} driver${drivers === 1 ? "" : "s"} · ${out} on the road`, W - 10, 12, 11, "#9aa7c4", "right");
-    if (!f.trucks.length) { txt(ctx, "No trucks yet", 320, 160, 16, "#9aa7c4"); txt(ctx, "Buy one in Shipping, My Fleet", 320, 186, 11, "#9aa7c4"); return; }
+    if (!f.trucks.length) { txt(ctx, "No trucks yet", 320, 160, 16, "#9aa7c4"); txt(ctx, "Buy one in Delivery, My trucks", 320, 186, 11, "#9aa7c4"); return; }
     f.trucks.slice(0, 8).forEach((k, i) => {
       const bx = 16 + (i % 4) * 154, by = 92 + Math.floor(i / 4) * 80, col = k.type === "van" ? "#6aa9ff" : "#f2a93b";
       px(ctx, bx, by, 146, 62, "#171d30"); for (let z = 0; z < 6; z++) px(ctx, bx + 4 + z * 24, by + 58, 14, 2, "#f2a93b");
@@ -224,7 +224,7 @@ export function createScene(canvas, { getState }) {
     if (s.ended) { px(ctx, 0, 0, W, H, "rgba(5,8,20,.6)"); txt(ctx, s.ended.reason === "bankrupt" ? "BANKRUPT" : "FINISHED", W / 2, H / 2, 22, "#f2a93b", "center", 700); }
   }
   let last = performance.now();
-  function frame(now) { const dt = Math.min(0.1, (now - last) / 1000); last = now; const s = getState(); if (s) { update(dt, s); if (!document.querySelector("dialog[open]")) draw(s); } requestAnimationFrame(frame); }
+  function frame(now) { const dt = Math.min(0.1, (now - last) / 1000); last = now; const s = getState(); if (s && canvas.offsetParent !== null) { update(dt, s); if (!document.querySelector("dialog[open]")) draw(s); } requestAnimationFrame(frame); }
   requestAnimationFrame(frame);
   return {
     reset() { st.shoppers = []; st.pings = []; st.inbound = []; st.outbound = []; st.cursor = null; st.saleQty = {}; st.lostSeen = null; st.bank = { cash: null, coins: [] }; },
