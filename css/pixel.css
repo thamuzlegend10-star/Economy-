@@ -382,3 +382,26 @@ details.adv[open] > summary::before { content:"-"; }
 @media (max-width:700px) { #tabs > button { font-size:.64rem; padding:6px 2px; } }
 .hero { text-align:left; align-items:stretch; } .hero h2 { color:var(--fg); text-align:left; } .hero small { align-self:flex-start; }
 .step span { text-align:left; } .tile { justify-content:flex-start; align-items:flex-start; text-align:left; }
+
+/* ===== calm pass: text first, no pictures. One column, no pixel scene, no icons, no cramped grids ===== */
+.stage { display:none !important; }
+.content { display:flex !important; flex-direction:column; gap:14px; max-width:960px; width:100%; }
+.live, .live.collapsed { display:block !important; position:static !important; order:9; grid-area:auto !important; grid-row:auto !important; }
+.live .logbox { display:block !important; padding:14px 16px; border:1px solid var(--line); border-radius:14px; background:var(--surface); }
+.live .logbox .h2 { font:600 .8rem var(--font); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+.log { max-height:none; font-size:.85rem; }
+.content:has(.live.collapsed) { grid-template-columns:none; }
+#tabs svg, .brand svg, .brand .logo, .brandmark { display:none !important; }
+#tabs button, #tabs button.on { gap:0; }
+@media (min-width:900px) { #tabs button { padding:0 14px; } }
+/* price stepper: buttons and number always inside the card */
+.price { grid-template-columns:44px minmax(0,1fr) 44px; gap:6px; }
+.price button { width:100%; min-width:0; height:44px; font-size:1.25rem; }
+.price output { min-width:0; font-size:clamp(1.15rem,4.2vw,1.6rem); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* key and value rows: label left, number right */
+.kv { display:flex !important; flex-direction:column; gap:0; }
+.kv > div { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:7px 0; border-top:1px solid var(--line); }
+.kv > div:first-child { border-top:0; }
+.kv > div span { color:var(--muted); font-size:.85rem; } .kv > div b { text-align:right; }
+.card { overflow-wrap:anywhere; }
+.hero .logo, .logo.big { display:none !important; }
