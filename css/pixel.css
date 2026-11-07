@@ -439,3 +439,43 @@ button:active:not(:disabled) { transform:scale(.97); }
   .moregrp button.on { border-color:var(--brass); box-shadow:none; }
 }
 @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
+
+/* ===== more motion: slides, pop-ups, toasts, flashes ===== */
+@keyframes slideR { from { opacity:0; transform:translateX(28px); } to { opacity:1; transform:none; } }
+@keyframes slideL { from { opacity:0; transform:translateX(-28px); } to { opacity:1; transform:none; } }
+@keyframes bump { 0% { transform:scale(1); } 35% { transform:scale(1.08); color:var(--brass); } 100% { transform:none; } }
+@keyframes grow { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+@keyframes toastIn { from { opacity:0; transform:translateY(10px) scale(.96); } to { opacity:1; transform:none; } }
+@keyframes toastOut { to { opacity:0; transform:translateY(10px) scale(.96); } }
+@keyframes sheet { from { transform:translateY(100%); } to { transform:none; } }
+@keyframes tabIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+.view.enter.fwd > * { animation-name:slideR; }
+.view.enter.back > * { animation-name:slideL; }
+.view.enter > * { animation-duration:.38s; }
+.view.enter .kv > div, .view.enter tbody tr, .view.enter .price, .view.enter .hbar { animation:rise .36s var(--ease) both; }
+.view.enter .kv > div:nth-child(2), .view.enter tbody tr:nth-child(2), .view.enter .price:nth-child(2) { animation-delay:.05s; }
+.view.enter .kv > div:nth-child(3), .view.enter tbody tr:nth-child(3), .view.enter .price:nth-child(3) { animation-delay:.1s; }
+.view.enter .kv > div:nth-child(n+4), .view.enter tbody tr:nth-child(n+4), .view.enter .price:nth-child(n+4) { animation-delay:.15s; }
+.view.enter .meter i { transform-origin:left; animation:grow .7s var(--ease) both; animation-delay:.15s; }
+.bump { animation:bump .5s var(--ease); display:inline-block; }
+#subtabs button { animation:tabIn .25s var(--ease) both; transition:background-color .2s, color .2s, box-shadow .2s, transform .16s var(--ease); }
+#subtabs button:hover { transform:translateY(-1px); }
+#subtabs button.on { box-shadow:inset 0 -2px 0 var(--brass); }
+dialog { transition:opacity .22s ease, transform .22s var(--ease), overlay .22s allow-discrete, display .22s allow-discrete; }
+dialog::backdrop { backdrop-filter:blur(3px); background:rgba(5,7,12,.55); transition:opacity .22s, overlay .22s allow-discrete, display .22s allow-discrete; }
+dialog:not([open]) { opacity:0; transform:translateY(10px) scale(.98); }
+dialog:not([open])::backdrop { opacity:0; }
+@starting-style { dialog[open] { opacity:0; transform:translateY(10px) scale(.98); } dialog[open]::backdrop { opacity:0; } }
+dialog[open] { animation:none; }
+#menuDlg > div:not([hidden]), #menuDlg > section:not([hidden]) { animation:rise .3s var(--ease) both; }
+.po-body > *, #finalBody > * { animation:rise .32s var(--ease) both; }
+.po-body > *:nth-child(2), #finalBody > *:nth-child(2) { animation-delay:.05s; } .po-body > *:nth-child(n+3), #finalBody > *:nth-child(n+3) { animation-delay:.1s; }
+#toasts { position:fixed; right:14px; bottom:44px; z-index:200; display:flex; flex-direction:column; gap:8px; align-items:flex-end; pointer-events:none; max-width:min(360px, calc(100vw - 28px)); }
+.toast { padding:10px 14px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); border-left:3px solid var(--mint); box-shadow:0 8px 28px rgba(0,0,0,.45); font-size:.88rem; line-height:1.35; overflow-wrap:anywhere; animation:toastIn .34s var(--ease) both; }
+.toast.err { border-left-color:var(--coral); }
+.toast.out { animation:toastOut .28s ease-in both; }
+@media (max-width:700px) { #toasts { right:10px; left:10px; bottom:calc(98px + env(safe-area-inset-bottom)); align-items:stretch; max-width:none; } dialog.po, dialog.menu { transition:transform .3s var(--ease), opacity .22s; } dialog:not([open]) { transform:translateY(40px); } @starting-style { dialog[open] { transform:translateY(40px); } } }
+button.primary:not(:disabled):hover, button:not(:disabled):hover { transform:translateY(-1px); }
+button:active:not(:disabled) { transform:scale(.97); }
+@media (prefers-reduced-motion:reduce) { .view.enter > *, .toast, .bump { animation:none !important; } }
+.view.enter, .content { overflow-x:clip; }

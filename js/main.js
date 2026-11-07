@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261108d";
+import { createScene } from "./scene.js?v=20261108e";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -34,6 +34,7 @@ function broadcast(text, kind = "") {
   const prefix = kind === "err" ? "\u26a0 " : "";
   _bq.unshift(prefix + text);                                     // newest first
   if (_bq.length > 12) _bq.pop();
+  popToast(prefix + text, kind);
   const el = document.getElementById("tickerText");
   if (!el) return;
   el.textContent = _bq.join("  \u2756  ");
@@ -41,6 +42,13 @@ function broadcast(text, kind = "") {
   if (now - _brestart > 8000) { _brestart = now; el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }
 }
 let _brestart = 0;
+function popToast(text, kind) {
+  let box = document.getElementById("toasts");
+  if (!box) { box = document.createElement("div"); box.id = "toasts"; box.setAttribute("aria-hidden", "true"); document.body.appendChild(box); }
+  while (box.children.length >= 3) box.firstChild.remove();
+  const el = document.createElement("div"); el.className = "toast " + (kind || ""); el.textContent = text; box.appendChild(el);
+  setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 300); }, 3200);
+}
 const toast = broadcast; // alias so existing call sites work
 const save = () => { if (s) ls.set(SAVE_KEY, E.serialize(s)); lastSave = performance.now(); };
 
@@ -50,7 +58,7 @@ function renderHud() {
   const d = E.dashboard(s), tl = Math.ceil(E.timeLeft(s));
   setText($("hDay"), (s.days ? `Day ${Math.min(s.day, s.days)} of ${s.days}` : `Day ${s.day}`) + (s.ended ? " · finished" : ` · ${tl}s left`));
   document.querySelector(".k-day").classList.toggle("low", !s.ended && tl <= 5);
-  setText($("hCash"), UI.money(d.cash));
+  flash($("hCash"), UI.money(d.cash));
   const n = $("hNet"); setText(n, UI.money(d.netProfit)); n.className = d.netProfit < 0 ? "neg" : d.netProfit > 0 ? "pos" : "";
   setText($("locLabel"), `${LOC.getLocation(s.location).city} · ${s.area} m²`);
   $("bPause").disabled = !!live; $("bPause").textContent = paused ? "Resume" : "Pause"; $("bPause").classList.toggle("on", paused);
@@ -76,6 +84,7 @@ function viewFor() {
   if (m === "shipping") return UI.ship(s, ui);
   return UI.soon(...SOON[m]);
 }
+function flash(el, v) { if (!el || el.textContent === v) return; const had = el.textContent !== ""; el.textContent = v; if (!had || matchMedia("(prefers-reduced-motion: reduce)").matches) return; el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
 const setHtml = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } }, setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
 function applyScenes() {
   document.querySelectorAll("#sceneTabs [data-scene]").forEach(b => { b.hidden = !!s && sceneOff(s.mods, b.dataset.scene); });
@@ -83,8 +92,12 @@ function applyScenes() {
 }
 function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "home"; const n = UI.navHtml(ui, s && s.mods); applyScenes(); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
 // A short rise-in when the screen changes (not on the 400 ms refresh, which only patches numbers).
-function enterView() { const v = $("view"); if (!v || matchMedia("(prefers-reduced-motion: reduce)").matches) return; v.classList.remove("enter"); void v.offsetWidth; v.classList.add("enter"); clearTimeout(enterView.t); enterView.t = setTimeout(() => v.classList.remove("enter"), 700); }
-function goto(main, sub) { enterView(); ui.main = main; ui.more = !matchMedia("(max-width:700px)").matches && !!UI.NAV.find(n => n.id === main && n.more) || (ui.more && !matchMedia("(max-width:700px)").matches); if (sub) ui.sub[main] = sub; renderNav(); renderAll(true); }
+function enterView(dir) { const v = $("view"); if (!v || matchMedia("(prefers-reduced-motion: reduce)").matches) return; v.classList.remove("enter", "fwd", "back"); if (dir) v.classList.add(dir); void v.offsetWidth; v.classList.add("enter"); clearTimeout(enterView.t); enterView.t = setTimeout(() => v.classList.remove("enter", "fwd", "back"), 700); }
+function goto(main, sub) {
+  let dir = "";
+  if (main === ui.main && sub) { const cur = UI.NAV.find(n => n.id === main), ids = cur ? cur.subs.map(x => x[0]) : []; dir = ids.indexOf(sub) < ids.indexOf(ui.sub[main]) ? "back" : "fwd"; }
+  else if (main !== ui.main) { const ids = UI.NAV.map(n => n.id); dir = ids.indexOf(main) < ids.indexOf(ui.main) ? "back" : "fwd"; }
+  enterView(dir); ui.main = main; ui.more = !matchMedia("(max-width:700px)").matches && !!UI.NAV.find(n => n.id === main && n.more) || (ui.more && !matchMedia("(max-width:700px)").matches); if (sub) ui.sub[main] = sub; renderNav(); renderAll(true); }
 let lastHtml = "", pressing = false;
 $("view").addEventListener("pointerdown", () => { pressing = true; });
 addEventListener("pointerup", () => { pressing = false; }); addEventListener("pointercancel", () => { pressing = false; });
