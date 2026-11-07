@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261107b";
+import { createScene } from "./scene.js?v=20261107c";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -195,6 +195,7 @@ $("bMenu").onclick = () => openMenu("menuMain");
 // ---------- menu, setup, help ----------
 const SECTIONS = ["menuMain", "menuSetup", "menuHelp", "menuLive"];
 function openMenu(section = "menuMain") {
+  if (typeof devLabel === "function") devLabel();
   SECTIONS.forEach(id => { $(id).hidden = id !== section; });
   $("mContinue").hidden = !s || !!s.ended; $("mClose").hidden = !s;
   $("helpBody").innerHTML = UI.HELP;
@@ -214,6 +215,15 @@ $("mExport").onclick = () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([E.serialize(s)], { type: "application/json" })); a.download = "economy-save.json"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 $("mImport").onclick = () => $("fileIn").click();
+const devLabel = () => { const b = $("mDev"); if (b) b.textContent = s && s.dev && s.dev.auto ? "Developer mode: ON (unlimited funds)" : "Developer mode"; };
+$("mDev").onclick = () => {
+  if (live && live.state.role && live.state.phase !== "idle") { toast("Developer mode works in single player only.", "err"); return; }
+  if (!s) { toast("Start a game first.", "err"); return; }
+  if (s.dev && s.dev.auto) { E.devOff(s); devLabel(); toast("Developer mode off. Your cash stays as it is.", "ok"); return; }
+  const pw = window.prompt("Developer password:"); if (pw == null) return;
+  const r = E.devUnlock(s, pw); if (!r.ok) { toast(r.error, "err"); return; }
+  devLabel(); closeMenu(); renderView(true); toast("Developer mode on: unlimited funds. This game is marked as a dev game.", "ok");
+};
 $("mCopy").onclick = async () => { if (!s) { toast("There is no game to save yet.", "err"); return; } const txt = E.serialize(s); try { await navigator.clipboard.writeText(txt); toast("Save copied. Paste it on the other device with Paste save text.", "ok"); } catch { window.prompt("Copy this text (Ctrl+C), then paste it on the other device:", txt); } };
 $("mPaste").onclick = () => { const txt = window.prompt("Paste the save text here:"); if (!txt) return; const v = E.validateSave(txt); if (!v.ok) { $("mNote").textContent = v.error; toast(v.newer ? "Save is newer than this build." : v.old ? "Old save: not supported." : "Could not load that text.", "err"); return; } adopt(v.state); closeMenu(); toast(v.repaired && v.repaired.length ? "Save loaded. Stock records did not match the books, so a stock count adjustment was booked: " + v.repaired.join("; ") + "." : "Save loaded.", "ok"); };
 $("resIn").onchange = async () => {

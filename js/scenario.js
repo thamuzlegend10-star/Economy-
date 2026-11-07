@@ -54,7 +54,7 @@ export const activeEvents = s => ensureScn(s).events.filter(e => e.from <= s.day
 // A result card a team can hand to the facilitator; the facilitator loads several and ranks them.
 export function resultCard(s, score, name = "", sb = null) {
   const t = totals(s.ledger), cf = cashFlow(s), v = ensureSrv(s);
-  return { game: "economy-result", v: 2, name: String(name || "").slice(0, 30), scenario: ensureScn(s).id, difficulty: D.DIFFICULTY[s.difficulty] ? s.difficulty : "normal", seed: s.seed, day: s.day, days: s.days, ended: s.ended ? s.ended.reason : null, score: round2(score), netWorth: round2(t.assets - t.liabilities), netProfit: round2(t.revenue - t.costs), revenue: round2(t.revenue), cash: round2(balance(s.ledger, "cash")),
+  return { game: "economy-result", v: 2, name: String(name || "").slice(0, 30), scenario: ensureScn(s).id, difficulty: D.DIFFICULTY[s.difficulty] ? s.difficulty : "normal", dev: !!s.dev, seed: s.seed, day: s.day, days: s.days, ended: s.ended ? s.ended.reason : null, score: round2(score), netWorth: round2(t.assets - t.liabilities), netProfit: round2(t.revenue - t.costs), revenue: round2(t.revenue), cash: round2(balance(s.ledger, "cash")),
     kpis: sb ? sb.rows.map(r => ({ id: r.id, name: r.name, unit: r.unit, value: round2(r.value), score: round2(r.score) })) : [],
     depts: deptPL(s).map(d => ({ id: d.id, name: d.name, rev: d.rev, cost: d.cost, net: d.net })),
     cash_flow: { operating: cf.operating, investing: cf.investing, financing: cf.financing },
@@ -65,7 +65,7 @@ export function parseResult(text) {
   let o; try { o = JSON.parse(text); } catch { return null; }
   if (!o || o.game !== "economy-result" || !Number.isFinite(o.score) || !Number.isFinite(o.netWorth)) return null;
   const arr = (a, m) => (Array.isArray(a) ? a.slice(0, 40).map(m) : []);
-  return { name: short(o.name || "Team", 30), scenario: short(o.scenario || "free", 20), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal", seed: o.seed, day: o.day, days: o.days, ended: o.ended, score: o.score, netWorth: o.netWorth, netProfit: o.netProfit, revenue: o.revenue, cash: o.cash,
+  return { dev: !!o.dev, name: short((o.dev ? "[dev] " : "") + (o.name || "Team"), 30), scenario: short(o.scenario || "free", 20), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal", seed: o.seed, day: o.day, days: o.days, ended: o.ended, score: o.score, netWorth: o.netWorth, netProfit: o.netProfit, revenue: o.revenue, cash: o.cash,
     kpis: arr(o.kpis, k => ({ id: short(k.id, 20), name: short(k.name), unit: short(k.unit, 8), value: fin(k.value), score: fin(k.score) })),
     depts: arr(o.depts, d => ({ id: short(d.id, 20), name: short(d.name), rev: fin(d.rev), cost: fin(d.cost), net: fin(d.net) })),
     cash_flow: o.cash_flow ? { operating: fin(o.cash_flow.operating), investing: fin(o.cash_flow.investing), financing: fin(o.cash_flow.financing) } : null,

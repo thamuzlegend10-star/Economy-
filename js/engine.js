@@ -342,7 +342,22 @@ function flush(s) {
   s.pend = null;
 }
 
+// Developer mode (single player only): unlimited balance. Money comes in as owner capital through the ledger, so the books still balance; the game is flagged and marked on any result card.
+const devHash = x => { let h = 2166136261; for (const ch of String(x)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; };
+export const DEV_FLOOR = 1e7;
+export function devUnlock(s, pass) {
+  if (!s || s.ended) return err("There is no running game.");
+  if (devHash(pass) !== 614354208) return err("Wrong password.");
+  s.dev = { auto: true }; devTopUp(s); return ok({});
+}
+export function devOff(s) { if (s && s.dev) s.dev.auto = false; }
+export function devTopUp(s) {
+  if (!s || !s.dev || !s.dev.auto) return;
+  const cash = balance(s.ledger, "cash"), od = balance(s.ledger, "overdraft"), need = c(DEV_FLOOR - cash + od); if (need <= 0) return;
+  post(s.ledger, s.day, "Developer funds", [{ acct: "cash", dr: need }, { acct: "capital", cr: need }], "dev:" + s.steps);
+}
 function stepOnce(s) {
+  if (s.dev) devTopUp(s);
   const n = s.stepsPerDay, w = Math.sin(Math.PI * (s.dayStep + 0.5) / n) * Math.PI / 2;
   s.pend = s.pend || {};
   for (const p of D.PRODUCTS) {

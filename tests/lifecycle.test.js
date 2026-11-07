@@ -88,3 +88,15 @@ test("a save whose stock drifted from the ledger is repaired by a visible stock 
   j.val.noodles = j.val.noodles - 74.8; assert.ok(E2.validateSave(JSON.stringify(j)).ok);                      // and the other way
   j.val.noodles += 9e6; assert.ok(!E2.validateSave(JSON.stringify(j)).ok, "a huge gap is still refused");
 });
+
+test("developer mode: password gate, unlimited balance through the ledger, books still balance, marked on result card", async () => {
+  const E2 = await import("../js/engine.js"), Sn2 = await import("../js/scenario.js"), { balance: bal } = await import("../js/ledger.js");
+  const s = E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 30, capital: 1000, seed: 14 });
+  assert.ok(!E2.devUnlock(s, "wrong").ok && !s.dev); assert.ok(E2.devUnlock(s, "N1c0le").ok);
+  assert.ok(bal(s.ledger, "cash") >= E2.DEV_FLOOR);
+  E2.placeOrders(s, { supplier: "local", lines: [{ pid: "noodles", qty: 50000 }] });     // far more than the starting capital
+  for (let i = 0; i < 5; i++) { const d = s.day; while (!s.ended && s.day === d) E2.tick(s, 0.5); }
+  assert.ok(bal(s.ledger, "cash") >= E2.DEV_FLOOR - 1 && E2.reconcile(s).ok);
+  const card = Sn2.resultCard(s, 50, "Z"); assert.equal(card.dev, true); assert.ok(Sn2.parseResult(JSON.stringify(card)).name.startsWith("[dev]"));
+  E2.devOff(s); assert.equal(s.dev.auto, false); assert.ok(E2.validateSave(E2.serialize(s)).ok);
+});
