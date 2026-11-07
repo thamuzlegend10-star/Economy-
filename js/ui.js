@@ -52,8 +52,8 @@ export function navHtml(ui, mods) {
   const on = NAV.filter(n => !tabOff(mods, n.id)), open = !!ui.more;
   const btn = n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}"${n.id === "mail" && ui.unread ? ` aria-label="Mail, ${ui.unread} unread"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${n.label}</span></button>`;
   const core = on.filter(n => !n.more && !n.action), more = on.filter(n => n.more), help = on.filter(n => n.action);
-  const moreBtn = more.length ? `<button data-more="1" class="more${open ? " open" : ""}" aria-expanded="${!!open}">${svg("more")}${!open && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${open ? "Less" : "More"}</span></button>` : "";
-  const main = core.map(btn).join("") + moreBtn + (open ? `<div class="moregrp">${more.map(btn).join("")}</div>` : "") + help.map(btn).join("");
+  const moreBtn = more.length ? `<button data-more="1" class="more${open ? " open" : ""}" aria-expanded="${!!open}">${svg("more")}${!open && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${open ? "Less" : "More"}</span><i class="chev" aria-hidden="true"></i></button>` : "";
+  const main = core.map(btn).join("") + moreBtn + (open ? `<div class="moregrp" role="group" aria-label="More departments">${more.map((n, i) => btn(n).replace("<button ", `<button style="--i:${i}" `)).join("")}</div>` : "") + help.map(btn).join("");
   const cur = NAV.find(n => n.id === ui.main), subs = (cur ? cur.subs : []).filter(([id]) => !(cur.id === "warehouse" && id === "b2b" && tabOff(mods, "b2b")));
   const sub = subs.length > 1 ? subs.map(([id, label]) => `<button data-sub="${id}" class="${ui.sub[ui.main] === id ? "on" : ""}">${label}</button>`).join("") : "";
   return { main, sub };
