@@ -122,7 +122,7 @@ export function deliver(s, id) {
   const onTime = s.day <= k.due;
   if (onTime) { b.ontime++; b.rep = clamp(b.rep + D.B2B.reputationGain, 0, 100); } else { b.late++; }
   k.status = "done"; b.history.push({ ...k, result: onTime ? "on time" : "late", revenue: q.value, day: s.day }); b.active = b.active.filter(x => x !== k);
-  log(s, `Delivered #${k.id}: ${k.qty.toLocaleString("en-US")} ${itemInfo(k.pid).name}, invoice $${q.value.toFixed(2)} due in ${D.B2B.buyers.find(y => y.id === k.buyer).terms} days${onTime ? "" : " (late)"}.`);
+  log(s, `Delivered #${k.id}: ${k.qty.toLocaleString("en-US")} ${itemInfo(k.pid).name}, invoice $${q.value.toFixed(2)} paid on day ${s.day + D.B2B.buyers.find(y => y.id === k.buyer).terms} (${D.B2B.buyers.find(y => y.id === k.buyer).terms} days credit)${onTime ? "" : " (late)"}.`);
   return ok({ revenue: q.value, cogs: cost });
 }
 function late(s, b, k) {

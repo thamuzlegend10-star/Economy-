@@ -108,3 +108,14 @@ test("B2B and the shop's main random stream are independent", () => {
   const a = mk({ seed: 9 }), b = mk({ seed: 9 }); for (let i = 0; i < 6; i++) { runDay(a); runDay(b); }
   assert.equal(a.rng, b.rng); assert.equal(JSON.stringify(a.b2b), JSON.stringify(b.b2b));
 });
+
+test("B2B payment arrives after the buyer's credit terms, and the open invoice is visible", async () => {
+  const E2 = await import("../js/engine.js"), B2 = await import("../js/b2b.js"), { balance: bal } = await import("../js/ledger.js"), Sc = await import("../js/screens.js");
+  const s = E2.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 0, capital: 300000, seed: 2 }); E2.rentWarehouse(s, 400);
+  const b = B2.ensureB2B(s); s.wh.qty.noodles = 30000; s.wh.val.noodles = 30000;
+  b.active.push({ id: 900, kind: "fixed", buyer: "uni", pid: "noodles", qty: 3000, price: 1, due: s.day + 9, penalty: .1, status: "active", lateDays: 0, fined: 0 });
+  assert.ok(B2.deliver(s, 900).ok); const cash0 = bal(s.ledger, "cash");
+  assert.ok(Sc.b2bContracts(s).includes("Waiting for payment") && Sc.b2bContracts(s).includes("#900"));
+  for (let i = 0; i < 16; i++) { const d = s.day; while (s.day === d) E2.tick(s, 0.5); }
+  assert.ok(bal(s.ledger, "cash") > 0 && cash0 > 0 && b.ar.length === 0 && b.collected === 3000 && bal(s.ledger, "receivables") === 0);
+});
