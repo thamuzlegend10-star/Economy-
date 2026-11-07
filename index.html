@@ -35,11 +35,11 @@
 <link rel="modulepreload" href="js/mrp.js">
 <link rel="modulepreload" href="js/rng.js">
 <link rel="modulepreload" href="js/scenario.js">
-<link rel="modulepreload" href="js/scene.js?v=20261107c">
+<link rel="modulepreload" href="js/scene.js?v=20261107d">
 <link rel="modulepreload" href="js/screens.js">
 <link rel="modulepreload" href="js/ui.js">
 <style>html,body,*{scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none;width:0;height:0}</style>
-<link rel="stylesheet" href="css/pixel.css?v=20261107c">
+<link rel="stylesheet" href="css/pixel.css?v=20261107d">
 </head>
 <body>
 <div class="wrap">
@@ -90,7 +90,7 @@
       <div class="menu-row"><button class="ghost" id="mCopy">Copy save text</button><button class="ghost" id="mPaste">Paste save text</button></div>
       <div class="menu-row"><button class="ghost" id="mDev">Developer mode</button></div>
       <button class="ghost" id="mClose" hidden>Back to game</button>
-      <small class="muted build-tag">Build 20261107c · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
+      <small class="muted build-tag">Build 20261107d · scrollbars hidden. If you still see a scrollbar, hard refresh (Ctrl+Shift+R) and check this number.</small>
     </div>
     <p class="muted small center" id="mNote"></p>
   </div>
@@ -144,6 +144,7 @@
 <dialog id="finalDlg"><form method="dialog" onsubmit="return false"><div id="finalBody"></div><div class="dlg-actions"><button id="finalNew" class="primary">New game</button><button id="finalClose" class="ghost">Close</button></div></form></dialog>
 
   <!-- location picker -->
+<dialog id="askDlg" aria-labelledby="askTitle"><form method="dialog" onsubmit="return false"><h2 id="askTitle">Enter</h2><label class="field"><span id="askLabel"></span><input id="askIn" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"><textarea id="askText" rows="5" spellcheck="false" hidden></textarea></label><small class="note warnc" id="askMsg" role="alert"></small><div class="dlg-actions"><button class="ghost" id="askNo" type="button">Cancel</button><button id="askOk" type="button">OK</button></div></form></dialog>
 <dialog id="globeDlg" class="overlay">
   <div class="sheet globe-sheet" role="dialog" aria-modal="true" aria-label="Choose a location">
     <div class="sheet-head"><h3 style="margin:0">Choose a location</h3><button class="ghost" data-gclose>Close</button></div>
@@ -159,7 +160,7 @@
 </dialog>
 
 <input type="file" id="fileIn" hidden><input type="file" id="resIn" accept="application/json,.json" multiple hidden>
-<script type="module" src="js/main.js?v=20261107c"></script>
+<script type="module" src="js/main.js?v=20261107d"></script>
 <script>
   window.addEventListener("error", function (e) { var s = document.getElementById("status"); if (s && !window.__economyBooted) { s.textContent = "Game failed to start: " + (e.message || "script error") + ". Reload the page."; } });
 </script>

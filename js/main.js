@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261107c";
+import { createScene } from "./scene.js?v=20261107d";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -215,17 +215,29 @@ $("mExport").onclick = () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([E.serialize(s)], { type: "application/json" })); a.download = "economy-save.json"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 $("mImport").onclick = () => $("fileIn").click();
+// In-page ask box. window.prompt is blocked or silent in many phone and in-app browsers, so nothing could happen there.
+function ask({ title, label, text = false, secret = false, ok = "OK", check, value = "" }) {
+  return new Promise(res => {
+    const d = $("askDlg"), i = $("askIn"), x = $("askText"), m = $("askMsg"); $("askTitle").textContent = title; $("askLabel").textContent = label; i.hidden = text; x.hidden = !text; i.type = secret ? "password" : "text"; i.value = ""; x.value = value; m.textContent = ""; $("askOk").textContent = ok;
+    const done = v => { $("askOk").onclick = $("askNo").onclick = null; d.oncancel = null; if (d.open) d.close(); res(v); };
+    $("askNo").onclick = () => done(null); d.oncancel = () => done(null);
+    const go = async () => { const v = (text ? x.value : i.value).trim(); if (!v) { m.textContent = "Type something first."; return; } const e = check ? await check(v) : ""; if (e) { m.textContent = e; return; } done(v); };
+    $("askOk").onclick = go; i.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); go(); } };
+    d.showModal(); (text ? x : i).focus();
+  });
+}
 const devLabel = () => { const b = $("mDev"); if (b) b.textContent = s && s.dev && s.dev.auto ? "Developer mode: ON (unlimited funds)" : "Developer mode"; };
-$("mDev").onclick = () => {
+$("mDev").onclick = async () => {
   if (live && live.state.role && live.state.phase !== "idle") { toast("Developer mode works in single player only.", "err"); return; }
   if (!s) { toast("Start a game first.", "err"); return; }
   if (s.dev && s.dev.auto) { E.devOff(s); devLabel(); toast("Developer mode off. Your cash stays as it is.", "ok"); return; }
-  const pw = window.prompt("Developer password:"); if (pw == null) return;
-  const r = E.devUnlock(s, pw); if (!r.ok) { toast(r.error, "err"); return; }
-  devLabel(); closeMenu(); renderView(true); toast("Developer mode on: unlimited funds. This game is marked as a dev game.", "ok");
+  closeMenu();
+  const pw = await ask({ title: "Developer mode", label: "Password", secret: true, ok: "Unlock", check: v => { const r = E.devUnlock(s, v.replace(/^pass\s*:\s*/i, "")); return r.ok ? "" : r.error; } });
+  if (pw == null) return;
+  devLabel(); renderView(true); toast("Developer mode on: unlimited funds. This game is marked as a dev game.", "ok");
 };
-$("mCopy").onclick = async () => { if (!s) { toast("There is no game to save yet.", "err"); return; } const txt = E.serialize(s); try { await navigator.clipboard.writeText(txt); toast("Save copied. Paste it on the other device with Paste save text.", "ok"); } catch { window.prompt("Copy this text (Ctrl+C), then paste it on the other device:", txt); } };
-$("mPaste").onclick = () => { const txt = window.prompt("Paste the save text here:"); if (!txt) return; const v = E.validateSave(txt); if (!v.ok) { $("mNote").textContent = v.error; toast(v.newer ? "Save is newer than this build." : v.old ? "Old save: not supported." : "Could not load that text.", "err"); return; } adopt(v.state); closeMenu(); toast(v.repaired && v.repaired.length ? "Save loaded. Stock records did not match the books, so a stock count adjustment was booked: " + v.repaired.join("; ") + "." : "Save loaded.", "ok"); };
+$("mCopy").onclick = async () => { if (!s) { toast("There is no game to save yet.", "err"); return; } const txt = E.serialize(s); try { await navigator.clipboard.writeText(txt); toast("Save copied. Paste it on the other device with Paste save text.", "ok"); } catch { closeMenu(); await ask({ title: "Copy save text", label: "Select all, copy, then paste it on the other device", text: true, ok: "Done", value: txt }); } };
+$("mPaste").onclick = async () => { let v; closeMenu(); const txt = await ask({ title: "Paste save text", label: "Paste the text from Copy save text", text: true, ok: "Load", check: x => { v = E.validateSave(x); return v.ok ? "" : v.error; } }); if (txt == null) return; adopt(v.state); closeMenu(); toast(v.repaired && v.repaired.length ? "Save loaded. Stock records did not match the books, so a stock count adjustment was booked: " + v.repaired.join("; ") + "." : "Save loaded.", "ok"); };
 $("resIn").onchange = async () => {
   const files = [...$("resIn").files]; $("resIn").value = ""; let bad = 0;
   for (const f of files) { const r = Sn.parseResult(await f.text()); if (r) ui.results.push(r); else bad++; }
