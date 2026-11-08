@@ -5,7 +5,7 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261108e";
+import { createScene } from "./scene.js?v=20261108g";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -90,7 +90,7 @@ function applyScenes() {
   document.querySelectorAll("#sceneTabs [data-scene]").forEach(b => { b.hidden = !!s && sceneOff(s.mods, b.dataset.scene); });
   if (s && sceneOff(s.mods, scene.view)) { scene.setView("store"); document.querySelectorAll("#sceneTabs button").forEach(x => { const on = x.dataset.scene === "store"; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); }); }
 }
-function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "home"; const n = UI.navHtml(ui, s && s.mods); applyScenes(); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
+function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "home"; document.body.dataset.screen = ui.main; const n = UI.navHtml(ui, s && s.mods); applyScenes(); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
 // A short rise-in when the screen changes (not on the 400 ms refresh, which only patches numbers).
 function enterView(dir) { const v = $("view"); if (!v || matchMedia("(prefers-reduced-motion: reduce)").matches) return; v.classList.remove("enter", "fwd", "back"); if (dir) v.classList.add(dir); void v.offsetWidth; v.classList.add("enter"); clearTimeout(enterView.t); enterView.t = setTimeout(() => v.classList.remove("enter", "fwd", "back"), 700); }
 function goto(main, sub) {
