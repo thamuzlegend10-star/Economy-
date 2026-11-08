@@ -317,6 +317,6 @@ export function scenarioList(list, sel) {
 
 // Department switches for the setup forms (New game and the live lobby). prefix keeps the field ids apart.
 export function modsHtml(prefix, mods) {
-  const m = cleanMods(mods), bOff = !m.warehouse && !m.factory;
+  const m = cleanMods(mods), bOff = !m.warehouse;
   return MODS.map(x => `<label class="mod"><input type="checkbox" id="${prefix}${x.id}" ${m[x.id] ? "checked" : ""} ${x.id === "b2b" && bOff ? "disabled" : ""}><span><b>${esc(x.name)}</b><small>${esc(x.about)}${x.id === "b2b" && bOff ? " Needs the warehouse or the factory." : ""}</small></span></label>`).join("");
 }

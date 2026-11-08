@@ -96,13 +96,22 @@ test("scenario list explains every scenario in plain words", () => {
   assert.ok(h.includes('class="scn on" data-scn="supply"') && !h.includes('class="scn on" data-scn="free"'));
 });
 
-import { cleanMods, MODS } from "../js/modules.js";
+import { cleanMods, MODS, tabOff } from "../js/modules.js";
 import * as B from "../js/b2b.js";
 import * as Jx from "../js/juiceshop.js";
 test("modules: choices are cleaned, b2b needs a warehouse or a factory", () => {
   assert.deepEqual(cleanMods(), { warehouse: true, factory: true, b2b: true }); assert.deepEqual(cleanMods({ factory: false }), { warehouse: true, factory: false, b2b: true });
-  assert.deepEqual(cleanMods({ warehouse: false, factory: false }), { warehouse: false, factory: false, b2b: false }); assert.deepEqual(cleanMods({ warehouse: "no", junk: 1 }), cleanMods()); assert.equal(MODS.length, 3);
+  assert.deepEqual(cleanMods({ warehouse: false, factory: false }), { warehouse: false, factory: false, b2b: false }); assert.deepEqual(cleanMods({ warehouse: "no", junk: 1 }), cleanMods()); assert.equal(MODS.length, 2, "the factory is no longer a choice");
   assert.deepEqual(E.cleanSetup({ mods: { b2b: false } }).mods, { warehouse: true, factory: true, b2b: false });
+});
+test("the factory is retired: off in every new game and old save, no menu choice, no tab", () => {
+  const was = globalThis.ECONOMY_LEGACY_FACTORY; globalThis.ECONOMY_LEGACY_FACTORY = false;
+  try {
+    assert.equal(cleanMods({ factory: true }).factory, false); assert.equal(E.newGame({ seed: 3, mods: { factory: true } }).mods.factory, false);
+    const s = E.newGame({ seed: 3 }); for (let i = 0; i < 6; i++) runDay(s); assert.ok(E.reconcile(s).ok);
+    assert.match(F.rentFactory(s, 100).error, /Factory/); assert.equal(tabOff(s.mods, "factory"), true);
+    const old = JSON.parse(JSON.stringify(s)); old.mods.factory = true; const r = E.validateSave(JSON.stringify(old)); assert.ok(r.ok, r.error); assert.equal(r.state.mods.factory, false);
+  } finally { globalThis.ECONOMY_LEGACY_FACTORY = was; }
 });
 test("modules: a turned-off department refuses its actions", () => {
   const s = mk({ mods: { warehouse: false, factory: false } }); assert.equal(s.mods.b2b, false);

@@ -5,6 +5,8 @@ Evidence: 205 tests pass (`npm test`), including a 60 day full-lifecycle run (`t
 Save format is v22. Saves from v11 on migrate step by step. Older saves are refused.
 
 ## 2. Factory and manufacturing
+
+> **Retired by the game's author.** The factory, its machines and the juice shelf are switched off in every new game and every loaded save: no tab, no menu choice, no hiring row. The engine code is kept only so old saves load and its tests still run (the test runner sets `ECONOMY_LEGACY_FACTORY`). The rows below describe that dormant code, not what a player can use.
 | Requirement | Status | Notes |
 |---|---|---|
 | Multiple factory types and facilities, construction or acquisition | **Partial** | Two sites: the main plant and a cheaper annex (80% rent per m², haulage cost per machine per day, needs the main plant for storage). Two machine classes (standard, high-speed). Still one product line (juice) and rented, not built or bought. |

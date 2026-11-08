@@ -1,5 +1,6 @@
 // Screens for the extra modules: factory, purchasing, MRP, B2B, HR, marketing, e-commerce, bank, statements and scoring.
 // Pure functions of the game state and the form state. Buttons carry data-act; fields carry data-f. See actions.js.
+import { modOn } from "./modules.js";
 import * as E from "./engine.js";
 import * as D from "./data.js";
 import * as F from "./factory.js";
@@ -124,7 +125,7 @@ export function b2bContracts(s) {
 const roster = (s, role) => { const cr = H.syncCrew(s, role); if (!cr.length) return ""; const shown = cr.slice(0, 8).map(p => `<span class="chip">${esc(p.name)} · d${p.since}</span>`).join(" "); return `<div class="roster">${shown}${cr.length > 8 ? ` <small class="muted">+${cr.length - 8} more</small>` : ""}</div>`; };
 export function hrScreen(s, f = {}) {
   const h = H.ensureHr(s), pay = H.dailyPayroll(s), td = f.tempDays || 14;
-  const rows = D.HR_ROLES.map(r => { const st = h.staff[r.id], need = H.needOf(s, r.id), tmp = H.tempN(s, r.id), cost = H.wageOf(s, r.id) * (st.n + tmp * D.HR.tempPremium), gap = need ? st.n - need : 0;
+  const rows = D.HR_ROLES.filter(r => r.id !== "factory" || modOn(s, "factory")).map(r => { const st = h.staff[r.id], need = H.needOf(s, r.id), tmp = H.tempN(s, r.id), cost = H.wageOf(s, r.id) * (st.n + tmp * D.HR.tempPremium), gap = need ? st.n - need : 0;
     return `<div class="card"><div class="shophead"><b>${esc(r.name)}</b><small>${money2(H.wageOf(s, r.id))} / person / day</small></div><small class="muted">${esc(r.note)}</small>
       <div class="row"><b class="bigno">${st.n}</b><small class="muted">${need ? `need ${need}${gap < 0 ? ` · short ${-gap}` : ""}` : "no fixed need"}${tmp ? ` · ${tmp} temp` : ""} · skill ${dec(st.skill, 2)} · ${money(cost)} / day</small></div>
       ${roster(s, r.id)}<div class="row">${btn("hire", `Hire +1 · fee ${money(H.recruitFee(s, r.id))}`, { id: r.id })}${btn("hireTemp", `Temp +1 (${td} d)`, { id: r.id, ghost: true })}${btn("fire", `Let go -1 · ${money(H.wageOf(s, r.id) * D.HR.severanceDays)}`, { id: r.id, ghost: true, dis: !H.permN(s, r.id) })}</div></div>`; }).join("");
@@ -135,7 +136,7 @@ export function hrScreen(s, f = {}) {
       <label class="fld"><span>Payday</span><select data-hrf="payday">${D.PAYDAYS.map(x => opt(x.id, x.name, h.pay)).join("")}</select></label>
       <label class="fld"><span>Training budget</span><select data-hrf="training">${topts.map(([v, l]) => opt(v, l, h.training)).join("")}</select></label></div>
       <label class="fld"><span>Temp contract length</span>${sel("tempDays", D.HR.tempDays.map(x => [x, x + " days"]), td)}</label>
-      <small class="muted">Hiring costs ${D.HR.recruitDays} days of wage. Letting someone go costs ${D.HR.severanceDays} days of wage. Temps cost ${Math.round(D.HR.tempPremium * 100)}% more, never quit, and leave when the contract ends. Shop staff add up to 10% sales, handlers cut transfer fees, sales reps help in tenders, service staff clear tickets, operators run machines, drivers drive your trucks.</small></div>${temps ? `<div class="card">${head("Temp contracts")}${temps}</div>` : ""}${rows}`;
+      <small class="muted">Hiring costs ${D.HR.recruitDays} days of wage. Letting someone go costs ${D.HR.severanceDays} days of wage. Temps cost ${Math.round(D.HR.tempPremium * 100)}% more, never quit, and leave when the contract ends. Shop staff add up to 10% sales, handlers cut transfer fees, sales reps help in tenders, service staff clear tickets, drivers drive your trucks.</small></div>${temps ? `<div class="card">${head("Temp contracts")}${temps}</div>` : ""}${rows}`;
 }
 
 // ================= MARKETING =================

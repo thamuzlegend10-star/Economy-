@@ -484,6 +484,7 @@ export function validateSave(raw) {
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");
   for (const p of D.PRODUCTS) if (!Number.isFinite(o.qty[p.id]) || o.qty[p.id] < 0) return err("Save file is damaged.");
   let r = reconcile(o), repaired = [];
+  o.mods = cleanMods(o.mods);                                          // the factory is retired: an old save loads with it off
   if (!r.ok) { repaired = repairStock(o); if (repaired.length) r = reconcile(o); }
   if (!r.ok) return err("Save file does not reconcile: " + r.problems[0]);
   return ok({ state: o, repaired });
