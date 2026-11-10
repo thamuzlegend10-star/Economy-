@@ -19,7 +19,8 @@ const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }, del: k => { try { localStorage.removeItem(k); } catch { /* storage blocked */ } } };
 
 let s = null, paused = false, finalShown = false, chosenLoc = "id-medan-central", lastSave = 0, lastView = 0, lastDay = 0, live = null, liveStartAt = 0, liveFirst = false;
-const ui = { results: [], unread: 0, f: newForms(), main: "home", more: !matchMedia("(max-width:700px)").matches && /[?&]more=1/.test(location.search), sub: { finance: "overview", retail: "procurement", warehouse: "stock", shipping: "co", factory: "machines", b2b: "market", data: "score", mail: "inbox" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
+const wideQ = matchMedia("(min-width:900px)");
+const ui = { wide: wideQ.matches, results: [], unread: 0, f: newForms(), main: "home", more: !matchMedia("(max-width:700px)").matches && /[?&]more=1/.test(location.search), sub: { finance: "overview", retail: "procurement", warehouse: "stock", shipping: "co", factory: "machines", b2b: "market", data: "score", mail: "inbox" }, buy: { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }, whbuy: { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }, tr: { qty: {} }, space: 10, spaceMode: "shop", poMode: "retail" };
 
 // ---------- small helpers ----------
 // ---------- news broadcast ticker ----------
@@ -59,6 +60,7 @@ function renderHud() {
   document.querySelector(".k-day").classList.toggle("low", !s.ended && tl <= 5);
   flash($("hCash"), UI.money(d.cash));
   const n = $("hNet"); setText(n, UI.money(d.netProfit)); n.className = d.netProfit < 0 ? "neg" : d.netProfit > 0 ? "pos" : "";
+  setHtml($("side"), UI.sideHtml(s));
   setText($("locLabel"), `${LOC.getLocation(s.location).city} · ${s.area} m²`);
   $("bPause").disabled = !!live; $("bPause").textContent = paused ? "Resume" : "Pause"; $("bPause").classList.toggle("on", paused);
   const wait = live && Date.now() < liveStartAt ? Math.ceil((liveStartAt - Date.now()) / 1000) : 0, lb = live && live.state.phase !== "lobby" ? live.leaderboard().find(r => r.me) : null;
@@ -351,6 +353,7 @@ $("finalClose").onclick = () => $("finalDlg").close();
 $("finalNew").onclick = () => { $("finalDlg").close(); openMenu("menuSetup"); readSetup(); };
 
 // ---------- boot ----------
+wideQ.addEventListener("change", e => { ui.wide = e.matches; ui.more = false; renderNav(); });
 startFit();
 for (const k of OLD_KEYS) if (ls.get(k)) { ls.del(k); $("mNote").textContent = "An old save from an earlier version was removed. The game changed completely, so old saves cannot be used."; }
 const raw = ls.get(SAVE_KEY);

@@ -3,64 +3,83 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a0e19">
+<meta name="theme-color" content="#e98d1b">
+<meta name="description" content="A business simulation you play in the browser. Buy stock, set prices, hire staff, rent a warehouse and bid on B2B contracts, with every dollar tracked in a double-entry ledger. Play alone or with friends.">
+<link rel="canonical" href="https://thamuzlegend10-star.github.io/Economy-/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Economy">
+<meta property="og:title" content="Economy: run a shop against the clock">
+<meta property="og:description" content="A business simulation you play in the browser. Buy stock, set prices, hire staff, rent a warehouse and bid on B2B contracts, with every dollar tracked in a double-entry ledger. Play alone or with friends.">
+<meta property="og:url" content="https://thamuzlegend10-star.github.io/Economy-/">
+<meta property="og:image" content="https://thamuzlegend10-star.github.io/Economy-/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Economy game: orange top bar with day, cash and profit, blue department tabs and a finance panel.">
+<meta property="og:locale" content="en">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Economy: run a shop against the clock">
+<meta name="twitter:description" content="A business simulation you play in the browser. Buy stock, set prices, hire staff, rent a warehouse and bid on B2B contracts, with every dollar tracked in a double-entry ledger. Play alone or with friends.">
+<meta name="twitter:image" content="https://thamuzlegend10-star.github.io/Economy-/og.png">
+<meta name="twitter:image:alt" content="The Economy game: orange top bar, blue department tabs and a finance panel.">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Economy</title>
+<title>Economy: run a shop against the clock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <!-- Every module is loaded with the build number, so a cached old engine can never be mixed with a new main.js. -->
-<script type="importmap">{"imports":{"./js/accounting.js":"./js/accounting.js?v=20261108i","./js/actions.js":"./js/actions.js?v=20261108i","./js/b2b.js":"./js/b2b.js?v=20261108i","./js/bank.js":"./js/bank.js?v=20261108i","./js/bi.js":"./js/bi.js?v=20261108i","./js/data.js":"./js/data.js?v=20261108i","./js/economy.js":"./js/economy.js?v=20261108i","./js/engine.js":"./js/engine.js?v=20261108i","./js/factory.js":"./js/factory.js?v=20261108i","./js/fit.js":"./js/fit.js?v=20261108i","./js/fleet.js":"./js/fleet.js?v=20261108i","./js/forecast.js":"./js/forecast.js?v=20261108i","./js/globe.js":"./js/globe.js?v=20261108i","./js/hr.js":"./js/hr.js?v=20261108i","./js/juiceshop.js":"./js/juiceshop.js?v=20261108i","./js/kpi.js":"./js/kpi.js?v=20261108i","./js/ledger.js":"./js/ledger.js?v=20261108i","./js/live.js":"./js/live.js?v=20261108i","./js/locationpicker.js":"./js/locationpicker.js?v=20261108i","./js/locations.js":"./js/locations.js?v=20261108i","./js/mail.js":"./js/mail.js?v=20261108i","./js/market.js":"./js/market.js?v=20261108i","./js/modules.js":"./js/modules.js?v=20261108i","./js/morph.js":"./js/morph.js?v=20261108i","./js/mrp.js":"./js/mrp.js?v=20261108i","./js/rng.js":"./js/rng.js?v=20261108i","./js/scenario.js":"./js/scenario.js?v=20261108i","./js/screens.js":"./js/screens.js?v=20261108i","./js/ui.js":"./js/ui.js?v=20261108i","./js/worldmap.js":"./js/worldmap.js?v=20261108i"}}</script>
-<link rel="modulepreload" href="js/accounting.js?v=20261108i">
-<link rel="modulepreload" href="js/actions.js?v=20261108i">
-<link rel="modulepreload" href="js/b2b.js?v=20261108i">
-<link rel="modulepreload" href="js/bank.js?v=20261108i">
-<link rel="modulepreload" href="js/bi.js?v=20261108i">
-<link rel="modulepreload" href="js/data.js?v=20261108i">
-<link rel="modulepreload" href="js/economy.js?v=20261108i">
-<link rel="modulepreload" href="js/engine.js?v=20261108i">
-<link rel="modulepreload" href="js/factory.js?v=20261108i">
-<link rel="modulepreload" href="js/fit.js?v=20261108i">
-<link rel="modulepreload" href="js/fleet.js?v=20261108i">
-<link rel="modulepreload" href="js/forecast.js?v=20261108i">
-<link rel="modulepreload" href="js/globe.js?v=20261108i">
-<link rel="modulepreload" href="js/hr.js?v=20261108i">
-<link rel="modulepreload" href="js/juiceshop.js?v=20261108i">
-<link rel="modulepreload" href="js/kpi.js?v=20261108i">
-<link rel="modulepreload" href="js/ledger.js?v=20261108i">
-<link rel="modulepreload" href="js/live.js?v=20261108i">
-<link rel="modulepreload" href="js/locationpicker.js?v=20261108i">
-<link rel="modulepreload" href="js/locations.js?v=20261108i">
-<link rel="modulepreload" href="js/mail.js?v=20261108i">
-<link rel="modulepreload" href="js/market.js?v=20261108i">
-<link rel="modulepreload" href="js/mrp.js?v=20261108i">
-<link rel="modulepreload" href="js/rng.js?v=20261108i">
-<link rel="modulepreload" href="js/scenario.js?v=20261108i">
-<link rel="modulepreload" href="js/screens.js?v=20261108i">
-<link rel="modulepreload" href="js/ui.js?v=20261108i">
+<script type="importmap">{"imports":{"./js/accounting.js":"./js/accounting.js?v=20261108k","./js/actions.js":"./js/actions.js?v=20261108k","./js/b2b.js":"./js/b2b.js?v=20261108k","./js/bank.js":"./js/bank.js?v=20261108k","./js/bi.js":"./js/bi.js?v=20261108k","./js/data.js":"./js/data.js?v=20261108k","./js/economy.js":"./js/economy.js?v=20261108k","./js/engine.js":"./js/engine.js?v=20261108k","./js/factory.js":"./js/factory.js?v=20261108k","./js/fit.js":"./js/fit.js?v=20261108k","./js/fleet.js":"./js/fleet.js?v=20261108k","./js/forecast.js":"./js/forecast.js?v=20261108k","./js/globe.js":"./js/globe.js?v=20261108k","./js/hr.js":"./js/hr.js?v=20261108k","./js/juiceshop.js":"./js/juiceshop.js?v=20261108k","./js/kpi.js":"./js/kpi.js?v=20261108k","./js/ledger.js":"./js/ledger.js?v=20261108k","./js/live.js":"./js/live.js?v=20261108k","./js/locationpicker.js":"./js/locationpicker.js?v=20261108k","./js/locations.js":"./js/locations.js?v=20261108k","./js/mail.js":"./js/mail.js?v=20261108k","./js/market.js":"./js/market.js?v=20261108k","./js/modules.js":"./js/modules.js?v=20261108k","./js/morph.js":"./js/morph.js?v=20261108k","./js/mrp.js":"./js/mrp.js?v=20261108k","./js/rng.js":"./js/rng.js?v=20261108k","./js/scenario.js":"./js/scenario.js?v=20261108k","./js/screens.js":"./js/screens.js?v=20261108k","./js/ui.js":"./js/ui.js?v=20261108k","./js/worldmap.js":"./js/worldmap.js?v=20261108k"}}</script>
+<link rel="modulepreload" href="js/accounting.js?v=20261108k">
+<link rel="modulepreload" href="js/actions.js?v=20261108k">
+<link rel="modulepreload" href="js/b2b.js?v=20261108k">
+<link rel="modulepreload" href="js/bank.js?v=20261108k">
+<link rel="modulepreload" href="js/bi.js?v=20261108k">
+<link rel="modulepreload" href="js/data.js?v=20261108k">
+<link rel="modulepreload" href="js/economy.js?v=20261108k">
+<link rel="modulepreload" href="js/engine.js?v=20261108k">
+<link rel="modulepreload" href="js/factory.js?v=20261108k">
+<link rel="modulepreload" href="js/fit.js?v=20261108k">
+<link rel="modulepreload" href="js/fleet.js?v=20261108k">
+<link rel="modulepreload" href="js/forecast.js?v=20261108k">
+<link rel="modulepreload" href="js/globe.js?v=20261108k">
+<link rel="modulepreload" href="js/hr.js?v=20261108k">
+<link rel="modulepreload" href="js/juiceshop.js?v=20261108k">
+<link rel="modulepreload" href="js/kpi.js?v=20261108k">
+<link rel="modulepreload" href="js/ledger.js?v=20261108k">
+<link rel="modulepreload" href="js/live.js?v=20261108k">
+<link rel="modulepreload" href="js/locationpicker.js?v=20261108k">
+<link rel="modulepreload" href="js/locations.js?v=20261108k">
+<link rel="modulepreload" href="js/mail.js?v=20261108k">
+<link rel="modulepreload" href="js/market.js?v=20261108k">
+<link rel="modulepreload" href="js/mrp.js?v=20261108k">
+<link rel="modulepreload" href="js/rng.js?v=20261108k">
+<link rel="modulepreload" href="js/scenario.js?v=20261108k">
+<link rel="modulepreload" href="js/screens.js?v=20261108k">
+<link rel="modulepreload" href="js/ui.js?v=20261108k">
 <style>html,body,*{scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none;width:0;height:0}</style>
-<link rel="stylesheet" href="css/pixel.css?v=20261108i">
+<link rel="stylesheet" href="css/pixel.css?v=20261108k">
 </head>
 <body>
 <div class="wrap">
-  <header>
+  <header class="topbar">
     <div class="brand">
       <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9M4 9v11h16V9M9 20v-6h6v6"/></svg></div>
       <div><h1>Economy</h1><small id="locLabel">Retail simulation</small></div>
     </div>
+    <section class="hud" id="hud" aria-label="Simulation status">
+      <div class="pill k-day"><span>Day</span><b id="hDay">Day 1 of 30</b></div>
+      <div class="pill k-cash"><span>Cash</span><b id="hCash">$0</b></div>
+      <div class="pill k-net"><span>Net profit</span><b id="hNet">$0</b></div>
+    </section>
     <div class="ctrl">
       <button class="ghost" id="bPause" aria-label="Pause">Pause</button>
       <button class="ghost" id="bHelp" aria-label="How to play">Help</button>
       <button class="ghost" id="bMenu">Menu</button>
     </div>
   </header>
-
-  <section class="hud" id="hud" aria-label="Simulation status">
-    <div class="pill k-day"><span>Day</span><b id="hDay">Day 1 of 30</b></div>
-    <div class="pill k-cash"><span>Cash</span><b id="hCash">$0</b></div>
-    <div class="pill k-net"><span>Net profit</span><b id="hNet">$0</b></div>
-  </section>
+  <div id="broadcastBar" class="broadcast-bar" aria-live="polite" aria-label="News ticker"><span class="broadcast-label">NEWS</span><div class="ticker-wrap"><div id="tickerText" class="ticker-content"></div></div></div>
 
   <div class="shell">
     <aside class="navwrap" aria-label="Departments"><nav class="tabs" id="tabs" aria-label="Sections"></nav></aside>
@@ -71,11 +90,11 @@
       <nav class="tabs sub" id="subtabs" aria-label="Subsections"></nav>
       <section id="view" class="view" aria-live="off"></section>
     </main>
+    <aside class="side" id="side" aria-label="Summary"></aside>
   </div>
   <div id="status" role="status" class="muted small">Loading...</div>
 </div>
 
-<div id="broadcastBar" class="broadcast-bar" aria-live="polite" aria-label="News ticker"><span class="broadcast-label">NEWS</span><div class="ticker-wrap"><div id="tickerText" class="ticker-content"></div></div></div>
 
 <dialog id="poDlg" class="po" aria-labelledby="poTitle"><div class="po-head"><h2 id="poTitle">Purchase order</h2><button class="po-x" id="poX" type="button" aria-label="Close">×</button></div><div class="po-body" id="poBody"></div></dialog>
 <dialog id="spDlg" class="po" aria-labelledby="spTitle"><div class="po-head"><h2 id="spTitle">Rent more space</h2><button class="po-x" id="spX" type="button" aria-label="Close">×</button></div><div class="po-body" id="spBody"></div></dialog>
@@ -92,7 +111,7 @@
       <div class="menu-row"><button class="ghost" id="mCopy">Copy save text</button><button class="ghost" id="mPaste">Paste save text</button></div>
       <div class="menu-row"><button class="ghost" id="mDev">Developer mode</button></div>
       <button class="ghost" id="mClose" hidden>Back to game</button>
-      <small class="muted build-tag">Build 20261108i. If something looks old, hard refresh and check this number.</small>
+      <small class="muted build-tag">Build 20261108k. If something looks old, hard refresh and check this number.</small>
     </div>
     <p class="muted small center" id="mNote"></p>
   </div>
@@ -165,7 +184,7 @@
 </dialog>
 
 <input type="file" id="fileIn" hidden><input type="file" id="resIn" accept="application/json,.json" multiple hidden>
-<script type="module" src="js/main.js?v=20261108i"></script>
+<script type="module" src="js/main.js?v=20261108k"></script>
 <script>
   window.addEventListener("error", function (e) { var s = document.getElementById("status"); if (s && !window.__economyBooted) { s.textContent = "Game failed to start: " + (e.message || "script error") + ". Reload the page."; } });
 </script>

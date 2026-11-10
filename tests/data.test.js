@@ -73,3 +73,12 @@ test("index.html loads every module with the build number (import map) so cached
   for (const f of files) assert.equal(map["./js/" + f], `./js/${f}?v=${ver}`, f + " must be in the import map with the same version as main.js");
   assert.ok(!/modulepreload" href="js\/[a-z0-9]+\.js">/.test(html), "preload links carry the version too");
 });
+
+test("the page carries Open Graph and Twitter tags, and the preview files exist", async () => {
+  const fs = await import("node:fs"), html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  for (const k of ["og:title", "og:description", "og:image", "og:url", "og:type"]) assert.match(html, new RegExp(`property="${k}"`), k);
+  for (const k of ["twitter:card", "twitter:image"]) assert.match(html, new RegExp(`name="${k}"`), k);
+  assert.match(html, /<meta name="description" content="[^"]{60,}"/); assert.match(html, /og:image" content="https:\/\/[^"]+\/og\.png"/);
+  for (const f of ["../og.png", "../favicon.svg"]) assert.ok(fs.statSync(new URL(f, import.meta.url)).size > 100, f);
+  assert.equal(fs.readFileSync(new URL("../og.png", import.meta.url)).subarray(1, 4).toString(), "PNG");
+});

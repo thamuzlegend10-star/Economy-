@@ -4,6 +4,7 @@ import * as E from "./engine.js";
 import * as D from "./data.js";
 import { getLocation } from "./locations.js";
 import * as Fl from "./fleet.js";
+import { balance } from "./ledger.js";
 
 export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -49,14 +50,25 @@ export const NAV = [
 ];
 const svg = id => `<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
 export function navHtml(ui, mods) {
-  const on = NAV.filter(n => !tabOff(mods, n.id)), open = !!ui.more;
+  const on = NAV.filter(n => !tabOff(mods, n.id)), open = !!ui.more, wide = !!ui.wide;
   const btn = n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}"${n.id === "mail" && ui.unread ? ` aria-label="Mail, ${ui.unread} unread"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${n.label}</span></button>`;
   const core = on.filter(n => !n.more && !n.action), more = on.filter(n => n.more), help = on.filter(n => n.action);
   const moreBtn = more.length ? `<button data-more="1" class="more${open ? " open" : ""}" aria-expanded="${!!open}">${svg("more")}${!open && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${open ? "Less" : "More"}</span><i class="chev" aria-hidden="true"></i></button>` : "";
+  if (wide) return { main: [...core, ...more, ...help].map(btn).join(""), sub: subHtml(mods, ui) };
   const main = core.map(btn).join("") + moreBtn + (open ? `<div class="moregrp" role="group" aria-label="More departments">${more.map((n, i) => btn(n).replace("<button ", `<button style="--i:${i}" `)).join("")}</div>` : "") + help.map(btn).join("");
+  return { main, sub: subHtml(mods, ui) };
+}
+function subHtml(mods, ui) {
   const cur = NAV.find(n => n.id === ui.main), subs = (cur ? cur.subs : []).filter(([id]) => !(cur.id === "warehouse" && id === "b2b" && tabOff(mods, "b2b")));
-  const sub = subs.length > 1 ? subs.map(([id, label]) => `<button data-sub="${id}" class="${ui.sub[ui.main] === id ? "on" : ""}">${label}</button>`).join("") : "";
-  return { main, sub };
+  return subs.length > 1 ? subs.map(([id, label]) => `<button data-sub="${id}" class="${ui.sub[ui.main] === id ? "on" : ""}">${label}</button>`).join("") : "";
+}
+// The right-hand summary panel (wide screens): the numbers a player glances at all the time, as a plain list.
+export function sideHtml(s) {
+  if (!s) return "";
+  const d = E.dashboard(s), cogs = balance(s.ledger, "cogs"), gross = d.revenue - cogs;
+  const row = (k, v, cls = "") => `<tr><td class="l">${k}</td><td class="${cls}">${v}</td></tr>`, sign = n => (n < 0 ? "neg" : n > 0 ? "pos" : "");
+  return `<div class="card"><div class="shophead"><b>Finance</b><small>all days so far</small></div><table class="tbl"><tbody>${row("Revenue", money(d.revenue))}${row("Cost of goods", money(cogs))}${row("Gross profit", money(gross), sign(gross))}${row("Other expenses", money(d.expenses - cogs))}${row("Net profit", money(d.netProfit), sign(d.netProfit))}</tbody></table></div>
+  <div class="card"><div class="shophead"><b>Position</b><small>now</small></div><table class="tbl"><tbody>${row("Cash", money(d.cash))}${row("Stock value", money(d.inventoryValue))}${row("Stock units", d.inventoryUnits.toLocaleString("en-US"))}${row("Space used", Math.round(d.utilization * 100) + "%")}</tbody></table></div>`;
 }
 export const soon = (title, text) => `<div class="card soon"><div class="soon-head">${esc(title)}</div><p>${esc(text)}</p><p class="muted small">This section is not working yet. Its rules will be added later.</p>
   <div class="soon-ghost" aria-hidden="true"><button disabled>Action</button><button class="ghost" disabled>Action</button></div></div>`;
