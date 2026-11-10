@@ -203,10 +203,6 @@ export const KPIS = [
   { id: "solvency",    name: "Cash and solvency",    unit: "x", weight: 0.10 },
 ];
 
-// ---------- Scenes ----------
-export const SCENES = [
-  { id: "store", name: "Store" }, { id: "warehouse", name: "Warehouse" }, { id: "city", name: "City" }, { id: "factory", name: "Factory" }, { id: "yard", name: "Yard" }, { id: "bank", name: "Bank" },
-];
 
 // Economy: how strongly rival prices pull the price shoppers expect, and how fast confidence, the price level and tastes wander and return to normal.
 export const MARKET = { rivalBase: 0.3, rivalPerCompetition: 0.7, rivalMax: 0.85,

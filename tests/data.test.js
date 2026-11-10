@@ -61,9 +61,8 @@ test("scoring weights cover 8 KPIs and sum to 1", () => {
   assert.ok(Math.abs(D.KPIS.reduce((a, k) => a + k.weight, 0) - 1) < 1e-9);
 });
 
-test("marketing has the five spec channels; six scenes are listed", () => {
+test("marketing has the five spec channels", () => {
   assert.deepEqual(D.MKT_CHANNELS.map(c => c.id), ["social", "search", "billboard", "radio", "influencer"]);
-  assert.deepEqual(D.SCENES.map(s => s.id), ["store", "warehouse", "city", "factory", "yard", "bank"]);
   assert.equal(D.HR_ROLES.length, 6);
 });
 

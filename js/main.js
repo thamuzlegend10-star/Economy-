@@ -5,7 +5,6 @@ import * as LOC from "./locations.js";
 import * as UI from "./ui.js";
 import * as SC from "./screens.js";
 import { act, newForms, setField } from "./actions.js";
-import { createScene } from "./scene.js?v=20261108h";
 import * as Ml from "./mail.js";
 import * as Sn from "./scenario.js";
 import * as Kp from "./kpi.js";
@@ -13,7 +12,7 @@ import { createLocationPicker } from "./locationpicker.js";
 import { startFit } from "./fit.js";
 import * as Lv from "./live.js";
 import { morph } from "./morph.js";
-import { MODS, cleanMods, defaultMods, tabOff, sceneOff } from "./modules.js";
+import { MODS, cleanMods, defaultMods, tabOff } from "./modules.js";
 
 const $ = id => document.getElementById(id);
 const SAVE_KEY = "economy-save-v11", OLD_KEYS = ["economy-save-v3", "economy-mp-save"];
@@ -86,11 +85,7 @@ function viewFor() {
 }
 function flash(el, v) { if (!el || el.textContent === v) return; const had = el.textContent !== ""; el.textContent = v; if (!had || matchMedia("(prefers-reduced-motion: reduce)").matches) return; el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
 const setHtml = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } }, setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
-function applyScenes() {
-  document.querySelectorAll("#sceneTabs [data-scene]").forEach(b => { b.hidden = !!s && sceneOff(s.mods, b.dataset.scene); });
-  if (s && sceneOff(s.mods, scene.view)) { scene.setView("store"); document.querySelectorAll("#sceneTabs button").forEach(x => { const on = x.dataset.scene === "store"; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); }); }
-}
-function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "home"; document.body.dataset.screen = ui.main; const n = UI.navHtml(ui, s && s.mods); applyScenes(); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
+function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "home"; document.body.dataset.screen = ui.main; const n = UI.navHtml(ui, s && s.mods); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
 // A short rise-in when the screen changes (not on the 400 ms refresh, which only patches numbers).
 function enterView(dir) { const v = $("view"); if (!v || matchMedia("(prefers-reduced-motion: reduce)").matches) return; v.classList.remove("enter", "fwd", "back"); if (dir) v.classList.add(dir); void v.offsetWidth; v.classList.add("enter"); clearTimeout(enterView.t); enterView.t = setTimeout(() => v.classList.remove("enter", "fwd", "back"), 700); }
 function goto(main, sub) {
@@ -309,7 +304,7 @@ function adopt(state, keepLive = false) {
   if (!keepLive) leaveLive();
   s = state; ui.f = newForms(); paused = false; finalShown = !!s.ended; lastDay = s.day; ui.main = "home"; ui.buy = { sup: "local", qty: { noodles: 10000, milk: 0, earbuds: 0 } }; ui.whbuy = { mode: "wh", sup: "harbor", qty: { noodles: 100000, milk: 0, earbuds: 0 } }; ui.tr = { qty: {} };
   renderNav();
-  scene.reset(); save(); renderAll(true);
+  save(); renderAll(true);
 }
 
 // ---------- live play ----------
@@ -356,8 +351,6 @@ $("finalClose").onclick = () => $("finalDlg").close();
 $("finalNew").onclick = () => { $("finalDlg").close(); openMenu("menuSetup"); readSetup(); };
 
 // ---------- boot ----------
-const scene = createScene($("stage"), { getState: () => s });
-$("sceneTabs").addEventListener("click", e => { const b = e.target.closest("[data-scene]"); if (!b) return; scene.setView(b.dataset.scene); document.querySelectorAll("#sceneTabs button").forEach(x => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); }); });
 startFit();
 for (const k of OLD_KEYS) if (ls.get(k)) { ls.del(k); $("mNote").textContent = "An old save from an earlier version was removed. The game changed completely, so old saves cannot be used."; }
 const raw = ls.get(SAVE_KEY);
@@ -371,10 +364,3 @@ requestAnimationFrame(t => { prev = t; lastView = t; requestAnimationFrame(loop)
 
 bindMods("sMods", "sMod"); bindMods("lMods", "lMod");
 
-// Live view: shown on wide screens, hidden by default on phones so the work area is first. The choice is remembered on this device.
-(function liveView() {
-  const box = $("live"), btn = $("liveToggle"); let want; try { want = localStorage.getItem("ec.live"); } catch { want = null; }
-  const apply = open => { box.classList.toggle("collapsed", !open); btn.textContent = open ? "Hide" : "Show"; btn.setAttribute("aria-expanded", String(open)); };
-  apply(want == null ? window.matchMedia("(min-width:900px)").matches : want === "1");
-  btn.addEventListener("click", () => { const open = box.classList.contains("collapsed"); apply(open); try { localStorage.setItem("ec.live", open ? "1" : "0"); } catch {} });
-})();
