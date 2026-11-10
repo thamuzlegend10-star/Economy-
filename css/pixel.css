@@ -595,4 +595,25 @@ dialog { border:1px solid #b9c4d2; box-shadow:0 20px 60px rgba(10,25,50,.35); } 
 .topbar .ctrl { gap:6px !important; } .topbar .ctrl button { border-radius:5px !important; }
 @media (max-width:700px) { .tbl th, .tbl td { padding:6px 5px; } .tbl th { font-size:.7rem; } .card > .shophead:first-child, .card > b:first-child { font-size:.82rem; } .grid:has(> .stat) { grid-template-columns:minmax(0,1fr); } }
 @media (max-width:700px) { .view > .card, .view .card { max-width:100%; overflow-x:auto; scrollbar-width:none; } .view .card::-webkit-scrollbar { display:none; } }
-.tbl.fixed thead th { padding:6px 2px; font-size:.56rem; } .tbl.fixed td, .tbl.fixed tbody th { padding:6px 2px; }
+@media (max-width:700px) { .tbl.fixed thead th { padding:6px 2px; font-size:.56rem; } .tbl.fixed td, .tbl.fixed tbody th { padding:6px 2px; } }
+
+/* ===== polish pass ===== */
+.tbl thead th, .tbl.fixed thead th { background:#2b4a7e !important; color:#fff !important; }
+.tbl.fixed tbody th, .tbl tbody th { background:transparent !important; }
+.tbl.fixed { font-size:.82rem; } .tbl.fixed thead th { font-size:.74rem; letter-spacing:0; }
+@media (min-width:900px) {
+  #tabs > button { padding:0 15px; font-size:.88rem; min-height:40px; gap:7px !important; }
+  button, input, select, textarea { min-height:36px; }
+  button { padding:6px 14px; font-size:.88rem; } button.big { min-height:44px; font-size:.95rem; }
+  input, select, textarea { padding:6px 10px; font-size:.9rem; }
+  .card { padding:14px; gap:10px; } .card > .shophead:first-child, .card > b:first-child, .card > .h2:first-child, .card > .soon-head:first-child { margin:-14px -14px 4px; padding:9px 14px; }
+  .view { gap:14px; }
+  .ctrl button, .topbar .ctrl button { min-height:32px; }
+}
+:focus-visible { outline:2px solid var(--sky); outline-offset:2px; }
+::selection { background:#cfe6fb; }
+.card, .tile, .step, .hero, button, #tabs > button, #subtabs button { transition:background-color .16s, border-color .16s, box-shadow .16s, transform .16s var(--ease), color .16s; }
+.card:hover { box-shadow:0 2px 8px rgba(20,40,70,.1); }
+.badge { font-weight:700; }
+progress, .meter { border-radius:999px; }
+.shophead small { font-weight:500; }

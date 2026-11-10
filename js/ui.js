@@ -54,7 +54,7 @@ export function navHtml(ui, mods) {
   const btn = n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}"${n.id === "mail" && ui.unread ? ` aria-label="Mail, ${ui.unread} unread"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${n.label}</span></button>`;
   const core = on.filter(n => !n.more && !n.action), more = on.filter(n => n.more), help = on.filter(n => n.action);
   const moreBtn = more.length ? `<button data-more="1" class="more${open ? " open" : ""}" aria-expanded="${!!open}">${svg("more")}${!open && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${open ? "Less" : "More"}</span><i class="chev" aria-hidden="true"></i></button>` : "";
-  if (wide) return { main: [...core, ...more, ...help].map(btn).join(""), sub: subHtml(mods, ui) };
+  if (wide) return { main: [...core, ...more].map(btn).join(""), sub: subHtml(mods, ui) };
   const main = core.map(btn).join("") + moreBtn + (open ? `<div class="moregrp" role="group" aria-label="More departments">${more.map((n, i) => btn(n).replace("<button ", `<button style="--i:${i}" `)).join("")}</div>` : "") + help.map(btn).join("");
   return { main, sub: subHtml(mods, ui) };
 }
