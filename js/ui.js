@@ -178,7 +178,7 @@ export function store(s, part = "both") {
         <div><span>Demand today (est.)</span><b>${num(E.expectedDemand(s, p.id))}</b></div><div><span>Missed sales</span><b>${num(s.stats.prod[p.id].lost)}</b></div></div></div>`;
   }).join("");
   const table = `<div class="card shoptbl"><div class="shophead"><b>My shop</b><small>${esc(E.siteLabel(s.location))} · ${num(s.area)} m²</small></div>
-    <table class="tbl fixed"><thead><tr><th></th><th>Unit sold</th><th>Sales ($)</th><th>COGS ($)</th><th>Unit remain</th><th>Price ($)</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <table class="tbl fixed"><thead><tr><th class="l">Product</th><th>Unit sold</th><th>Sales ($)</th><th>COGS ($)</th><th>Unit remain</th><th>Price ($)</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   const prices = `<div class="prod">${ctl}</div><small class="muted">Higher prices earn more per unit but fewer customers buy. Lower prices bring more buyers for less profit each. Sales only happen while there is stock.</small>`;
   return part === "table" ? table : part === "prices" ? prices : table + `<h2>Set prices</h2>` + prices;
 }

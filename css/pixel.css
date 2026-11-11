@@ -628,3 +628,6 @@ progress, .meter { border-radius:999px; }
 .log small { color:#9a7a76; }
 @media (min-width:900px) { #subtabs button { background:#8a2438; } #subtabs button:hover { background:#9a2b41; } #subtabs button.on { background:#e0a23a; color:#2b1700; } }
 .tile:hover { border-color:#e0a23a; }
+.dot { border-radius:50%; border:0 !important; box-shadow:inset 0 0 0 1px rgba(0,0,0,.15); }
+.tbl.fixed tbody th { padding:7px 10px; } .tbl.fixed thead th.l, .tbl.fixed thead th:first-child { text-align:left; }
+.tbl.fixed tbody tr:nth-child(even) th { background:#fbf3f0 !important; }
