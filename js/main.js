@@ -86,7 +86,7 @@ function viewFor() {
   return UI.soon(...SOON[m]);
 }
 function flash(el, v) { if (!el || el.textContent === v) return; const had = el.textContent !== ""; el.textContent = v; if (!had || matchMedia("(prefers-reduced-motion: reduce)").matches) return; el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
-const setHtml = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } }, setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+const setHtml = (el, h) => { if (el._h !== h || (h && !el.firstElementChild)) { el._h = h; el.innerHTML = h; } }, setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
 function renderNav() { if (s && tabOff(s.mods, ui.main)) ui.main = "home"; document.body.dataset.screen = ui.main; const n = UI.navHtml(ui, s && s.mods); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
 // A short rise-in when the screen changes (not on the 400 ms refresh, which only patches numbers).
 function enterView(dir) { const v = $("view"); if (!v || matchMedia("(prefers-reduced-motion: reduce)").matches) return; v.classList.remove("enter", "fwd", "back"); if (dir) v.classList.add(dir); void v.offsetWidth; v.classList.add("enter"); clearTimeout(enterView.t); enterView.t = setTimeout(() => v.classList.remove("enter", "fwd", "back"), 700); }

@@ -643,3 +643,13 @@ button { color:#f7f0df; } button.ghost { color:var(--fg); }
 .pos { color:#2f6b1c; }
 .tile, .step, .hero, .toast, #toasts > * { background:#f7f0df; }
 .live .logbox, .card { background:#f7f0df; }
+
+/* tabs: one stable row at every desktop width, never wraps, never collapses */
+@media (min-width:900px) {
+  #tabs { flex-wrap:nowrap !important; overflow-x:auto !important; overflow-y:hidden !important; padding-top:7px !important; min-height:55px; scrollbar-width:none; -ms-overflow-style:none; }
+  #tabs::-webkit-scrollbar { display:none; }
+  #tabs > button { flex:0 0 auto !important; }
+  #tabs > button .badge { top:0 !important; left:-3px !important; }
+}
+@media (min-width:900px) and (max-width:1299px) { #tabs > button { padding:0 11px !important; font-size:.82rem !important; gap:5px !important; } #tabs > button svg { width:15px; height:15px; } }
+@media (min-width:900px) and (max-width:1079px) { #tabs > button svg { display:none !important; } }
