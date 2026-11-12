@@ -1,0 +1,57 @@
+feature,area,priority,original,clone,notes
+Cash-basis accounting with undelivered goods when cash is short,finance,must,yes,yes,double-entry ledger; short cash uses overdraft
+Overdraft with daily interest and auto repay,finance,must,yes,yes,bank.js
+Term loans with set interest,finance,should,yes,yes,bank.js
+Credit rating AAA to DDD driven by late payments,finance,should,yes,no,no rating score yet
+Financial statements (income statement; balance sheet; cash flow),finance,must,yes,yes,Money > Statements
+Manual journal entries,finance,could,yes,yes,accounting.js
+Accrual accounting mode with vendor credit limits,finance,could,yes,partial,payment terms exist; no vendor credit limits
+Retail store rental with population by location,retail,must,yes,yes,Shop > Location
+Up to seven stores,retail,should,yes,no,single shop; relocate only
+Price per product with elasticity,retail,must,yes,yes,Shop > Prices
+Competitor price and stock effect on sales,retail,must,yes,yes,rival price wave
+Staff index (headcount x competency) effect on sales,retail,should,yes,yes,six departments
+Holidays and seasonality effect on demand,retail,should,yes,partial,events random; no yearly calendar
+Daily retail demand forecast per product,forecast,should,yes,yes,Insights > Forecast
+B2B demand forecast,forecast,could,yes,partial,known B2B contracts only
+Currency exchange and central bank rate forecast,forecast,could,yes,no,single currency
+Vendor purchasing with approval step,procurement,must,yes,yes,purchase orders; requisitions
+Supplier lead time; reliability and price tiers,procurement,must,yes,yes,supplier choice on PO
+Delivery quality check and damaged goods,procurement,could,yes,partial,late and short deliveries only
+Supplier performance tracking,procurement,should,yes,yes,delivery performance in BI
+Warehouse rent with terms (daily; 7-day; 30-day),logistics,should,yes,partial,rent per day only
+Auto-replenish by minimum stock and shipment size,logistics,should,yes,yes,Warehouse auto rules
+Third-party carriers with distance based time and cost,logistics,must,yes,yes,carriers plus own trucks
+Overflow storage fees,logistics,must,yes,yes,space used and overflow
+B2B straight deals first come first served,b2b,must,yes,yes,B2B market
+B2B competitive bids lowest price wins,b2b,must,yes,yes,rival bids
+Late penalty on sales orders,b2b,must,yes,yes,penalty and reputation
+Client credit ratings AAA to DDD,b2b,could,yes,no,buyer types only
+Fulfil by stock; outsource; manufacture,b2b,should,yes,partial,stock only (factory retired)
+Marketing media with demographics (seniors; adults; juniors),marketing,should,yes,partial,channels exist; no demographic split
+Market intelligence reports from all players,marketing,could,yes,partial,rival price view only
+Web Market with escrow,ecommerce,must,yes,yes,Web store tab
+Seller star rating 0-5 from delivery timeliness,ecommerce,could,yes,no,
+Production with BOM and machines,production,should,yes,skip,factory retired by author
+MRP with purchase requisitions,mrp,should,yes,yes,mrp.js; advice buttons
+Machine maintenance and breakdowns,maintenance,should,yes,skip,factory retired by author
+Staff Index and competency growth,hr,must,yes,yes,hr.js
+Recruitment; training; transfer; dismissal costs,hr,must,yes,yes,recruitment fee and severance booked
+Employee turnover,hr,should,yes,yes,morale and quits
+OCEAN personality in hiring,hr,could,yes,no,
+Service management with RFQs and resource scheduling,service,could,yes,no,customer service tickets only
+Complaints and customer satisfaction,service,should,yes,yes,tickets; satisfaction moves demand
+Business intelligence with sales analysis,bi,must,yes,yes,Insights > Data and BI
+Integrated report with ROA ROE debt to equity,bi,should,yes,partial,ROA yes; ROE and D/E not shown
+Live data export (Excel; R; Tableau),bi,could,yes,no,no export
+Scoring matrix with KPI targets set by facilitator,scoring,must,yes,partial,weights yes; no per-team targets
+Robots as competitors,scoring,must,yes,yes,rival AI
+Facilitator pace control and pause,session,must,yes,partial,host settings; no checkpoints
+Teams and multi-player sessions,session,must,yes,yes,live.js (untested on real Supabase)
+Scenario events such as financial crisis,session,should,yes,yes,random event chances
+Quizzes and micro courses,session,could,yes,no,not a game feature
+Session save; pause; resume,session,must,yes,yes,local save v25
+FMCG batches; expiry and stock takes,retail,could,yes,no,
+Investor and underwriter roles,session,could,yes,skip,needs certification and a real class setup
+Department tabs in one top row with a sub-tab strip,ui,must,yes,yes,MonsoonSIM skin shipped
+Approval queue for every action,ui,could,yes,skip,Economy acts instantly by design
