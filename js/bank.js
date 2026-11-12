@@ -4,9 +4,16 @@ import * as D from "./data.js";
 import { mailPost } from "./mail.js";
 import { log } from "./engine.js";
 
-const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const c4 = v => Math.round(v * 1e6) / 1e6, c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
-export const newBank = () => ({ credit: { bal: 0, since: 0 }, loans: [], lseq: 0, interestPaid: 0 });
+export const newBank = () => ({ credit: { bal: 0, since: 0 }, loans: [], lseq: 0, interestPaid: 0, hist: [], hrLate: 0, rating: "AAA" });
+// Credit rating (MonsoonSIM style, AAA to DDD): driven by how many of the last 30 days had an overdraft or a payday paid from overdraft. It only ever raises prices, so a clean record costs nothing extra.
+export const RATINGS = [["AAA", 95, 1], ["AA", 85, 1], ["A", 75, 1], ["BBB", 60, 1.1], ["BB", 45, 1.2], ["B", 30, 1.35], ["CCC", 15, 1.5], ["DDD", -Infinity, 1.75]];
+export function creditScore(s) {
+  const b = ensureBank(s); return clamp(100 - 10 * (b.hist || []).reduce((a, x) => a + x, 0) - (balance(s.ledger, "overdraft") > 0 ? 5 : 0), 0, 100);
+}
+export const creditRating = s => { const sc = creditScore(s); return RATINGS.find(r => sc >= r[1]); };
+export const rateFactor = s => creditRating(s)[2];
 export const ensureBank = s => (s.bank = s.bank || newBank());
 function payOut(s, acct, amount, memo, ref) {
   amount = c(amount); if (amount <= 0) return;
@@ -37,18 +44,21 @@ export function takeLoan(s, { kind = "equipment", amount, termDays } = {}) {
   if (kind === "equipment" && !D.BANK.equipment.termsDays.includes(termDays)) return err(`Choose a term of ${D.BANK.equipment.termsDays.join(", ")} days.`);
   if (kind === "long") { if (amount < D.BANK.longTerm.minAmount) return err(`Long-term loans start at $${D.BANK.longTerm.minAmount.toLocaleString("en-US")}.`); termDays = 365; }
   if (amount > loanCap(s, kind)) return err(`The bank will lend you up to $${loanCap(s, kind).toLocaleString("en-US")} of this kind.`);
-  const b = ensureBank(s), rate = kind === "equipment" ? D.BANK.equipment.rate : D.BANK.longTerm.rate;
+  const b = ensureBank(s), rate = c4((kind === "equipment" ? D.BANK.equipment.rate : D.BANK.longTerm.rate) * rateFactor(s));
   const l = { id: ++b.lseq, kind, principal: amount, balance: amount, rate, left: termDays, daily: c(amount / termDays), started: s.day }; b.loans.push(l);
   post(s.ledger, s.day, `Took ${kind === "equipment" ? "an equipment" : "a long-term"} loan #${l.id}`, [{ acct: "cash", dr: amount }, { acct: "longdebt", cr: amount }], "loan:" + l.id);
   log(s, `Took a $${amount.toLocaleString("en-US")} loan for ${termDays} days.`); return ok({ loan: l });
 }
 export function bankDay(s) {
   const b = ensureBank(s);
-  const od = balance(s.ledger, "overdraft");                                    // overdraft interest compounds into the overdraft itself
+  const od = balance(s.ledger, "overdraft");
+  const lateNow = od > 0 || (s.hr && s.hr.late > (b.hrLate || 0)) ? 1 : 0; b.hrLate = s.hr ? s.hr.late || 0 : 0; b.hist = [...(b.hist || []), lateNow].slice(-30);
+  const rt = creditRating(s)[0]; if (b.rating && rt !== b.rating) mailPost(s, { from: "Bank", subject: `Your credit rating is now ${rt}`, body: `It was ${b.rating}. The rating follows how many of the last 30 days had an overdraft or a payday paid from overdraft. Below A, the bank raises its interest rates.`, goto: ["finance", "bank"], level: RATINGS.findIndex(r => r[0] === rt) > RATINGS.findIndex(r => r[0] === b.rating) ? "warn" : "info" }); b.rating = rt;
+  const rf = rateFactor(s);                                                        // overdraft interest compounds into the overdraft itself
   if (od > 0 && s.overdraftDays === 0) mailPost(s, { from: "Bank", subject: "Your account is overdrawn", body: `You owe the bank $${od.toFixed(2)}. Three days in a row ends the game. Repay it from sales or draw on the credit line.`, goto: ["finance", "bank"], level: "bad" });
-  if (od > 0) { const i = c(od * D.BANK.overdraft.rate); if (i > 0) { post(s.ledger, s.day, "Overdraft interest", [{ acct: "interest", dr: i }, { acct: "overdraft", cr: i }], "odint:" + s.day); b.interestPaid = c(b.interestPaid + i); } }
+  if (od > 0) { const i = c(od * D.BANK.overdraft.rate * rf); if (i > 0) { post(s.ledger, s.day, "Overdraft interest", [{ acct: "interest", dr: i }, { acct: "overdraft", cr: i }], "odint:" + s.day); b.interestPaid = c(b.interestPaid + i); } }
   if (b.credit.bal > 0) {
-    const i = c(b.credit.bal * D.BANK.credit.rate); if (i > 0) { post(s.ledger, s.day, "Credit line interest", [{ acct: "interest", dr: i }, { acct: "credit", cr: i }], "crint:" + s.day); b.credit.bal = c(b.credit.bal + i); b.interestPaid = c(b.interestPaid + i); }
+    const i = c(b.credit.bal * D.BANK.credit.rate * rf); if (i > 0) { post(s.ledger, s.day, "Credit line interest", [{ acct: "interest", dr: i }, { acct: "credit", cr: i }], "crint:" + s.day); b.credit.bal = c(b.credit.bal + i); b.interestPaid = c(b.interestPaid + i); }
     if (s.day - b.credit.since >= D.BANK.credit.termDays) {                       // the 30 days are up: repay from cash, the rest becomes overdraft
       const pay = c(Math.min(b.credit.bal, Math.max(0, balance(s.ledger, "cash")))), rest = c(b.credit.bal - pay), lines = [{ acct: "credit", dr: b.credit.bal }];
       if (pay > 0) lines.push({ acct: "cash", cr: pay }); if (rest > 0) lines.push({ acct: "overdraft", cr: rest });

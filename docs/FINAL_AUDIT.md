@@ -146,3 +146,9 @@ Batch tail trickle, stale raw quantities after a vendor change, machines breakin
 - **Not verified:** the real Supabase network connection. The sandbox cannot reach supabase.co, so the first real room is the first real test. If joining fails, the player sees "Could not connect to the room".
 - **Honest limits:** each player's shop runs on their own device, so scores are reported by the client and a determined cheater could edit theirs. Mitigations: scores use fixed default KPI weights, values are range-checked, a player can only post their own card. Closing a tab pauses that player's shop (browser throttling); leaving keeps their last score on the board. No reconnect after a refresh: a refreshed player continues solo.
 - **Tests:** 205 passing. Overflow audit clean at 5 viewports; no visible scrollbars.
+
+## 11. MonsoonSIM gap pass
+
+- **Added:** credit rating AAA to DDD (late payday or overdrawn days in the last 30; worse rating means dearer loans and overdraft), seller star rating on the Web store (needs 8 orders; poor delivery cuts web conversion by up to 20%), and ROE, debt to equity, current and quick ratio on Statements.
+- **Tests:** 219 passing (`tests/credit.test.js`, `tests/rating.test.js`). Morph and scrollbar checks clean.
+- **Honest limits:** rating curve and star-to-conversion effect are my own model, not MonsoonSIM's hidden numbers. Parity is measured against the public spec, not hands-on use. Still missing: per-team KPI targets, facilitator checkpoints, multiple stores, demographic marketing, FX forecast.

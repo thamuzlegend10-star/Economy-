@@ -2,7 +2,7 @@ feature,area,priority,original,clone,notes
 Cash-basis accounting with undelivered goods when cash is short,finance,must,yes,yes,double-entry ledger; short cash uses overdraft
 Overdraft with daily interest and auto repay,finance,must,yes,yes,bank.js
 Term loans with set interest,finance,should,yes,yes,bank.js
-Credit rating AAA to DDD driven by late payments,finance,should,yes,no,no rating score yet
+Credit rating AAA to DDD driven by late payments,finance,should,yes,yes,score from late or overdrawn days in last 30; rate multiplier 1 to 1.75
 Financial statements (income statement; balance sheet; cash flow),finance,must,yes,yes,Money > Statements
 Manual journal entries,finance,could,yes,yes,accounting.js
 Accrual accounting mode with vendor credit limits,finance,could,yes,partial,payment terms exist; no vendor credit limits
@@ -31,7 +31,7 @@ Fulfil by stock; outsource; manufacture,b2b,should,yes,partial,stock only (facto
 Marketing media with demographics (seniors; adults; juniors),marketing,should,yes,partial,channels exist; no demographic split
 Market intelligence reports from all players,marketing,could,yes,partial,rival price view only
 Web Market with escrow,ecommerce,must,yes,yes,Web store tab
-Seller star rating 0-5 from delivery timeliness,ecommerce,could,yes,no,
+Seller star rating 0-5 from delivery timeliness,ecommerce,could,yes,yes,stars from late share after 8 orders; up to 20% lower conversion
 Production with BOM and machines,production,should,yes,skip,factory retired by author
 MRP with purchase requisitions,mrp,should,yes,yes,mrp.js; advice buttons
 Machine maintenance and breakdowns,maintenance,should,yes,skip,factory retired by author
@@ -42,7 +42,7 @@ OCEAN personality in hiring,hr,could,yes,no,
 Service management with RFQs and resource scheduling,service,could,yes,no,customer service tickets only
 Complaints and customer satisfaction,service,should,yes,yes,tickets; satisfaction moves demand
 Business intelligence with sales analysis,bi,must,yes,yes,Insights > Data and BI
-Integrated report with ROA ROE debt to equity,bi,should,yes,partial,ROA yes; ROE and D/E not shown
+Integrated report with ROA ROE debt to equity,bi,should,yes,yes,ROA ROE D/E current and quick ratio on Statements
 Live data export (Excel; R; Tableau),bi,could,yes,no,no export
 Scoring matrix with KPI targets set by facilitator,scoring,must,yes,partial,weights yes; no per-team targets
 Robots as competitors,scoring,must,yes,yes,rival AI

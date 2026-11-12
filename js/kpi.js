@@ -21,6 +21,13 @@ function marketShare(s) {
   const mine = s.stats.units + (s.ecom ? s.ecom.stats.units : 0) + (s.b2b ? s.b2b.history.filter(h => h.revenue).reduce((a, h) => a + h.qty, 0) : 0);
   return mine / Math.max(1, mine + rival) * 100;
 }
+// Report ratios from the ledger. Values are null when the divisor is zero or negative, so the screen shows n/a instead of nonsense.
+export function ratios(s) {
+  const L = s.ledger, t = totals(L), net = c(t.revenue - t.costs), b = a => balance(L, a), owed = t.liabilities, eq = t.equity;
+  const div = (n, d) => (d > 0.004 ? c(n / d) : null);
+  const liquid = b("cash") + b("receivables"), cur = liquid + b("inventory") + b("inv_raw") + b("inv_fg");
+  return { roa: div(net * 100, t.assets), roe: div(net * 100, eq), debtToEquity: div(owed, eq), current: owed > 0.004 ? div(cur, owed) : null, quick: owed > 0.004 ? div(liquid, owed) : null };
+}
 export function kpis(s) {
   const t = totals(s.ledger), sold = s.stats.units + (s.ecom ? s.ecom.stats.units : 0), lost = s.stats.lost + (s.ecom ? s.ecom.stats.lost : 0), netProfit = c(t.revenue - t.costs);
   const cash = balance(s.ledger, "cash");

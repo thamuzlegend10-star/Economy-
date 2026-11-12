@@ -45,6 +45,12 @@ export function mktDay(s) {
 
 // ================= e-commerce =================
 export const newEcom = seed => ({ rng: seedFrom(seed, 0xec0), active: false, catalog: [], prices: {}, adBudget: 0, seq: 0, orders: [], acc: 0, stats: { orders: 0, units: 0, revenue: 0, lost: 0, late: 0 }, today: null });
+// Seller rating (0 to 5 stars, halves allowed) from delivery timeliness, as in MonsoonSIM's Web Market. A new seller has none until 8 orders are in. A poor rating cuts conversion by up to 20%.
+export function sellerStars(s) {
+  const e = s.ecom; if (!e || !e.stats || e.stats.orders < 8) return null;
+  return Math.round(clamp(5 - 15 * (e.stats.late || 0) / e.stats.orders, 0, 5) * 2) / 2;
+}
+export const sellerFactor = s => { const st = sellerStars(s); return st == null ? 1 : 1 - 0.04 * (5 - st); };
 export const ensureEcom = s => (s.ecom = s.ecom || newEcom(s.seed));
 export function openWebstore(s) {
   if (s.ended) return err("The game is over."); const e = ensureEcom(s); if (e.active) return err("The webstore is already open.");
@@ -74,7 +80,7 @@ export function ecomDay(s) {
   if (!e.catalog.length) return;
   const visitors = webTraffic(s);
   for (const pid of e.catalog) {
-    const p = item(pid), price = e.prices[pid], conv = D.ECOM.baseConversion * clamp(Math.pow(p.ref * 1.1 / price, p.elast), 0.05, 3);
+    const p = item(pid), price = e.prices[pid], conv = D.ECOM.baseConversion * clamp(Math.pow(p.ref * 1.1 / price, p.elast), 0.05, 3) * sellerFactor(s);
     e.acc += visitors / e.catalog.length * conv; const want = Math.floor(e.acc); e.acc -= want; if (want < 1) continue;
     const src = stockOf(s, pid), have = src.qty[pid], n = Math.min(want, have), lost = want - n;
     if (lost) { e.today.lost += lost; e.stats.lost += lost; }
