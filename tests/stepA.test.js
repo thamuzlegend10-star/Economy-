@@ -45,5 +45,5 @@ test("warnings: none on a fresh well-stocked game; overdraft, low cash, broken m
 
 test("the warnings card renders and links to a tab", () => {
   const t = mk(); t.b2b.active.push({ id: 1, buyer: "hotel", pid: "apple", qty: 100, price: 1, due: 0, penalty: 0.1, status: "active", lateDays: 1, fined: 0 });
-  const h = SC.warningsCard(t); assert.match(h, /data-goto="b2b"/); assert.equal(SC.warningsCard(mk()), "");
+  const h = SC.warningsCard(t); assert.match(h, /data-goto="b2b"/); assert.match(SC.warningsCard(mk()), /all clear/);
 });
