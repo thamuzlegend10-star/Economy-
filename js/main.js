@@ -64,7 +64,8 @@ function renderHud() {
   setText($("locLabel"), `${LOC.getLocation(s.location).city} · ${s.area} m²`);
   $("bPause").disabled = !!live; $("bPause").textContent = paused ? "Resume" : "Pause"; $("bPause").classList.toggle("on", paused);
   const wait = live && Date.now() < liveStartAt ? Math.ceil((liveStartAt - Date.now()) / 1000) : 0, lb = live && live.state.phase !== "lobby" ? live.leaderboard().find(r => r.me) : null;
-  setText($("status"), wait ? `Live game starts in ${wait} s.` : s.ended ? "The game is over." : paused ? "Paused. The timer is stopped." : `Running. Day ${s.day} ends in ${tl} s.${lb && live.state.scores[live.state.id] ? ` Rank ${lb.place} of ${live.leaderboard().length}.` : ""}`);
+  const stopped = live && live.state.phase === "running" && s && !s.ended && live.stopped(s.day);
+  setText($("status"), stopped ? (live.state.role === "host" ? `Checkpoint at day ${s.day}. Everyone is stopped. Press Continue in Mail, Facilitator.` : `Checkpoint at day ${s.day}${live.state.holdTitle ? ": " + live.state.holdTitle : ""}. Waiting for the host to continue.`) : wait ? `Live game starts in ${wait} s.` : s.ended ? "The game is over." : paused ? "Paused. The timer is stopped." : `Running. Day ${s.day} ends in ${tl} s.${lb && live.state.scores[live.state.id] ? ` Rank ${lb.place} of ${live.leaderboard().length}.` : ""}`);
   setHtml($("log"), s.log.slice(-8).reverse().map(l => `<div><small>Day ${l.day}</small> ${UI.esc(l.text)}</div>`).join(""));
 }
 const SOON = { mail: ["Mail", "Messages from suppliers, the bank and the facilitator will be here."], data: ["Data Explorer", "Charts and tables to dig into your numbers will be here."] };
@@ -77,7 +78,7 @@ function viewFor() {
   if (m === "hr") return SC.hrScreen(s, ui.f);
   if (m === "marketing") return SC.marketing(s, ui.f);
   if (m === "ecom") return SC.ecom(s);
-  if (m === "mail") return ui.sub.mail === "facilitator" ? SC.facilitatorScreen(s, ui.f, ui.results, live && live.state.phase !== "lobby" && live.state.phase !== "idle" ? { code: live.state.code, role: live.state.role, board: live.leaderboard() } : null) : SC.mailScreen(s);
+  if (m === "mail") return ui.sub.mail === "facilitator" ? SC.facilitatorScreen(s, ui.f, ui.results, live && live.state.phase !== "lobby" && live.state.phase !== "idle" ? { code: live.state.code, role: live.state.role, board: live.leaderboard(), stopped: live.state.phase === "running" && live.stopped(s.day), day: s.day, ck: (live.state.settings && live.state.settings.checkpoint) || 0 } : null) : SC.mailScreen(s);
   if (m === "data") return sub === "market" ? SC.competitors(s) : sub === "bi" ? SC.biScreen(s) : sub === "forecast" ? SC.forecast(s) : SC.scoring(s, ui.f);
   if (m === "warehouse" && sub === "b2b") return SC.b2bContracts(s);
   if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
@@ -114,7 +115,7 @@ let prev = performance.now();
 function loop(now) {
   const dt = Math.min(0.5, (now - prev) / 1000); prev = now;
   if (live && liveStartAt && !liveFirst && Date.now() >= liveStartAt) { liveFirst = true; liveReport(); }
-  if (s && !paused && !s.ended && !document.hidden && !(live && Date.now() < liveStartAt)) {
+  if (s && !paused && !s.ended && !document.hidden && !(live && Date.now() < liveStartAt) && !(live && live.state.phase === "running" && live.stopped(s.day))) {
     E.tick(s, dt);
     if (s.day !== lastDay) { liveReport(); const r = s.lastReport; if (r && lastDay) toast(`Day ${r.day}: sales ${UI.money(r.revenue)}, net ${UI.money(r.net)}`, r.net >= 0 ? "ok" : "err"); lastDay = s.day; save(); renderAll(true); }
     if (s.ended) { liveReport(); save(); renderAll(true); showFinal(); }
@@ -138,6 +139,8 @@ $("view").addEventListener("click", e => {
   if (t.dataset.resexport) { const sb = Kp.scoreboard(s), card = Sn.resultCard(s, sb.total, ui.f.team, sb), a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(card)], { type: "application/json" })); a.download = `economy-result-${(card.name || "team").replace(/[^a-z0-9]+/gi, "-")}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast("Result saved. Hand the file to the facilitator.", "ok"); return; }
   if (t.dataset.resreport != null) { const sb = Kp.scoreboard(s), card = t.dataset.resreport === "me" ? Sn.resultCard(s, sb.total, ui.f.team, sb) : (ui.results || [])[Number(t.dataset.resreport)]; if (!card) return; const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([Sn.reportHtml(card)], { type: "text/html" })); a.download = `economy-report-${(card.name || "team").replace(/[^a-z0-9]+/gi, "-")}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast("Report saved. Open it in a browser; print to make a PDF.", "ok"); return; }
   if (t.dataset.respick) { $("resIn").click(); return; }
+  if (t.dataset.livehold) { const r = live && live.hold("Facilitator stop"); if (!r || !r.ok) toast(r ? r.error : "Not in a room.", "err"); else { toast("Everyone is stopped.", "ok"); renderAll(true); } return; }
+  if (t.dataset.livego) { const r = live && live.release(s.day); if (!r || !r.ok) toast(r ? r.error : "Not in a room.", "err"); else { toast("Everyone continues.", "ok"); renderAll(true); } return; }
   if (t.dataset.liveleave) { leaveLive(); toast("You left the room. You keep playing on your own.", "ok"); renderAll(true); return; }
   if (t.dataset.resclear) { ui.results = []; renderAll(true); return; }
   if (t.dataset.goto) { goto(t.dataset.goto, t.dataset.gsub || undefined); return; }
@@ -329,7 +332,7 @@ async function enterLive(role) {
   leaveLive();
   live = Lv.createLive(Lv.supabaseTransport(), { onChange: renderLive,
     onStart: (settings, at) => { adopt(E.newGame(settings), true); liveStartAt = at; liveFirst = false; closeMenu(); toast(role === "host" ? "Starting for everyone…" : "The host started the game.", "ok"); renderHud(); },
-    onEvent: ev => { if (!s || s.ended) return; const r = Sn.inject(s, ev); if (r.ok) { toast("Event from the host: " + (ev.title || ev.kind), "ok"); save(); renderAll(true); } } });
+    onHold: () => { renderHud(); renderAll(true); }, onEvent: ev => { if (!s || s.ended) return; const r = Sn.inject(s, ev); if (r.ok) { toast("Event from the host: " + (ev.title || ev.kind), "ok"); save(); renderAll(true); } } });
   toast("Connecting…", "ok");
   try { await (role === "host" ? live.host(name) : live.join(name, code)); } catch (e) { toast(e.message, "err"); live = null; return; }
   try { localStorage.setItem("economy-name", name); } catch { /* optional */ }
@@ -340,7 +343,7 @@ $("lBack").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "men
 $("lHost").onclick = () => enterLive("host"); $("lJoin").onclick = () => enterLive("guest");
 $("lLeave").onclick = () => { leaveLive(); $("lJoinBox").hidden = false; $("lLobby").hidden = true; };
 $("lStart").onclick = () => {
-  if (!live) return; const c = setupValues(), r = live.start({ ...c, secPerDay: $("lSec").value, days: $("lDays").value, capital: $("lCap").value, scenario: $("lScn").value, mods: readMods("lMod"), difficulty: $("lDiff").value, seed: undefined });
+  if (!live) return; const c = setupValues(), r = live.start({ ...c, secPerDay: $("lSec").value, days: $("lDays").value, capital: $("lCap").value, scenario: $("lScn").value, mods: readMods("lMod"), difficulty: $("lDiff").value, checkpoint: Number($("lCk").value), seed: undefined });
   if (!r.ok) toast(r.error, "err");
 };
 

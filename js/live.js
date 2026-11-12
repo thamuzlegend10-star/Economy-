@@ -17,7 +17,7 @@ export const newId = (rand = Math.random) => Math.floor(rand() * 2 ** 31).toStri
 // Settings the host chooses. Validated by the same rules as a normal new game; the seed is fixed for everyone.
 export function cleanSettings(o = {}) {
   const base = E.cleanSetup({ ...o, seed: Number.isFinite(o.seed) ? o.seed : Math.floor(Math.random() * 2147483648) });
-  return { location: base.location, area: base.area, secPerDay: base.secPerDay, days: Math.min(base.days || 60, 60), capital: base.capital, seed: base.seed, scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: base.mods, difficulty: base.difficulty };
+  return { location: base.location, area: base.area, secPerDay: base.secPerDay, days: Math.min(base.days || 60, 60), capital: base.capital, seed: base.seed, scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: base.mods, difficulty: base.difficulty, checkpoint: [0, 5, 10, 15, 20, 30].includes(Number(o.checkpoint)) ? Number(o.checkpoint) : 0 };
 }
 export function cleanScore(c) {
   if (!c || typeof c !== "object") return null;
@@ -32,8 +32,8 @@ export function cleanEvent(e) {
   return { kind: e.kind, mult: e.kind === "delay" ? 1 : mult, days, title: String(e.title || "").slice(0, 60) };
 }
 
-export function createLive(transport, { now = Date.now, rand = Math.random, onChange = () => {}, onStart = () => {}, onEvent = () => {} } = {}) {
-  const st = { role: null, code: null, id: newId(rand), name: "", phase: "idle", players: {}, scores: {}, settings: null, startAt: 0, error: null };
+export function createLive(transport, { now = Date.now, rand = Math.random, onChange = () => {}, onStart = () => {}, onEvent = () => {}, onHold = () => {} } = {}) {
+  const st = { role: null, code: null, id: newId(rand), name: "", phase: "idle", players: {}, scores: {}, settings: null, startAt: 0, error: null, held: false, released: 0, holdTitle: "" };
   let link = null, kicked = false;
   const change = () => onChange(st);
   const hostId = () => Object.values(st.players).find(p => p.host)?.id || null;
@@ -52,6 +52,10 @@ export function createLive(transport, { now = Date.now, rand = Math.random, onCh
       if (!num(m.startAt, 0, 4e15)) return; st.settings = cleanSettings(m.settings); st.startAt = m.startAt; st.phase = "running"; change(); onStart(st.settings, st.startAt);
     } else if (m.t === "event" && st.role === "guest" && fromHost && st.phase === "running") {
       const ev = cleanEvent(m.ev); if (ev) onEvent(ev);
+    } else if (m.t === "hold" && st.role === "guest" && fromHost && st.phase === "running") {
+      st.held = true; st.holdTitle = String(m.title || "").slice(0, 60); change(); onHold(st);
+    } else if (m.t === "go" && st.role === "guest" && fromHost && st.phase === "running") {
+      if (num(m.day, 0, 1000)) st.released = Math.max(st.released, Math.round(m.day)); st.held = false; st.holdTitle = ""; change(); onHold(st);
     } else if (m.t === "closed" && st.role === "guest" && (fromHost || !hostId()) && m.to === st.id && st.phase === "lobby") {
       st.error = "That game has already started."; st.phase = "idle"; kicked = true; leave(); change();
     } else if (m.t === "score") {
@@ -79,6 +83,11 @@ export function createLive(transport, { now = Date.now, rand = Math.random, onCh
       send({ t: "start", settings: st.settings, startAt: st.startAt }); change(); onStart(st.settings, st.startAt); return { ok: true, startAt: st.startAt };
     },
     announce(ev) { const e = cleanEvent(ev); if (st.role !== "host" || st.phase !== "running" || !e) return { ok: false, error: "Only the host can announce events during a running game." }; send({ t: "event", ev: e }); return { ok: true }; },
+    // Host only: stop every device now (a facilitator checkpoint), or let them go again. "go" also records the day, so a checkpoint the others have not reached yet is skipped.
+    hold(title = "") { if (st.role !== "host" || st.phase !== "running") return { ok: false, error: "Only the host can stop a running game." }; st.held = true; st.holdTitle = String(title).slice(0, 60); send({ t: "hold", title: st.holdTitle }); change(); onHold(st); return { ok: true }; },
+    release(day) { if (st.role !== "host" || st.phase !== "running") return { ok: false, error: "Only the host can restart a stopped game." }; const d = Math.max(0, Math.round(Number(day) || 0)); st.released = Math.max(st.released, d); st.held = false; st.holdTitle = ""; send({ t: "go", day: d }); change(); onHold(st); return { ok: true }; },
+    // True when this device should stand still at the day it is on: a manual hold, or an automatic checkpoint the host has not released yet.
+    stopped(day) { if (st.held) return true; const n = st.settings && st.settings.checkpoint; return !!(n && day > 0 && day % n === 0 && day > st.released); },
     reportScore(card) { const c = cleanScore({ ...card, id: st.id, name: st.name }); if (!c || st.phase !== "running") return; st.scores[st.id] = c; send({ t: "score", card: c }); if (c.ended) st.phase = "done"; change(); },
     leaderboard() {
       // Players who have left keep their last reported score on the board.

@@ -116,3 +116,21 @@ test("a player who left keeps their last score on the board", async () => {
   await h.live.host("Host", code); await a.live.join("Ann", code); h.live.start({ seed: 5 }); a.live.reportScore({ ...card(9, 66), ended: true }); a.live.leave();
   const row = h.live.leaderboard().find(r => r.name === "Ann"); assert.equal(row.score, 66); assert.ok(row.left);
 });
+
+test("checkpoints: automatic stop every N days waits for the host; manual hold and go reach guests; guests and forgeries cannot", async () => {
+  const bus = L.memoryBus(), h = mk(bus, "Host"), a = mk(bus, "Ann"), code = "444444";
+  await h.live.host("Host", code); await a.live.join("Ann", code);
+  assert.equal(h.live.hold().ok, false);   // not running yet
+  h.live.start({ seed: 3, checkpoint: 10 });
+  assert.equal(a.live.state.settings.checkpoint, 10); assert.equal(L.cleanSettings({ checkpoint: 7 }).checkpoint, 0);
+  assert.equal(a.live.stopped(9), false); assert.equal(a.live.stopped(10), true); assert.equal(a.live.stopped(0), false);
+  assert.equal(a.live.release(10).ok, false);   // a guest cannot release
+  assert.equal(a.live.stopped(10), true);
+  assert.ok(h.live.release(10).ok);
+  assert.equal(a.live.stopped(10), false); assert.equal(a.live.stopped(20), true);
+  assert.ok(h.live.release(30).ok);   // host ahead: guests skip checkpoints they have not reached yet
+  assert.equal(a.live.stopped(20), false); assert.equal(a.live.stopped(30), false);
+  assert.ok(h.live.hold("Review").ok); assert.equal(a.live.state.held, true); assert.equal(a.live.state.holdTitle, "Review"); assert.equal(a.live.stopped(3), true);
+  assert.equal(a.live.hold().ok, false);
+  assert.ok(h.live.release(3).ok); assert.equal(a.live.state.held, false); assert.equal(a.live.stopped(3), false);
+});

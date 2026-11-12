@@ -46,7 +46,7 @@ Integrated report with ROA ROE debt to equity,bi,should,yes,yes,ROA ROE D/E curr
 Live data export (Excel; R; Tableau),bi,could,yes,no,no export
 Scoring matrix with KPI targets set by facilitator,scoring,must,yes,partial,weights yes; no per-team targets
 Robots as competitors,scoring,must,yes,yes,rival AI
-Facilitator pace control and pause,session,must,yes,partial,host settings; no checkpoints
+Facilitator pace control and pause,session,must,yes,yes,host stops everyone now or sets automatic stop every 5 to 20 days; host presses Continue
 Teams and multi-player sessions,session,must,yes,yes,live.js (untested on real Supabase)
 Scenario events such as financial crisis,session,should,yes,yes,random event chances
 Quizzes and micro courses,session,could,yes,no,not a game feature
