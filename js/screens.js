@@ -205,7 +205,7 @@ export function homeScreen(s) {
   const d = E.dashboard(s), w = Kp.warnings(s), empty = d.inventoryUnits <= 0, lost = s.today ? Object.values(s.today.lost).reduce((a, b) => a + b, 0) : 0;
   const steps = [];
   if (empty) steps.push({ level: "bad", text: "Your shelves are empty. Shoppers cannot buy anything.", go: ["retail", "procurement"], label: "Buy stock" });
-  for (const x of w) if (steps.length < 3) steps.push({ level: x.level, text: x.text, go: x.where, label: "Open" });
+  for (const x of w) if (steps.length < 2) steps.push({ level: x.level, text: x.text, go: x.where, label: "Open" });
   if (!steps.length) steps.push({ level: "ok", text: s.day <= 2 ? "Check your prices against the competition before the first rush." : "Nothing needs you right now. Keep stock above what you sell each day.", go: s.day <= 2 ? ["retail", "price"] : ["retail", "procurement"], label: s.day <= 2 ? "Prices" : "Buy stock" });
   const head = empty ? "Buy your first stock" : w.length ? `${w.length} thing${w.length > 1 ? "s" : ""} to look at` : "The shop is running well";
   const tile = (go, sub, title, line) => `<button class="tile" data-goto="${go}"${sub ? ` data-gsub="${sub}"` : ""}><b>${title}</b><small>${line}</small></button>`;
@@ -216,8 +216,9 @@ export function homeScreen(s) {
   <div class="card"><div class="kv1"><div><span>Sold today</span><b>${money(s.today ? s.today.rev : 0)}</b></div><div><span>Net profit so far</span><b class="${d.netProfit < 0 ? "neg" : "pos"}">${money(d.netProfit)}</b></div><div><span>Shoppers missed today</span><b>${num(lost)}</b></div><div><span>Rent per day</span><b>${money2(E.dailyRent(s.location, s.area))}</b></div></div></div>`;
 }
 export function warningsCard(s) {
-  const w = Kp.warnings(s); if (!w.length) return "";
-  return `<div class="card">${head("Warnings", w.length + " to look at")}${w.map(x => `<div class="warnrow ${x.level}"><span>${esc(x.text)}</span><button class="mini ghost" data-goto="${x.where[0]}" data-gsub="${x.where[1]}">Open</button></div>`).join("")}</div>`;
+  const w = Kp.warnings(s).slice(0, 3);
+  if (!w.length) return `<div class="card warns">${head("Warnings", "all clear")}<div class="warnrow ok"><span>Nothing needs you right now.</span></div></div>`;
+  return `<div class="card warns">${head("Warnings", w.length + " to look at")}${w.map(x => `<div class="warnrow ${x.level}"><span>${esc(x.text)}</span><button class="mini ghost" data-goto="${x.where[0]}" data-gsub="${x.where[1]}">Open</button></div>`).join("")}</div>`;
 }
 // ================= SCORING & DATA =================
 export function scoring(s, f) {

@@ -653,3 +653,15 @@ button { color:#f7f0df; } button.ghost { color:var(--fg); }
 }
 @media (min-width:900px) and (max-width:1299px) { #tabs > button { padding:0 11px !important; font-size:.82rem !important; gap:5px !important; } #tabs > button svg { width:15px; height:15px; } }
 @media (min-width:900px) and (max-width:1079px) { #tabs > button svg { display:none !important; } }
+
+/* fixed structure: boxes keep their size and position while numbers tick */
+body { font-variant-numeric:tabular-nums; }
+.content { align-items:stretch !important; } #view, #subtabs { width:100%; }
+@media (min-width:900px) { .card.hero { min-height:244px; } .card.hero .step { flex:1 1 auto; max-height:92px; } } .step { min-height:54px; } .step span { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.card.warns { min-height:190px; align-content:start; } .warnrow { min-height:40px; }
+.live .logbox { height:158px; overflow:hidden; }
+@media (min-width:900px) {
+  .topbar .hud { display:grid; grid-template-columns:260px 200px 200px; justify-content:center; }
+  .topbar .hud .pill { min-width:0; white-space:nowrap; overflow:hidden; }
+}
+.mailrow { min-height:135px; }
