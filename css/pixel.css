@@ -659,9 +659,19 @@ body { font-variant-numeric:tabular-nums; }
 .content { align-items:stretch !important; } #view, #subtabs { width:100%; }
 @media (min-width:900px) { .card.hero { min-height:244px; } .card.hero .step { flex:1 1 auto; max-height:92px; } } .step { min-height:54px; } .step span { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .card.warns { min-height:190px; align-content:start; } .warnrow { min-height:40px; }
-.live .logbox { height:158px; overflow:hidden; }
+.live .logbox { min-height:76px; max-height:158px; overflow:hidden; }
 @media (min-width:900px) {
   .topbar .hud { display:grid; grid-template-columns:260px 200px 200px; justify-content:center; }
   .topbar .hud .pill { min-width:0; white-space:nowrap; overflow:hidden; }
 }
 .mailrow { min-height:135px; }
+
+/* sub-tabs and primary buttons: light, aligned, sized to content */
+@media (min-width:900px) {
+  #subtabs { background:#efe3c8 !important; border:1px solid #d6c49c; border-top:0; border-radius:0 0 10px 10px !important; padding:6px 8px !important; gap:4px !important; box-shadow:0 1px 0 rgba(255,255,255,.5) inset; }
+  #subtabs button { background:transparent !important; color:#4f5324 !important; min-height:34px !important; padding:0 16px !important; border-radius:7px !important; font-weight:600; }
+  #subtabs button:hover { background:#e0d2b0 !important; }
+  #subtabs button.on { background:#5b5f28 !important; color:#ffd400 !important; box-shadow:none; }
+  .content { gap:14px !important; }
+  button.big { width:auto !important; min-width:240px; align-self:flex-start; padding:10px 26px; }
+}
