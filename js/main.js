@@ -11,6 +11,7 @@ import * as Kp from "./kpi.js";
 import { createLocationPicker } from "./locationpicker.js";
 import { startFit } from "./fit.js";
 import * as Lv from "./live.js";
+import * as Ex from "./exportdata.js";
 import { morph } from "./morph.js";
 import { MODS, cleanMods, defaultMods, tabOff } from "./modules.js";
 
@@ -137,6 +138,7 @@ $("tabs").addEventListener("click", e => {
 $("subtabs").addEventListener("click", e => { const b = e.target.closest("[data-sub]"); if (b) goto(ui.main, b.dataset.sub); });
 $("view").addEventListener("click", e => {
   if (!s) return; const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.export) { const x = Ex.exportCsv(s, t.dataset.export); if (!x) return; const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([x.text], { type: "text/csv;charset=utf-8" })); a.download = x.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast("Saved " + x.name, "ok"); return; }
   if (t.dataset.resexport) { const sb = Kp.scoreboard(s), card = Sn.resultCard(s, sb.total, ui.f.team, sb), a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(card)], { type: "application/json" })); a.download = `economy-result-${(card.name || "team").replace(/[^a-z0-9]+/gi, "-")}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast("Result saved. Hand the file to the facilitator.", "ok"); return; }
   if (t.dataset.resreport != null) { const sb = Kp.scoreboard(s), card = t.dataset.resreport === "me" ? Sn.resultCard(s, sb.total, ui.f.team, sb) : (ui.results || [])[Number(t.dataset.resreport)]; if (!card) return; const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([Sn.reportHtml(card)], { type: "text/html" })); a.download = `economy-report-${(card.name || "team").replace(/[^a-z0-9]+/gi, "-")}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast("Report saved. Open it in a browser; print to make a PDF.", "ok"); return; }
   if (t.dataset.respick) { $("resIn").click(); return; }

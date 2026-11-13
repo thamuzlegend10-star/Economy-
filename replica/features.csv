@@ -43,7 +43,7 @@ Service management with RFQs and resource scheduling,service,could,yes,no,custom
 Complaints and customer satisfaction,service,should,yes,yes,tickets; satisfaction moves demand
 Business intelligence with sales analysis,bi,must,yes,yes,Insights > Data and BI
 Integrated report with ROA ROE debt to equity,bi,should,yes,yes,ROA ROE D/E current and quick ratio on Statements
-Live data export (Excel; R; Tableau),bi,could,yes,no,no export
+Live data export (Excel; R; Tableau),bi,could,yes,partial,CSV download of daily results, journal, trial balance, B2B history; not a live link
 Scoring matrix with KPI targets set by facilitator,scoring,must,yes,yes,weights plus per-team targets (own or facilitator preset locked in a live room); progress shown beside score
 Robots as competitors,scoring,must,yes,yes,rival AI
 Facilitator pace control and pause,session,must,yes,yes,host stops everyone now or sets automatic stop every 5 to 20 days; host presses Continue

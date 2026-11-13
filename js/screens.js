@@ -13,6 +13,7 @@ import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
 import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
+import * as Ex from "./exportdata.js";
 import { getLocation } from "./locations.js";
 import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
 import { esc, money, money2, num, scenarioChance } from "./ui.js";
@@ -325,6 +326,7 @@ export function biScreen(s) {
     <div class="card">${head("Revenue, profit and cash", "Last 60 days")}${lineChart([{ name: "Revenue", color: "var(--mint)", values: ser.map(x => x.revenue) }, { name: "Net profit", color: "var(--brass)", values: ser.map(x => x.net) }, { name: "Cash", color: "var(--blue)", values: ser.map(x => x.cash) }], days, "Revenue, net profit and cash per day")}</div>
     <div class="card">${head("Where the money comes from")}${m.revenue > 0 ? hbars(m.channels.filter(x => x.v > 0)) : `<small class="muted">No sales yet.</small>`}</div>
     <div class="card">${head("Where the money goes")}${m.costMix.length ? hbars(m.costMix, ["var(--coral)", "var(--brass)", "var(--blue)", "var(--mint)"]) : `<small class="muted">No costs yet.</small>`}</div>
+    <div class="card">${head("Export data", "CSV for Excel, R or Tableau")}${Ex.KINDS.map(k => `<div class="kv1"><div><span>${esc(k.name)}</span><b>${esc(k.note)}</b></div></div><div class="row"><button class="mini ghost" data-export="${k.id}">Download</button></div>`).join("")}</div>
     <div class="card scroll"><b>Supplier reliability</b>${sup ? `<table class="tbl fixed"><thead><tr><th class="l">Supplier</th><th>Orders</th><th>Late</th><th>On time</th></tr></thead><tbody>${sup}</tbody></table>` : `<small class="muted">Reliability shows once deliveries arrive.</small>`}</div>`;
 }
 
