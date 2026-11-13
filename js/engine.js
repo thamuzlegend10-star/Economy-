@@ -17,6 +17,7 @@ import { newTax, taxDay, taxOwed } from "./accounting.js";
 import { receivable } from "./b2b.js";
 import { ensureFleet, newFleet as newFleetState, planTrip, dispatch, fleetDay } from "./fleet.js";
 import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
+import { branchDay } from "./branch.js";
 import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut, csiFactor } from "./market.js";
 import { newBank, bankDay } from "./bank.js";
 import { newKpi } from "./kpi.js";
@@ -96,9 +97,9 @@ export function dashboard(s) {
 }
 
 // ---------- demand ----------
-function demandFor(s, p) {
-  const L = getLocation(s.location), price = s.prices[p.id];
-  const area = Math.pow(s.area / D.AREA.def, 0.3);
+export function demandFor(s, p, loc = s.location, sqm = s.area) {
+  const L = getLocation(loc), price = s.prices[p.id];
+  const area = Math.pow(sqm / D.AREA.def, 0.3);
   const pf = clamp(Math.pow(expectedPrice(s, p) / price, p.elast * L.priceSens * priceCut(s, p.cat)), 0.01, 2.5);
   return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s) * csiFactor(s) * eventMult(s, "demand") * demandMood(s, p.cat) * D.diff(s).demand;
 }
@@ -393,7 +394,7 @@ function closeDay(s) {
   const lines = [{ acct: "rent", dr: rent }];
   if (pay > 0) lines.push({ acct: "cash", cr: pay }); if (over > 0) lines.push({ acct: "overdraft", cr: over });
   post(s.ledger, day, `Rent for day ${day}`, lines, "rent:" + day); s.today.rent = rent;
-  factoryDay(s); hrDay(s); mktDay(s); ecomDay(s); overflowDay(s); bankDay(s); juiceShopDay(s); srvDay(s); fleetDay(s); taxDay(s);
+  factoryDay(s); hrDay(s); mktDay(s); ecomDay(s); overflowDay(s); bankDay(s); juiceShopDay(s); branchDay(s); srvDay(s); fleetDay(s); taxDay(s);
   const od = balance(s.ledger, "overdraft"), cashNow = balance(s.ledger, "cash"), repay = c(Math.min(od, Math.max(0, cashNow)));
   if (repay > 0) post(s.ledger, day, "Overdraft repaid from cash", [{ acct: "overdraft", dr: repay }, { acct: "cash", cr: repay }]);
   s.overdraftDays = balance(s.ledger, "overdraft") > 0 ? s.overdraftDays + 1 : 0;

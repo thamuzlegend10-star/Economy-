@@ -30,6 +30,7 @@ const ICON = {
   factory: '<path d="M1 13V6l4 2.5V6l4 2.5V3h3v10z"/>',
   hr: '<circle cx="6" cy="5" r="2.2"/><path d="M2 13c0-2.5 1.8-4 4-4s4 1.5 4 4M11 4.5a2 2 0 010 4M12 9.3c1.5.4 2.5 1.6 2.5 3.7"/>',
   marketing: '<path d="M2 6v4h3l5 3V3L5 6zM12 6.5a2.5 2.5 0 010 3"/>',
+  branch: '<path d="M2 7l1-4h10l1 4M3 7v6h10V7M6 13V9h4v4"/>',
   ecom: '<path d="M1.5 2.5h2l1.6 7h7l1.2-5H4"/><circle cx="6" cy="12.5" r="1.1"/><circle cx="11" cy="12.5" r="1.1"/>',
 };
 // Core tabs are always on screen. The rest sit behind "More" so a new player sees five things, not twelve.
@@ -43,6 +44,7 @@ export const NAV = [
   { id: "shipping", more: true, label: "Delivery", subs: [["co", "Hire transport"], ["fleet", "My trucks"], ["tx", "History"]] },
   { id: "b2b", more: true, label: "B2B", subs: [["market", "Market"], ["contracts", "Contracts"]] },
   { id: "marketing", more: true, label: "Marketing", subs: [] },
+  { id: "branch", more: true, label: "Branches", subs: [] },
   { id: "ecom", more: true, label: "Web store", subs: [] },
   { id: "mail", more: true, label: "Mail", subs: [["inbox", "Inbox"], ["facilitator", "Facilitator"]] },
   { id: "data", more: true, label: "Insights", subs: [["score", "Score"], ["forecast", "Forecast"], ["market", "Competitors"], ["bi", "Dashboard"]] },

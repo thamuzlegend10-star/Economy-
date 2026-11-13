@@ -6,6 +6,7 @@ import * as F from "./factory.js";
 import * as M from "./mrp.js";
 import * as B from "./b2b.js";
 import * as H from "./hr.js";
+import * as Br from "./branch.js";
 import * as K from "./market.js";
 import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
@@ -15,7 +16,7 @@ import * as Ml from "./mail.js";
 import * as Js from "./juiceshop.js";
 import * as Sn from "./scenario.js";
 
-export const newForms = () => ({ fsite: "main", vendor: "agro", terms: "cod", rq: {}, bid: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, jm: {}, jcarrier: "hired", ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
+export const newForms = () => ({ fsite: "main", vendor: "agro", terms: "cod", rq: {}, bid: {}, br: { location: "", area: 80 }, mkt: { channel: "social", budget: 500, days: 7, cat: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, jm: {}, jcarrier: "hired", ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const r = (res, msg) => (res && res.ok ? { ok: true, msg } : { ok: false, error: (res && res.error) || "Not possible." });
 
@@ -72,6 +73,9 @@ export function act(s, f, name, a = {}) {
     // marketing
     case "mktStart": return r(K.startCampaign(s, { ...f.mkt }), "Campaign started.");
     case "mktStop": return r(K.stopCampaign(s, n), "Campaign stopped.");
+    // branch shops
+    case "branchOpen": return r(Br.openBranch(s, { location: f.br.location && Br.sites(s).some(x => x.id === f.br.location) ? f.br.location : Br.defaultSite(s), area: f.br.area }), "Branch opened.");
+    case "branchClose": return r(Br.closeBranch(s, n), "Branch closed.");
     // e-commerce
     case "ecomOpen": return r(K.openWebstore(s), "The webstore is open.");
     case "ecomCat": { const e = K.ensureEcom(s), set = new Set(e.catalog); set.has(id) ? set.delete(id) : set.add(id); return r(K.setCatalog(s, [...set]), "Catalog updated."); }

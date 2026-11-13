@@ -77,6 +77,7 @@ function viewFor() {
   if (m === "b2b") return sub === "contracts" ? SC.b2bContracts(s) : SC.b2bMarket(s, ui.f);
   if (m === "hr") return SC.hrScreen(s, ui.f);
   if (m === "marketing") return SC.marketing(s, ui.f);
+  if (m === "branch") return SC.branches(s, ui.f);
   if (m === "ecom") return SC.ecom(s);
   if (m === "mail") return ui.sub.mail === "facilitator" ? SC.facilitatorScreen(s, ui.f, ui.results, live && live.state.phase !== "lobby" && live.state.phase !== "idle" ? { code: live.state.code, role: live.state.role, board: live.leaderboard(), stopped: live.state.phase === "running" && live.stopped(s.day), day: s.day, ck: (live.state.settings && live.state.settings.checkpoint) || 0 } : null) : SC.mailScreen(s);
   if (m === "data") return sub === "market" ? SC.competitors(s) : sub === "bi" ? SC.biScreen(s) : sub === "forecast" ? SC.forecast(s) : SC.scoring(s, ui.f);

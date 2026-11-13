@@ -11,6 +11,8 @@ import * as H from "./hr.js";
 import * as K from "./market.js";
 import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
+import * as Br from "./branch.js";
+import { getLocation } from "./locations.js";
 import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
 import { esc, money, money2, num, scenarioChance } from "./ui.js";
 import { rawLines } from "./actions.js";
@@ -153,6 +155,17 @@ export function marketing(s, f) {
       <label class="fld"><span>Target</span>${sel("mkt.cat", cats, f.mkt.cat, false)}</label>
       <small class="muted">${esc(ch.name)}: minimum ${money(ch.minBudget)}, memory fades ${pct(ch.decay)} a day. Awareness lifts shopper numbers and makes them less price-sensitive. Spend is paid daily.</small>${btn("mktStart", `Start · ${money(f.mkt.budget)}`, { mini: false })}</div>
     ${list ? `<div class="card">${head("Campaigns")}${list}</div>` : ""}`;
+}
+
+// ================= BRANCH SHOPS =================
+export function branches(s, f) {
+  const b = Br.ensureBranches(s), sites = Br.sites(s), cur = sites.some(x => x.id === f.br.location) ? f.br.location : Br.defaultSite(s), area = f.br.area;
+  const list = b.list.map(x => { const L = getLocation(x.location), profit = round2(x.stats.revenue - x.stats.cogs - x.stats.costs);
+    return `<div class="card">${head(L.name, "Branch #" + x.id)}${kv([["Size", num(x.area) + " m²"], ["Expected sales / day", num(Math.round(Br.branchDemand(s, x))) + " units, if stock lasts"], ["Rent and staff / day", money(Br.branchRunCost(x.location, x.area))], ["Today", `${num(x.today.units)} units, ${money(x.today.revenue)}`], ["So far", `${num(x.stats.units)} units sold, ${money(x.stats.revenue)} in sales`], ["Profit so far (sales - goods - costs)", money(profit)], ["Missed for lack of stock", num(x.stats.lost)]])}<div class="row">${btn("branchClose", "Close branch", { id: x.id, ghost: true })}</div></div>`; }).join("");
+  const form = b.list.length >= D.BRANCH.max ? `<small class="muted">You run the most branches allowed (${D.BRANCH.max}). Close one to open another.</small>` : !sites.length ? `<small class="muted">No free place is left.</small>`
+    : `<label class="fld"><span>Place</span>${sel("br.location", sites.map(l => [l.id, `${l.name} (rent x${dec(l.rent, 2)}, demand x${dec(l.demand, 2)})`]), cur, false)}</label>
+      <label class="fld"><span>Size</span>${sel("br.area", D.BRANCH.areas.map(a => [a, `${a} m², fit-out ${money(Br.fitout(a))}`]), area)}</label>${btn("branchOpen", "Open branch")}`;
+  return `<div class="card">${head("Branch shops", `${b.list.length} of ${D.BRANCH.max}`)}<small class="muted">A branch sells from your main shop's stock at your main shop's prices. It pays its own rent and staff, and each unit costs ${money2(D.BRANCH.transferPerUnit)} to move. It sells after your main shop, so keep enough stock for both. Fit-out is a one-time cost.</small>${form}</div>${list}`;
 }
 
 // ================= E-COMMERCE =================

@@ -245,3 +245,6 @@ export const TRUCKS = [
   { id: "truck", name: "Box truck",    capacity: 30000, price: 48000, life: 500, speed: 600, fuelPerKm: 0.55, wear: 2.0, serviceCost: 900 },
 ];
 export const TRANSPORT = { loadDays: 0.25, docks: 2, loadSpacePerDay: 400, handlerBoost: 0.5, localKm: 15, breakdownBelow: 30, breakdownChance: 0.25, repairMult: 3, downMin: 1, downMax: 2, restoreTo: 100, tripLog: 30 };
+
+// Branch shops: extra outlets in other places. They sell from the main shop's stock at the main shop's prices.
+export const BRANCH = { max: 3, areas: [40, 80, 150], fitoutPerM2: 120, staffPerDay: 70, transferPerUnit: 0.08, demandShare: 0.55 };

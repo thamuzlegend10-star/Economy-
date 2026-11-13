@@ -7,7 +7,7 @@ Financial statements (income statement; balance sheet; cash flow),finance,must,y
 Manual journal entries,finance,could,yes,yes,accounting.js
 Accrual accounting mode with vendor credit limits,finance,could,yes,partial,payment terms exist; no vendor credit limits
 Retail store rental with population by location,retail,must,yes,yes,Shop > Location
-Up to seven stores,retail,should,yes,no,single shop; relocate only
+Up to seven stores,retail,should,yes,partial,main shop plus up to 3 branches; branches share main stock and prices
 Price per product with elasticity,retail,must,yes,yes,Shop > Prices
 Competitor price and stock effect on sales,retail,must,yes,yes,rival price wave
 Staff index (headcount x competency) effect on sales,retail,should,yes,yes,six departments
