@@ -14,7 +14,7 @@ Staff index (headcount x competency) effect on sales,retail,should,yes,yes,six d
 Holidays and seasonality effect on demand,retail,should,yes,partial,events random; no yearly calendar
 Daily retail demand forecast per product,forecast,should,yes,yes,Insights > Forecast
 B2B demand forecast,forecast,could,yes,partial,known B2B contracts only
-Currency exchange and central bank rate forecast,forecast,could,yes,no,single currency
+Currency exchange and central bank rate forecast,forecast,could,yes,yes,exchange index drives import supplier prices; central bank rate drives bank charges; 7-day outlook with band
 Vendor purchasing with approval step,procurement,must,yes,yes,purchase orders; requisitions
 Supplier lead time; reliability and price tiers,procurement,must,yes,yes,supplier choice on PO
 Delivery quality check and damaged goods,procurement,could,yes,partial,late and short deliveries only

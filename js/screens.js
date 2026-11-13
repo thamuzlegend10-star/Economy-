@@ -12,6 +12,7 @@ import * as K from "./market.js";
 import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
 import * as Br from "./branch.js";
+import * as Cu from "./currency.js";
 import { getLocation } from "./locations.js";
 import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
 import { esc, money, money2, num, scenarioChance } from "./ui.js";
@@ -261,6 +262,16 @@ export function competitors(s) {
     <small class="muted">Amber means a rival is cheaper than you by more than 5%. Shoppers compare your price with the rivals, so when they cut, your sales fall unless you follow.</small>${economyCard(s)}<div class="card"><b>Revenue per day</b>${chartRev}</div>`;
 }
 
+export function currency(s) {
+  const k = Cu.ensureCur(s), fc = [1, 2, 3, 5, 7].map(n => Cu.forecastRate(s, n)), hist = k.hist.slice(-30), lo = Math.min(...hist.map(h => h.rate), 0.95), hi = Math.max(...hist.map(h => h.rate), 1.05);
+  const chart = hist.length > 1 ? `<div class="chart" role="img" aria-label="Exchange index, last days">${hist.map(h => `<div class="col"><i style="height:${Math.max(4, (h.rate - lo) / Math.max(0.001, hi - lo) * 100)}%"></i><small>${h.day}</small></div>`).join("")}</div>` : `<small class="muted">The chart fills in as days pass.</small>`;
+  const imp = [...D.SUPPLIERS, ...D.WH_SUPPLIERS].filter(x => x.id !== Cu.IMPORT_FREE).map(x => x.name).join(", ");
+  return `<div class="card">${head("Currency", "Exchange index and central bank")}${kv([["Exchange index (1.00 is neutral)", dec(k.rate, 3)], ["Effect on import prices", (k.rate >= 1 ? "+" : "") + dec((k.rate - 1) * 100, 1) + "%"], ["Central bank rate", dec(k.policy, 2) + "%"], ["Effect on your bank's charges", "x" + dec(Cu.policyFactor(s), 2)], ["Index the bank rate pulls toward", dec(Cu.targetFor(k.policy), 3)]])}
+    <small class="muted">Suppliers other than the Local Co-op (${esc(imp)}) price in a foreign currency, so their prices rise and fall with the index. A higher central bank rate strengthens your currency, so the index drifts down, but loans and overdrafts cost more. Time big orders for when the index is low.</small></div>
+    <div class="card scroll"><b>Outlook</b><table class="tbl fixed"><thead><tr><th>Day</th><th>Expected</th><th>Low</th><th>High</th></tr></thead><tbody>${fc.map(f => `<tr><td>${f.day}</td><td>${dec(f.mean, 3)}</td><td>${dec(f.lo, 3)}</td><td>${dec(f.hi, 3)}</td></tr>`).join("")}</tbody></table>
+    <small class="muted">The band is a one in five chance of being outside it. It assumes the central bank rate stays where it is. If the bank moves, the outlook moves too.</small></div>
+    <div class="card"><b>Index, last days</b>${chart}</div>`;
+}
 export function forecast(s) {
   const per = D.PRODUCTS.map(p => { const a = Fc.retailAdvice(s, p.id), sp = D.SUPPLIERS.find(x => x.id === a.supplier), tr = a.trend / Math.max(1, a.level) * 100;
     return `<div class="card"><div class="shophead"><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</b><small>${a.basis === "history" ? "from sales history" : "from the demand model (few days of history)"}</small></div>

@@ -1,4 +1,5 @@
 // Commercial banking (module 1): overdraft interest, a 30-day revolving credit line and fixed-term loans. Interest compounds daily.
+import { policyFactor } from "./currency.js";
 import { post, balance, round2 } from "./ledger.js";
 import * as D from "./data.js";
 import { mailPost } from "./mail.js";
@@ -44,7 +45,7 @@ export function takeLoan(s, { kind = "equipment", amount, termDays } = {}) {
   if (kind === "equipment" && !D.BANK.equipment.termsDays.includes(termDays)) return err(`Choose a term of ${D.BANK.equipment.termsDays.join(", ")} days.`);
   if (kind === "long") { if (amount < D.BANK.longTerm.minAmount) return err(`Long-term loans start at $${D.BANK.longTerm.minAmount.toLocaleString("en-US")}.`); termDays = 365; }
   if (amount > loanCap(s, kind)) return err(`The bank will lend you up to $${loanCap(s, kind).toLocaleString("en-US")} of this kind.`);
-  const b = ensureBank(s), rate = c4((kind === "equipment" ? D.BANK.equipment.rate : D.BANK.longTerm.rate) * rateFactor(s));
+  const b = ensureBank(s), rate = c4((kind === "equipment" ? D.BANK.equipment.rate : D.BANK.longTerm.rate) * rateFactor(s) * policyFactor(s));
   const l = { id: ++b.lseq, kind, principal: amount, balance: amount, rate, left: termDays, daily: c(amount / termDays), started: s.day }; b.loans.push(l);
   post(s.ledger, s.day, `Took ${kind === "equipment" ? "an equipment" : "a long-term"} loan #${l.id}`, [{ acct: "cash", dr: amount }, { acct: "longdebt", cr: amount }], "loan:" + l.id);
   log(s, `Took a $${amount.toLocaleString("en-US")} loan for ${termDays} days.`); return ok({ loan: l });
@@ -54,7 +55,7 @@ export function bankDay(s) {
   const od = balance(s.ledger, "overdraft");
   const lateNow = od > 0 || (s.hr && s.hr.late > (b.hrLate || 0)) ? 1 : 0; b.hrLate = s.hr ? s.hr.late || 0 : 0; b.hist = [...(b.hist || []), lateNow].slice(-30);
   const rt = creditRating(s)[0]; if (b.rating && rt !== b.rating) mailPost(s, { from: "Bank", subject: `Your credit rating is now ${rt}`, body: `It was ${b.rating}. The rating follows how many of the last 30 days had an overdraft or a payday paid from overdraft. Below A, the bank raises its interest rates.`, goto: ["finance", "bank"], level: RATINGS.findIndex(r => r[0] === rt) > RATINGS.findIndex(r => r[0] === b.rating) ? "warn" : "info" }); b.rating = rt;
-  const rf = rateFactor(s);                                                        // overdraft interest compounds into the overdraft itself
+  const rf = c4(rateFactor(s) * policyFactor(s));                                                        // overdraft interest compounds into the overdraft itself
   if (od > 0 && s.overdraftDays === 0) mailPost(s, { from: "Bank", subject: "Your account is overdrawn", body: `You owe the bank $${od.toFixed(2)}. Three days in a row ends the game. Repay it from sales or draw on the credit line.`, goto: ["finance", "bank"], level: "bad" });
   if (od > 0) { const i = c(od * D.BANK.overdraft.rate * rf); if (i > 0) { post(s.ledger, s.day, "Overdraft interest", [{ acct: "interest", dr: i }, { acct: "overdraft", cr: i }], "odint:" + s.day); b.interestPaid = c(b.interestPaid + i); } }
   if (b.credit.bal > 0) {

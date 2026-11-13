@@ -1,3 +1,4 @@
+import * as Cu from "../js/currency.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as E from "../js/engine.js";
@@ -105,7 +106,8 @@ test("long-term loan needs the minimum amount; overdraft interest compounds", ()
   const o = mk(); const cash = balance(o.ledger, "cash");                                           // overdraw through two proper postings
   post(o.ledger, o.day, "test: overdraw", [{ acct: "rent", dr: cash + 5000 }, { acct: "cash", cr: cash }, { acct: "overdraft", cr: 5000 }]);
   const od = balance(o.ledger, "overdraft"); assert.equal(od, 5000); Bk.bankDay(o);
-  assert.equal(balance(o.ledger, "overdraft"), Math.round(od * (1 + D.BANK.overdraft.rate) * 100) / 100); assert.ok(balance(o.ledger, "interest") > 0); assert.ok(E.reconcile(o).ok);
+  const rf = Math.round(Cu.policyFactor(o) * 1e4) / 1e4;   // the central bank's policy rate moves the bank's charge
+  assert.equal(balance(o.ledger, "overdraft"), Math.round(od * (1 + D.BANK.overdraft.rate * rf) * 100) / 100); assert.ok(balance(o.ledger, "interest") > 0); assert.ok(E.reconcile(o).ok);
 });
 
 // ---------- storage overflow ----------

@@ -18,6 +18,7 @@ import { receivable } from "./b2b.js";
 import { ensureFleet, newFleet as newFleetState, planTrip, dispatch, fleetDay } from "./fleet.js";
 import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
 import { branchDay } from "./branch.js";
+import { curDay, exchangeFactor } from "./currency.js";
 import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut, csiFactor } from "./market.js";
 import { newBank, bankDay } from "./bank.js";
 import { newKpi } from "./kpi.js";
@@ -114,7 +115,7 @@ function beginDay(s) {
   for (const sp of ALL_SUP) {                                           // supplier prices drift (supplier stock is unlimited)
     const i = s.supIdx[sp.id]; s.supIdx[sp.id] = Math.round(clamp(i + (rnd(s) - 0.5) * 0.05 + (1 - i) * 0.08, 0.9, 1.15) * 1000) / 1000;
   }
-  econDay(s); scenarioDay(s); arrivals(s); juiceArrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
+  curDay(s); econDay(s); scenarioDay(s); arrivals(s); juiceArrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
 }
 
@@ -144,7 +145,7 @@ export function distanceKm(locId, sp) {
   return Math.round(best);
 }
 export const discountFor = (qty, table = D.BULK) => { for (const [min, d] of table) if (qty >= min) return d; return 0; };
-export const unitCost = (s, sp, pid) => c(PRODUCT[pid].cost * sp.price * s.supIdx[sp.id] * eventMult(s, "cost") * priceLevel(s));
+export const unitCost = (s, sp, pid) => c(PRODUCT[pid].cost * sp.price * s.supIdx[sp.id] * exchangeFactor(s, sp.id) * eventMult(s, "cost") * priceLevel(s));
 
 export function quote(s, supId, pid, qty) {
   const sp = SUPPLIER[supId], p = PRODUCT[pid];

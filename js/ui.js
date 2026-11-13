@@ -47,7 +47,7 @@ export const NAV = [
   { id: "branch", more: true, label: "Branches", subs: [] },
   { id: "ecom", more: true, label: "Web store", subs: [] },
   { id: "mail", more: true, label: "Mail", subs: [["inbox", "Inbox"], ["facilitator", "Facilitator"]] },
-  { id: "data", more: true, label: "Insights", subs: [["score", "Score"], ["forecast", "Forecast"], ["market", "Competitors"], ["bi", "Dashboard"]] },
+  { id: "data", more: true, label: "Insights", subs: [["score", "Score"], ["forecast", "Forecast"], ["currency", "Currency"], ["market", "Competitors"], ["bi", "Dashboard"]] },
   { id: "info", label: "Help", subs: [], action: true },
 ];
 const svg = id => `<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
