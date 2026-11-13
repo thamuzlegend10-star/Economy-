@@ -13,6 +13,7 @@ import * as Bk from "./bank.js";
 import * as Kp from "./kpi.js";
 import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
+import * as St from "./stock.js";
 import * as Ex from "./exportdata.js";
 import { getLocation } from "./locations.js";
 import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
@@ -267,6 +268,16 @@ export function competitors(s) {
     <small class="muted">Amber means a rival is cheaper than you by more than 5%. Shoppers compare your price with the rivals, so when they cut, your sales fall unless you follow.</small>${economyCard(s)}<div class="card"><b>Revenue per day</b>${chartRev}</div>`;
 }
 
+export function freshness(s) {
+  const k = St.ensureStk(s), per = St.perishables();
+  const cards = per.map(p => { const bs = St.batchesOf(s, p.id), val = s.qty[p.id] > 0 ? s.val[p.id] / s.qty[p.id] : 0;
+    const rows = bs.map(b => `<tr class="${b.left <= St.STOCK.soonDays ? "warnc" : ""}"><td class="l">${b.left <= 0 ? "Past date" : b.left + " day" + (b.left === 1 ? "" : "s") + " left"}</td><td>${num(b.q)}</td><td>${money(b.q * val)}</td></tr>`).join("");
+    const soon = bs.filter(b => b.left <= St.STOCK.soonDays).reduce((a, b) => a + b.q, 0);
+    return `<div class="card scroll">${head(p.name, `Shelf life ${p.shelf} days`)}${bs.length ? `<table class="tbl fixed"><thead><tr><th class="l">Batch</th><th>Units</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>` : `<small class="muted">No stock on the shelf.</small>`}${soon ? `<small class="muted">${num(soon)} units go off within ${St.STOCK.soonDays} days. Lower the price to sell them first.</small>` : ""}</div>`; }).join("");
+  const since = k.last ? s.day - k.last : null, can = St.canCount(s);
+  return `<div class="card">${head("Stock take", "Count the shelves")}${kv([["Last count", since == null ? "never" : since === 0 ? "today" : since + " d ago"], ["Counts so far", num(k.counts)], ["Found missing so far", `${num(k.missing)} units, ${money(k.missingValue)}`], ["Thrown away as spoiled", `${num(k.spoiled)} units, ${money(k.spoiledValue)}`], ["A count costs", money(St.STOCK.countFee)]])}
+    <small class="muted">A little stock goes missing every day: miscounts, damage, theft. Your books do not know until you count, so the stock value you see is too high by that much. A count books the loss, and for ${St.STOCK.calmDays} days after it the loss runs at half the rate. You can count every ${St.STOCK.countEvery} days.</small>${btn("stockTake", can ? "Count the shelves" : "Counted recently", { mini: false, dis: !can })}</div>${cards}`;
+}
 export function currency(s) {
   const k = Cu.ensureCur(s), fc = [1, 2, 3, 5, 7].map(n => Cu.forecastRate(s, n)), hist = k.hist.slice(-30), lo = Math.min(...hist.map(h => h.rate), 0.95), hi = Math.max(...hist.map(h => h.rate), 1.05);
   const chart = hist.length > 1 ? `<div class="chart" role="img" aria-label="Exchange index, last days">${hist.map(h => `<div class="col"><i style="height:${Math.max(4, (h.rate - lo) / Math.max(0.001, hi - lo) * 100)}%"></i><small>${h.day}</small></div>`).join("")}</div>` : `<small class="muted">The chart fills in as days pass.</small>`;

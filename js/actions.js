@@ -6,6 +6,7 @@ import * as F from "./factory.js";
 import * as M from "./mrp.js";
 import * as B from "./b2b.js";
 import * as H from "./hr.js";
+import * as St from "./stock.js";
 import * as Br from "./branch.js";
 import * as K from "./market.js";
 import * as Bk from "./bank.js";
@@ -73,6 +74,7 @@ export function act(s, f, name, a = {}) {
     // marketing
     case "mktStart": return r(K.startCampaign(s, { ...f.mkt }), "Campaign started.");
     case "mktStop": return r(K.stopCampaign(s, n), "Campaign stopped.");
+    case "stockTake": { const x = St.stockTake(s); return r(x, x.ok ? (x.found.length ? `Counted: ${x.total.toFixed(2)} dollars of stock was missing.` : "Counted: nothing missing.") : ""); }
     // branch shops
     case "branchOpen": return r(Br.openBranch(s, { location: f.br.location && Br.sites(s).some(x => x.id === f.br.location) ? f.br.location : Br.defaultSite(s), area: f.br.area }), "Branch opened.");
     case "branchClose": return r(Br.closeBranch(s, n), "Branch closed.");

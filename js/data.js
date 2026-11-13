@@ -5,7 +5,7 @@ export const SAVE_VERSION = 25;
 // base is the daily demand at the reference price in a neutral district.
 export const PRODUCTS = [
   { id: "noodles", name: "Instant noodles", cat: "food",        cost: 0.85, ref: 1.40,  base: 2000, elast: 2.2, space: 1,   step: 0.05, color: "#d9a05b", note: "High volume, thin margin" },
-  { id: "milk",    name: "Fresh milk",      cat: "drinks",      cost: 1.95, ref: 2.80,  base: 1000, elast: 1.7, space: 2,   step: 0.10, color: "#7f8f3a", note: "Bulky, steady demand" },
+  { id: "milk",    name: "Fresh milk",      cat: "drinks",      shelf: 10, cost: 1.95, ref: 2.80,  base: 1000, elast: 1.7, space: 2,   step: 0.10, color: "#7f8f3a", note: "Bulky, steady demand" },
   { id: "earbuds", name: "Earbuds",         cat: "electronics", cost: 6.00, ref: 11.50, base: 160,  elast: 1.4, space: 0.5, step: 0.25, color: "#b5532f", note: "Few sales, big margin" },
 ];
 

@@ -40,9 +40,10 @@ export const ACCOUNTS = {
   tax_payable: { type:"liability", name:"Income tax payable" },
   wages_payable: { type:"liability", name:"Accrued wages" },
   bad_debt:  { type:"expense",   name:"Bad debt written off" },
+  shrinkage: { type:"expense",   name:"Spoilage and stock loss" },
 };
 const DEBIT_NORMAL = new Set(["asset", "expense"]);
-export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor", "bad_debt"];
+export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor", "bad_debt", "shrinkage"];
 export const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const MAX_ENTRIES = 1500, MAX_OLD = 14000;   // recent entries in full; older ones kept as one short text row each, so the whole game stays browsable
 // Cash-flow buckets (direct method). The counter-account of every cash movement decides the bucket.
@@ -77,7 +78,7 @@ export function post(ledger, day, memo, lines, ref = null) {
   }
   dr = round2(dr); cr = round2(cr);
   if (dr !== cr || dr === 0) throw new Error(`Unbalanced entry (${dr} vs ${cr}): ${memo}`);
-  for (const l of lines) ledger.bal[l.acct] = round2(ledger.bal[l.acct] + (l.dr || 0) - (l.cr || 0));
+  for (const l of lines) ledger.bal[l.acct] = round2((ledger.bal[l.acct] || 0) + (l.dr || 0) - (l.cr || 0));
   const e = { id: ++ledger.seq, day, memo, lines: lines.map(l => ({ ...l })), ref };
   ledger.entries.push(e);
   const dp = ledger.dp || (ledger.dp = newDp()), dk = deptOf(ref), dd = dp[dk] || (dp[dk] = { rev: 0, cost: 0 });
@@ -95,7 +96,7 @@ export function post(ledger, day, memo, lines, ref = null) {
 
 // Natural-sign balance (assets/expenses positive when debit; others positive when credit).
 export function balance(ledger, acct) {
-  const v = ledger.bal[acct];
+  const v = ledger.bal[acct] || 0;
   return (DEBIT_NORMAL.has(ACCOUNTS[acct].type) ? v : -v) + 0;   // +0 turns -0 into 0
 }
 

@@ -1,6 +1,6 @@
 // Pure retail engine: no DOM, no network. The simulation is the only place where money, stock and sales change.
 // Time: the game runs in fixed steps of STEP seconds, so a run does not depend on the frame rate.
-import { newLedger, post, balance, totals, round2 } from "./ledger.js";
+import { newLedger, post, balance, totals, round2, ACCOUNTS } from "./ledger.js";
 import { getLocation, hasLocation } from "./locations.js";
 import * as D from "./data.js";
 import { newFactory, factoryArrivals, factoryDay, rawUnitsUsedSpace, fgSpace } from "./factory.js";
@@ -19,6 +19,7 @@ import { ensureFleet, newFleet as newFleetState, planTrip, dispatch, fleetDay } 
 import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
 import { branchDay } from "./branch.js";
 import { curDay, exchangeFactor } from "./currency.js";
+import { stockDay } from "./stock.js";
 import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut, csiFactor } from "./market.js";
 import { newBank, bankDay } from "./bank.js";
 import { newKpi } from "./kpi.js";
@@ -388,7 +389,7 @@ function overflowDay(s) {
   post(s.ledger, s.day, `Storage overflow fee (${Math.round(o).toLocaleString("en-US")} space over capacity)`, lines, "ovf:" + s.day);
 }
 function closeDay(s) {
-  flush(s);
+  flush(s); stockDay(s);
   const day = s.day, before = balance(s.ledger, "cash");
   const rent = c(dailyRent(s.location, s.area) + whRent(s));
   const pay = Math.max(0, Math.min(before, rent)), over = c(rent - pay);
@@ -485,6 +486,7 @@ export function validateSave(raw) {
   for (const k of ["ledger", "qty", "val", "prices", "orders", "stats"]) if (!o[k] || typeof o[k] !== "object") return err("Save file is damaged.");
   if (!Number.isFinite(o.day) || !Number.isFinite(o.days) || !Number.isFinite(o.area)) return err("Save file is damaged.");
   for (const p of D.PRODUCTS) if (!Number.isFinite(o.qty[p.id]) || o.qty[p.id] < 0) return err("Save file is damaged.");
+  for (const k of Object.keys(ACCOUNTS)) if (o.ledger && o.ledger.bal && o.ledger.bal[k] == null) o.ledger.bal[k] = 0;   // accounts added since the save was made
   let r = reconcile(o), repaired = [];
   o.mods = cleanMods(o.mods);                                          // the factory is retired: an old save loads with it off
   if (!r.ok) { repaired = repairStock(o); if (repaired.length) r = reconcile(o); }

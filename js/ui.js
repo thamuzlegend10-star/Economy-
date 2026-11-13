@@ -36,7 +36,7 @@ const ICON = {
 // Core tabs are always on screen. The rest sit behind "More" so a new player sees five things, not twelve.
 export const NAV = [
   { id: "home", label: "Home", subs: [] },
-  { id: "retail", label: "Shop", subs: [["procurement", "Buy stock"], ["price", "Prices"], ["store", "Store"], ["location", "Location"], ["tx", "History"]] },
+  { id: "retail", label: "Shop", subs: [["procurement", "Buy stock"], ["price", "Prices"], ["freshness", "Freshness"], ["store", "Store"], ["location", "Location"], ["tx", "History"]] },
   { id: "warehouse", label: "Warehouse", subs: [["stock", "Stock"], ["procure", "Buy in bulk"], ["send", "Move to shop"], ["b2b", "Move to B2B"]] },
   { id: "finance", label: "Money", subs: [["overview", "Overview"], ["reports", "Reports"], ["statements", "Statements"], ["ledger", "Ledger"], ["bank", "Bank"]] },
   { id: "hr", label: "Staff", subs: [] },

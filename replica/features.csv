@@ -51,7 +51,7 @@ Teams and multi-player sessions,session,must,yes,yes,live.js (untested on real S
 Scenario events such as financial crisis,session,should,yes,yes,random event chances
 Quizzes and micro courses,session,could,yes,no,not a game feature
 Session save; pause; resume,session,must,yes,yes,local save v25
-FMCG batches; expiry and stock takes,retail,could,yes,no,
+FMCG batches; expiry and stock takes,retail,could,yes,partial,milk has a 10 day shelf life in age batches; stock takes book missing stock; shop stock only; no warehouse batches
 Investor and underwriter roles,session,could,yes,skip,needs certification and a real class setup
 Department tabs in one top row with a sub-tab strip,ui,must,yes,yes,MonsoonSIM skin shipped
 Approval queue for every action,ui,could,yes,skip,Economy acts instantly by design
