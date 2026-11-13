@@ -148,15 +148,19 @@ export function hrScreen(s, f = {}) {
 export function marketing(s, f) {
   const m = K.ensureMkt(s), cats = [["all", "All products"], ["food", "Food"], ["drinks", "Drinks"], ["electronics", "Electronics"]], ch = D.MKT_CHANNELS.find(c => c.id === f.mkt.channel);
   const aw = ["food", "drinks", "electronics"].map(c => `<div class="kv1"><div><span>${c[0].toUpperCase() + c.slice(1)} awareness</span><b>${dec(K.awareness(s, c), 0)} / 100 · demand ×${dec(K.demandLift(s, c), 2)}</b></div></div>${meter(K.awareness(s, c))}`).join("");
-  const list = m.campaigns.map(k => `<div class="kv1"><div><span>#${k.id} ${esc(D.MKT_CHANNELS.find(c => c.id === k.channel).name)} · ${esc(k.cat)}</span><b>${k.left ? `${k.left} d left · ${money(k.daily)}/d` : "ended, fading"}</b></div></div>${k.left ? `<div class="row">${btn("mktStop", "Stop", { id: k.id, ghost: true })}</div>` : ""}`).join("");
+  const list = m.campaigns.map(k => `<div class="kv1"><div><span>#${k.id} ${esc(D.MKT_CHANNELS.find(c => c.id === k.channel).name)} · ${esc(k.cat)}${k.demo && k.demo !== "all" ? " · " + esc(k.demo) : ""}</span><b>${k.left ? `${k.left} d left · ${money(k.daily)}/d` : "ended, fading"}</b></div></div>${k.left ? `<div class="row">${btn("mktStop", "Stop", { id: k.id, ghost: true })}</div>` : ""}`).join("");
   const sv = K.ensureSrv(s), ty = sv.types, tt = Math.max(1, ty.general + ty.late + ty.stockout), cs = `<div class="card">${head("Customers", "Service, loyalty and complaints")}${kv([["Satisfaction (CSI)", dec(sv.csi, 0) + " / 100"], ["Loyalty (slow average)", dec(sv.loyal, 0) + " / 100"], ["Retention (shoppers who return)", dec(K.retention(s), 0) + "%"], ["Response time", sv.resp < 0.05 ? "same day" : dec(sv.resp, 1) + " days"], ["Open complaints", num(sv.backlog)], ["Resolved so far", num(sv.resolved)]])}
     ${hbars([{ name: "Questions and general", v: ty.general }, { name: "Late delivery", v: ty.late }, { name: "Out of stock", v: ty.stockout }].filter(x => x.v > 0), undefined, num)}<small class="muted">Complaints are sorted by cause (${num(tt)} so far). Service staff clear them each day; more staff means a faster response and higher satisfaction.</small></div>`;
+  const best = D.MKT_DEMO.groups.slice().sort((a, b) => D.MKT_DEMO.affinity[ch.id][b.id] - D.MKT_DEMO.affinity[ch.id][a.id])[0], dm = f.mkt.demo || "all";
+  const grp = D.MKT_DEMO.groups.map(g => `<div class="kv1"><div><span>${g.name}</span><b>${dec(K.groupAwareness(s, g.id), 0)} / 100</b></div></div>`).join("");
   return `${cs}<div class="card">${head("Awareness", "Fades a little every day")}${aw}</div>
+    <div class="card">${head("Age groups", "Who has heard of you")}${grp}<small class="muted">Food is bought most by adults, drinks by adults and juniors, electronics by juniors. A campaign aimed at one group reaches it much harder and the others only a little.</small></div>
     <div class="card">${head("New campaign")}<label class="fld"><span>Channel</span>${sel("mkt.channel", D.MKT_CHANNELS.map(c => [c.id, `${c.name} · ${c.note}`]), f.mkt.channel, false)}</label>
       <div class="two"><label class="fld"><span>Total budget</span>${sel("mkt.budget", [100, 250, 500, 1000, 2500, 5000, 10000].map(x => [x, money(x)]), f.mkt.budget)}</label>
       <label class="fld"><span>Days</span>${sel("mkt.days", [1, 3, 7, 14, 21, 30].map(x => [x, x + " d"]), f.mkt.days)}</label></div>
-      <label class="fld"><span>Target</span>${sel("mkt.cat", cats, f.mkt.cat, false)}</label>
-      <small class="muted">${esc(ch.name)}: minimum ${money(ch.minBudget)}, memory fades ${pct(ch.decay)} a day. Awareness lifts shopper numbers and makes them less price-sensitive. Spend is paid daily.</small>${btn("mktStart", `Start · ${money(f.mkt.budget)}`, { mini: false })}</div>
+      <div class="two"><label class="fld"><span>Products</span>${sel("mkt.cat", cats, f.mkt.cat, false)}</label>
+      <label class="fld"><span>Audience</span>${sel("mkt.demo", [["all", "Everyone"], ...D.MKT_DEMO.groups.map(g => [g.id, g.name])], dm, false)}</label></div>
+      <small class="muted">${esc(ch.name)}: minimum ${money(ch.minBudget)}, memory fades ${pct(ch.decay)} a day. ${esc(ch.name)} suits ${best.name.toLowerCase()} best. Awareness lifts shopper numbers and makes them less price-sensitive. Spend is paid daily.</small>${btn("mktStart", `Start · ${money(f.mkt.budget)}`, { mini: false })}</div>
     ${list ? `<div class="card">${head("Campaigns")}${list}</div>` : ""}`;
 }
 

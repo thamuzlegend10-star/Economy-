@@ -248,3 +248,14 @@ export const TRANSPORT = { loadDays: 0.25, docks: 2, loadSpacePerDay: 400, handl
 
 // Branch shops: extra outlets in other places. They sell from the main shop's stock at the main shop's prices.
 export const BRANCH = { max: 3, areas: [40, 80, 150], fitoutPerM2: 120, staffPerDay: 70, transferPerUnit: 0.08, demandShare: 0.55 };
+
+// Marketing audiences. Each product category is bought by a mix of age groups. Each channel suits some groups better. A campaign aimed at one group
+// (focus) reaches that group focus x affinity as hard, and the other groups only a little (off). An unfocused campaign reaches everyone equally.
+export const MKT_DEMO = {
+  groups: [{ id: "seniors", name: "Seniors" }, { id: "adults", name: "Adults" }, { id: "juniors", name: "Juniors" }],
+  mix: { food: { seniors: 0.30, adults: 0.50, juniors: 0.20 }, drinks: { seniors: 0.15, adults: 0.45, juniors: 0.40 }, electronics: { seniors: 0.10, adults: 0.40, juniors: 0.50 } },
+  affinity: { social: { seniors: 0.5, adults: 1.0, juniors: 1.5 }, search: { seniors: 0.7, adults: 1.4, juniors: 0.9 }, billboard: { seniors: 1.1, adults: 1.1, juniors: 0.8 },
+    radio: { seniors: 1.5, adults: 1.1, juniors: 0.6 }, influencer: { seniors: 0.3, adults: 0.8, juniors: 1.6 } },
+  fallbackMix: { seniors: 0.30, adults: 0.40, juniors: 0.30 },      // household, stationery, juices and anything else
+  focus: 2.5, off: 0.3,
+};

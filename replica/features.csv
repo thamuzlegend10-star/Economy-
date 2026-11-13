@@ -28,7 +28,7 @@ B2B competitive bids lowest price wins,b2b,must,yes,yes,rival bids
 Late penalty on sales orders,b2b,must,yes,yes,penalty and reputation
 Client credit ratings AAA to DDD,b2b,could,yes,yes,each buyer has a drifting score; unpaid invoices follow it; downgrade mail
 Fulfil by stock; outsource; manufacture,b2b,should,yes,partial,stock only (factory retired)
-Marketing media with demographics (seniors; adults; juniors),marketing,should,yes,partial,channels exist; no demographic split
+Marketing media with demographics (seniors; adults; juniors),marketing,should,yes,yes,campaign audience: everyone or one age group; channel affinity and category mix decide reach
 Market intelligence reports from all players,marketing,could,yes,partial,rival price view only
 Web Market with escrow,ecommerce,must,yes,yes,Web store tab
 Seller star rating 0-5 from delivery timeliness,ecommerce,could,yes,yes,stars from late share after 8 orders; up to 20% lower conversion

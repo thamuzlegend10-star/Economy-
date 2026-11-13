@@ -21,17 +21,25 @@ function payOut(s, acct, amount, memo, ref) {
 // ================= marketing =================
 export const newMkt = () => ({ seq: 0, campaigns: [] });
 export const ensureMkt = s => (s.mkt = s.mkt || newMkt());
-export function startCampaign(s, { channel, budget, days, cat = "all" } = {}) {
+export function startCampaign(s, { channel, budget, days, cat = "all", demo = "all" } = {}) {
   if (s.ended) return err("The game is over."); const ch = CH[channel]; if (!ch) return err("Unknown channel.");
   budget = Math.round(Number(budget)); days = Math.round(Number(days));
   if (!Number.isFinite(budget) || budget < ch.minBudget) return err(`${ch.name} needs a budget of at least $${ch.minBudget}.`);
   if (!Number.isFinite(days) || days < D.MKT.duration.min || days > D.MKT.duration.max) return err(`Run it for ${D.MKT.duration.min} to ${D.MKT.duration.max} days.`);
   if (cat !== "all" && !CATS.includes(cat)) return err("Unknown product category.");
-  const m = ensureMkt(s), k = { id: ++m.seq, channel, cat, budget, days, left: days, daily: c(budget / days), aw: 0, started: s.day, district: s.location };
-  m.campaigns.push(k); log(s, `Started a ${ch.name.toLowerCase()} campaign: $${budget} over ${days} days.`); return ok({ campaign: k });
+  if (demo !== "all" && !DEMO.groups.some(g => g.id === demo)) return err("Unknown audience.");
+  const m = ensureMkt(s), k = { id: ++m.seq, channel, cat, budget, days, left: days, daily: c(budget / days), aw: 0, started: s.day, district: s.location, demo };
+  m.campaigns.push(k); log(s, `Started a ${ch.name.toLowerCase()} campaign${demo === "all" ? "" : " for " + demo}: $${budget} over ${days} days.`); return ok({ campaign: k });
 }
 export function stopCampaign(s, id) { const k = ensureMkt(s).campaigns.find(x => x.id === id); if (!k) return err("Unknown campaign."); k.left = 0; return ok(); }
-export const awareness = (s, cat) => clamp(ensureMkt(s).campaigns.filter(k => k.cat === "all" || k.cat === cat).reduce((a, k) => a + k.aw, 0), 0, D.MKT.maxAwareness);
+const DEMO = D.MKT_DEMO;
+// How hard campaign k reaches one age group (1 for an unfocused campaign, so old saves behave as before).
+export const reachOf = (k, group) => (!k.demo || k.demo === "all" ? 1 : k.demo === group ? DEMO.focus * DEMO.affinity[k.channel][group] : DEMO.off);
+// Reach of a campaign across a category's buyers: the groups weighted by who buys the category.
+export const mixReach = (k, cat) => DEMO.groups.reduce((a, g) => a + (DEMO.mix[cat] || DEMO.fallbackMix)[g.id] * reachOf(k, g.id), 0);
+export const awareness = (s, cat) => clamp(ensureMkt(s).campaigns.filter(k => k.cat === "all" || k.cat === cat).reduce((a, k) => a + k.aw * mixReach(k, cat), 0), 0, D.MKT.maxAwareness);
+// Awareness among one age group, over every campaign that runs.
+export const groupAwareness = (s, group) => clamp(ensureMkt(s).campaigns.reduce((a, k) => a + k.aw * reachOf(k, group), 0), 0, D.MKT.maxAwareness);
 export const demandLift = (s, cat) => 1 + D.MKT.trafficLift * awareness(s, cat) / 100;
 export const priceCut = (s, cat) => 1 - D.MKT.priceSensitivityCut * awareness(s, cat) / 100;     // multiplies the demand elasticity
 export function mktDay(s) {
