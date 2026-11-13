@@ -75,7 +75,7 @@ function viewFor() {
   if (m === "home") return SC.homeScreen(s);
   if (m === "finance") return sub === "reports" ? UI.reports(s) : sub === "statements" ? SC.statements(s) : sub === "bank" ? SC.bank(s, ui.f) : sub === "ledger" ? SC.ledgerScreen(s, ui.f) : SC.warningsCard(s) + UI.dashboard(s);
   if (m === "factory") return sub === "raw" ? SC.factoryRaw(s, ui.f) : sub === "mrp" ? SC.factoryMrp(s) : sub === "juice" ? SC.factoryJuice(s, ui.f) : SC.factoryMachines(s, ui.f);
-  if (m === "b2b") return sub === "contracts" ? SC.b2bContracts(s) : SC.b2bMarket(s, ui.f);
+  if (m === "b2b") return sub === "contracts" ? SC.b2bContracts(s) : sub === "services" ? SC.services(s, ui.f) : SC.b2bMarket(s, ui.f);
   if (m === "hr") return SC.hrScreen(s, ui.f);
   if (m === "marketing") return SC.marketing(s, ui.f);
   if (m === "branch") return SC.branches(s, ui.f);

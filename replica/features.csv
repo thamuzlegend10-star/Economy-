@@ -39,7 +39,7 @@ Staff Index and competency growth,hr,must,yes,yes,hr.js
 Recruitment; training; transfer; dismissal costs,hr,must,yes,yes,recruitment fee and severance booked
 Employee turnover,hr,should,yes,yes,morale and quits
 OCEAN personality in hiring,hr,could,yes,yes,interview shortlist of 3 with five traits per person; role fit sets starting skill; neuroticism raises quit risk; own model not a real test
-Service management with RFQs and resource scheduling,service,could,yes,no,customer service tickets only
+Service management with RFQs and resource scheduling,service,could,yes,yes,clients post requests; you quote; won jobs use service staff hours in an order you set; paid on completion; late cut and cancel
 Complaints and customer satisfaction,service,should,yes,yes,tickets; satisfaction moves demand
 Business intelligence with sales analysis,bi,must,yes,yes,Insights > Data and BI
 Integrated report with ROA ROE debt to equity,bi,should,yes,yes,ROA ROE D/E current and quick ratio on Statements

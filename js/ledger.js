@@ -32,6 +32,7 @@ export const ACCOUNTS = {
   retained:  { type:"equity",    name:"Retained earnings" },
   sales_b2b: { type:"income",    name:"B2B sales" },
   sales_ecom: { type:"income",   name:"E-commerce sales" },
+  sales_service: { type:"income", name:"Service revenue" },
   depreciation: { type:"expense", name:"Depreciation" },
   maintenance: { type:"expense", name:"Machine maintenance" },
   penalties: { type:"expense",   name:"Contract penalties" },
@@ -48,14 +49,14 @@ export const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const MAX_ENTRIES = 1500, MAX_OLD = 14000;   // recent entries in full; older ones kept as one short text row each, so the whole game stays browsable
 // Cash-flow buckets (direct method). The counter-account of every cash movement decides the bucket.
 export const CF_BUCKETS = ["customers", "suppliers", "wages", "tax", "other", "investing", "financing"];
-const CF_OF = { sales: "customers", sales_b2b: "customers", sales_ecom: "customers", receivables: "customers",
+const CF_OF = { sales: "customers", sales_b2b: "customers", sales_ecom: "customers", sales_service: "customers", receivables: "customers",
   inventory: "suppliers", inv_raw: "suppliers", inv_fg: "suppliers", payables: "suppliers", transit: "suppliers", cogs: "suppliers", escrow: "suppliers",
   wages: "wages", wages_payable: "wages", cogs_labor: "wages", tax: "tax", tax_payable: "tax",
   machinery: "investing", acc_deprec: "investing", capital: "financing", credit: "financing", longdebt: "financing" };
 export const newCf = () => Object.fromEntries(CF_BUCKETS.map(k => [k, 0]));
 // Departments: every income or expense line is tallied under the department that caused it, decided by the entry's reference.
 export const DEPTS = [["shop", "Shop"], ["web", "Web store"], ["b2b", "B2B sales"], ["factory", "Factory"], ["marketing", "Marketing"], ["people", "People"], ["logistics", "Logistics"], ["finance", "Finance and tax"], ["general", "General (rent, overflow)"]];
-const DEPT_OF = [[/^(sales|jsales|order|deliv|xfer|transfer|ovf)/, "shop"], [/^(web|ecom)/, "web"], [/^(b2b|ar:|pen:)/, "b2b"], [/^(prod|machine|pm:|dep:|conv|rawpo|rawdel)/, "factory"], [/^mkt/, "marketing"], [/^(hr:|hire|sev)/, "people"], [/^(fuel|trepair|truck|tsvc|tdep|ship)/, "logistics"], [/^(lint|tax|loan|fee|credit|od)/, "finance"]];
+const DEPT_OF = [[/^(sales|jsales|order|deliv|xfer|transfer|ovf)/, "shop"], [/^(web|ecom)/, "web"], [/^(b2b|ar:|pen:|svc)/, "b2b"], [/^(prod|machine|pm:|dep:|conv|rawpo|rawdel)/, "factory"], [/^mkt/, "marketing"], [/^(hr:|hire|sev)/, "people"], [/^(fuel|trepair|truck|tsvc|tdep|ship)/, "logistics"], [/^(lint|tax|loan|fee|credit|od)/, "finance"]];
 export const deptOf = ref => { const r = String(ref || ""); for (const [re, d] of DEPT_OF) if (re.test(r)) return d; return "general"; };
 export const newDp = () => Object.fromEntries(DEPTS.map(([k]) => [k, { rev: 0, cost: 0 }]));
 const packLines = ls => ls.map(l => l.acct + (l.dr ? ":+" + l.dr : ":-" + l.cr)).join(",");

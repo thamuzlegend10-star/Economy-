@@ -20,6 +20,7 @@ import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
 import { branchDay } from "./branch.js";
 import { curDay, exchangeFactor } from "./currency.js";
 import { stockDay } from "./stock.js";
+import { svcDay } from "./services.js";
 import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut, csiFactor } from "./market.js";
 import { newBank, bankDay } from "./bank.js";
 import { newKpi } from "./kpi.js";
@@ -396,7 +397,7 @@ function closeDay(s) {
   const lines = [{ acct: "rent", dr: rent }];
   if (pay > 0) lines.push({ acct: "cash", cr: pay }); if (over > 0) lines.push({ acct: "overdraft", cr: over });
   post(s.ledger, day, `Rent for day ${day}`, lines, "rent:" + day); s.today.rent = rent;
-  factoryDay(s); hrDay(s); mktDay(s); ecomDay(s); overflowDay(s); bankDay(s); juiceShopDay(s); branchDay(s); srvDay(s); fleetDay(s); taxDay(s);
+  factoryDay(s); hrDay(s); mktDay(s); ecomDay(s); overflowDay(s); bankDay(s); juiceShopDay(s); branchDay(s); srvDay(s); svcDay(s); fleetDay(s); taxDay(s);
   const od = balance(s.ledger, "overdraft"), cashNow = balance(s.ledger, "cash"), repay = c(Math.min(od, Math.max(0, cashNow)));
   if (repay > 0) post(s.ledger, day, "Overdraft repaid from cash", [{ acct: "overdraft", dr: repay }, { acct: "cash", cr: repay }]);
   s.overdraftDays = balance(s.ledger, "overdraft") > 0 ? s.overdraftDays + 1 : 0;

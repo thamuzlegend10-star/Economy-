@@ -42,7 +42,7 @@ export const NAV = [
   { id: "hr", label: "Staff", subs: [] },
   { id: "factory", more: true, label: "Factory", subs: [["machines", "Machines"], ["raw", "Materials"], ["mrp", "Planning"], ["juice", "Juice to shop"]] },
   { id: "shipping", more: true, label: "Delivery", subs: [["co", "Hire transport"], ["fleet", "My trucks"], ["tx", "History"]] },
-  { id: "b2b", more: true, label: "B2B", subs: [["market", "Market"], ["contracts", "Contracts"]] },
+  { id: "b2b", more: true, label: "B2B", subs: [["market", "Market"], ["contracts", "Contracts"], ["services", "Services"]] },
   { id: "marketing", more: true, label: "Marketing", subs: [] },
   { id: "branch", more: true, label: "Branches", subs: [] },
   { id: "ecom", more: true, label: "Web store", subs: [] },

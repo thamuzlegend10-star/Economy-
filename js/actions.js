@@ -7,6 +7,7 @@ import * as M from "./mrp.js";
 import * as B from "./b2b.js";
 import * as H from "./hr.js";
 import * as St from "./stock.js";
+import * as Sv from "./services.js";
 import * as Br from "./branch.js";
 import * as K from "./market.js";
 import * as Bk from "./bank.js";
@@ -17,7 +18,7 @@ import * as Ml from "./mail.js";
 import * as Js from "./juiceshop.js";
 import * as Sn from "./scenario.js";
 
-export const newForms = () => ({ fsite: "main", vendor: "agro", terms: "cod", rq: {}, bid: {}, br: { location: "", area: 80 }, tg: {}, iv: "retail", mkt: { channel: "social", budget: 500, days: 7, cat: "all", demo: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, jm: {}, jcarrier: "hired", ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
+export const newForms = () => ({ fsite: "main", vendor: "agro", terms: "cod", rq: {}, bid: {}, br: { location: "", area: 80 }, tg: {}, iv: "retail", sq: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all", demo: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, jm: {}, jcarrier: "hired", ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const r = (res, msg) => (res && res.ok ? { ok: true, msg } : { ok: false, error: (res && res.error) || "Not possible." });
 
@@ -76,6 +77,10 @@ export function act(s, f, name, a = {}) {
     case "mktStart": return r(K.startCampaign(s, { ...f.mkt }), "Campaign started.");
     case "mktStop": return r(K.stopCampaign(s, n), "Campaign stopped.");
     case "stockTake": { const x = St.stockTake(s); return r(x, x.ok ? (x.found.length ? `Counted: ${x.total.toFixed(2)} dollars of stock was missing.` : "Counted: nothing missing.") : ""); }
+    case "svcQuote": { const rq = Sv.ensureSvc(s).rfqs.find(x => x.id === Number(id)); if (!rq) return r(null); const m = Number((f.sq || {})[id]) || 100; const x = Sv.sendQuote(s, id, Sv.marketPrice(rq) * m / 100); return r(x, x.ok ? `Quote sent. Chance to win about ${Math.round(x.chance * 100)}%. The client answers tomorrow.` : ""); }
+    case "svcUp": return r(Sv.moveJob(s, id, -1), "");
+    case "svcDown": return r(Sv.moveJob(s, id, 1), "");
+    case "svcSort": return r(Sv.sortByDeadline(s), "Ordered by deadline.");
     // branch shops
     case "branchOpen": return r(Br.openBranch(s, { location: f.br.location && Br.sites(s).some(x => x.id === f.br.location) ? f.br.location : Br.defaultSite(s), area: f.br.area }), "Branch opened.");
     case "branchClose": return r(Br.closeBranch(s, n), "Branch closed.");

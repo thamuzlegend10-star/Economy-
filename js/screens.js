@@ -14,6 +14,7 @@ import * as Kp from "./kpi.js";
 import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
 import * as St from "./stock.js";
+import * as Sv from "./services.js";
 import * as Ex from "./exportdata.js";
 import { getLocation } from "./locations.js";
 import { balance, totals, ACCOUNTS, OPEX, round2 } from "./ledger.js";
@@ -115,6 +116,22 @@ export function b2bMarket(s, f) {
       <div class="card scroll">${head("Client credit", "Who pays")}<table class="tbl fixed"><thead><tr><th class="l">Buyer</th><th>Rating</th><th>Score</th><th>Pays after</th></tr></thead><tbody>${D.B2B.buyers.map(y => `<tr><td class="l">${esc(y.name)}</td><td>${B.ratingOf(B.credit(s, y.id))}</td><td>${dec(B.credit(s, y.id), 0)}</td><td>${y.terms} d</td></tr>`).join("")}</tbody></table></div>
       <small class="muted">Winner is chosen on price, reputation and delivery record. A sales team helps. Bids close ${D.B2B.openDays} days after a tender opens.</small></div>
     ${b.open.length ? b.open.map(card).join("") : `<div class="card"><small class="muted">No open tenders right now. New ones appear most days.</small></div>`}`;
+}
+export function services(s, f) {
+  const v = Sv.ensureSvc(s), hrs = Sv.hoursToday(s), fin = Sv.project(s), alloc = Sv.allocate(s), st = v.stats;
+  const open = v.rfqs.filter(r => r.quote == null), waiting = v.rfqs.filter(r => r.quote != null);
+  const mults = [70, 80, 90, 100, 110, 120, 130, 140, 150].map(x => [x, x + "% of market"]);
+  const rfq = open.map(r => { const t = Sv.typeOf(r.type), mk = Sv.marketPrice(r), m = Number((f.sq || {})[r.id]) || 100, p = mk * m / 100;
+    return `<div class="card">${head(t.name, esc(r.client))}${kv([["Work", num(r.hours) + " hours"], ["Market price", money(mk)], ["Client pays at most", money(r.cap)], ["Do by", "day " + r.deadline], ["Answer by", "day " + r.expires]])}
+      <label class="fld"><span>Your quote</span>${sel("sq." + r.id, mults, m, false)}</label><small class="muted">${money(p)}${p > r.cap + 0.004 ? " is above what the client will pay" : ` · about ${Math.round(Sv.winChance(s, r, p) * 100)}% chance to win`}</small>
+      <div class="row">${btn("svcQuote", "Send quote", { id: r.id, dis: hrs <= 0 || p > r.cap + 0.004 })}</div></div>`; }).join("");
+  const o = v.jobs.slice().sort((a, b) => a.prio - b.prio), rows = o.map((j, i) => { const late = fin[j.id] != null && fin[j.id] > j.deadline, over = s.day > j.deadline;
+    return `<tr class="${late || over ? "warnc" : ""}"><td class="l">#${j.id} ${esc(Sv.typeOf(j.type).name)}<br><small class="muted">${esc(j.client)}</small></td><td>${dec(j.left, 1)} h</td><td>${j.deadline}</td><td>${fin[j.id] != null ? fin[j.id] : "90+"}</td><td>${money(j.price)}</td><td>${btn("svcUp", "Up", { id: j.id, ghost: true, dis: i === 0 })}${btn("svcDown", "Down", { id: j.id, ghost: true, dis: i === o.length - 1 })}</td></tr>`; }).join("");
+  return `<div class="card">${head("Service jobs", "Quote, then schedule")}${kv([["Hours for jobs today", dec(hrs, 1) + " h"], ["Used by queue today", dec(Object.values(alloc).reduce((a, b) => a + b, 0), 1) + " h"], ["Jobs in the queue", num(v.jobs.length)], ["Won / lost quotes", `${st.won} / ${st.lost}`], ["Finished", `${st.done} (${st.late} late), ${st.cancelled} cancelled`], ["Earned so far", money(st.revenue)], ["Lost to lateness and penalties", money(st.penalties)]])}
+    <small class="muted">${hrs <= 0 ? "You have no service staff, so you cannot take jobs. Hire service staff in People. " : ""}Each service person gives ${D.SVC.hoursPerStaff} hours a day. The support desk keeps ${Math.round(D.SVC.ticketShare * 100)}% for tickets. Jobs get the rest, in the order below, at most ${D.SVC.perJobPerDay} hours per job per day. You are paid when a job is done, less ${Math.round(D.SVC.lateStep * 100)}% for each day late (up to ${Math.round(D.SVC.lateCap * 100)}%). A job more than ${D.SVC.cancelAfter} days late is cancelled with a penalty.</small></div>
+    <div class="card scroll">${head("Queue", "Top is worked first")}${o.length ? `<table class="tbl fixed"><thead><tr><th class="l">Job</th><th>Left</th><th>Due</th><th>Done by</th><th>Pays</th><th></th></tr></thead><tbody>${rows}</tbody></table><div class="row">${btn("svcSort", "Order by deadline", { mini: false })}</div>` : `<small class="muted">No jobs yet. Quote on a request below.</small>`}</div>
+    ${waiting.length ? `<div class="card">${head("Waiting for an answer")}${waiting.map(r => `<div class="kv1"><div><span>#${r.id} ${esc(Sv.typeOf(r.type).name)} · ${esc(r.client)}</span><b>${money(r.quote)}</b></div></div>`).join("")}</div>` : ""}
+    ${rfq || `<div class="card"><small class="muted">No open requests. New ones come most days.</small></div>`}`;
 }
 export function b2bContracts(s) {
   const b = B.ensureB2B(s);

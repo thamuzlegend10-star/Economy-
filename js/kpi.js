@@ -1,4 +1,5 @@
 // Business intelligence (module 13): the eight scoring KPIs, a configurable weighted score, and competitor price tracking.
+import * as Sv from "./services.js";
 import { totals, balance, round2 } from "./ledger.js";
 import { getLocation } from "./locations.js";
 import * as D from "./data.js";
@@ -81,6 +82,7 @@ export function warnings(s) {
   if (od > 0) w.push({ level: "bad", text: `Overdraft ${Math.round(od).toLocaleString("en-US")} dollars. Three days in a row ends the game.`, where: ["finance", "bank"] });
   else if (cash < W.cashLow) w.push({ level: "warn", text: `Cash is low (${Math.round(cash).toLocaleString("en-US")} dollars).`, where: ["finance", "bank"] });
   const lostToday = s.today ? Object.values(s.today.lost).reduce((a, b) => a + b, 0) : 0;
+  { const v = s.svcj; if (v && v.jobs.length) { const fin = Sv.project(s), risk = v.jobs.filter(j => (fin[j.id] == null ? 99 : fin[j.id]) > j.deadline).length; if (risk) w.push({ level: "warn", text: `${risk} service job${risk === 1 ? " is" : "s are"} on course to finish late.`, where: ["b2b", "services"] }); } }
   if (lostToday > 0) w.push({ level: "warn", text: `Shoppers left without goods: ${lostToday.toLocaleString("en-US")} units missed today.`, where: ["retail", "procurement"] });
   if (s.srv && s.srv.csi < W.csiLow) w.push({ level: "warn", text: `Customer satisfaction is ${Math.round(s.srv.csi)}. Demand is falling.`, where: ["hr", ""] });
   if (s.hr && s.hr.morale < W.moraleLow) w.push({ level: "warn", text: `Staff morale is ${Math.round(s.hr.morale)}. People will quit.`, where: ["hr", ""] });

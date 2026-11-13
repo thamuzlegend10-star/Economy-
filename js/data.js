@@ -267,3 +267,12 @@ export const HR_OCEAN = {
   weights: { retail: { E: 0.5, A: 0.5 }, warehouse: { C: 1 }, factory: { C: 0.7, N: -0.3 }, sales: { E: 0.6, O: 0.4 }, driver: { C: 0.6, N: -0.4 }, service: { A: 0.6, N: -0.4 } },
   candidates: 3, skillSwing: 0.25, quitSwing: 0.4,
 };
+
+// ---------- Service jobs (requests for quotation) ----------
+// Business clients ask for a job. You quote a price. If you win, service staff work it off in hours, in the order you set. Jobs paid on completion.
+export const SVC = {
+  types: [{ id: "setup", name: "Device setup and tuning", hours: 6, price: 90 }, { id: "repair", name: "On-site repair", hours: 10, price: 170 },
+    { id: "training", name: "Staff training day", hours: 16, price: 300 }, { id: "fitout", name: "Shop fit-out visit", hours: 28, price: 520 }],
+  hoursPerStaff: 8, ticketShare: 0.25, perJobPerDay: 16, rfqChance: 0.55, maxOpen: 6, quoteDays: 3, deadlineSlack: [3, 9], capMult: [0.95, 1.35],
+  lateStep: 0.10, lateCap: 0.5, cancelAfter: 5, cancelPenalty: 0.15, quoteMin: 0.7, quoteMax: 1.5,
+};
