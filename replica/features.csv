@@ -26,7 +26,7 @@ Overflow storage fees,logistics,must,yes,yes,space used and overflow
 B2B straight deals first come first served,b2b,must,yes,yes,B2B market
 B2B competitive bids lowest price wins,b2b,must,yes,yes,rival bids
 Late penalty on sales orders,b2b,must,yes,yes,penalty and reputation
-Client credit ratings AAA to DDD,b2b,could,yes,no,buyer types only
+Client credit ratings AAA to DDD,b2b,could,yes,yes,each buyer has a drifting score; unpaid invoices follow it; downgrade mail
 Fulfil by stock; outsource; manufacture,b2b,should,yes,partial,stock only (factory retired)
 Marketing media with demographics (seniors; adults; juniors),marketing,should,yes,partial,channels exist; no demographic split
 Market intelligence reports from all players,marketing,could,yes,partial,rival price view only

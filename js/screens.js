@@ -100,14 +100,16 @@ export function factoryMrp(s) {
 
 // ================= B2B =================
 const buyer = id => (D.B2B.buyers.find(b => b.id === id) || { name: id }).name;
+const clientCredit = (s, id) => { const sc = B.credit(s, id), r = B.defaultRisk(s, id); return `${B.ratingOf(sc)} (${dec(r * 100, 1)}% of invoices go unpaid)`; };
 export function b2bMarket(s, f) {
   const b = B.ensureB2B(s);
   const card = t => { const have = B.available(s, t.pid), isFixed = t.kind === "fixed", cur = t.bid;
     return `<div class="card">${head(buyer(t.buyer), isFixed ? "Fixed deal" : "Tender")}<b>${num(t.qty)} × ${esc(itemName(t.pid))}</b>
-      ${kv([[isFixed ? "Fixed price" : "Ceiling price", money2(isFixed ? t.price : t.ceiling) + " each"], ["Deliver by", "day " + t.due], [isFixed ? "Offer ends" : "Bids close", "day " + t.closes], ["Late penalty", pct(t.penalty)], ["Stock you could ship", num(have)]])}
+      ${kv([[isFixed ? "Fixed price" : "Ceiling price", money2(isFixed ? t.price : t.ceiling) + " each"], ["Deliver by", "day " + t.due], [isFixed ? "Offer ends" : "Bids close", "day " + t.closes], ["Late penalty", pct(t.penalty)], ["Buyer credit", clientCredit(s, t.buyer)], ["Stock you could ship", num(have)]])}
       ${isFixed ? `<div class="row">${btn("accept", `Accept · ${money(t.qty * t.price)}`, { id: t.id, mini: false })}</div>` :
         `<div class="row"><input type="number" inputmode="decimal" step="0.01" min="0.01" max="${t.ceiling}" placeholder="Your price" value="${cur ?? f.bid[t.id] ?? ""}" data-f="bid.${t.id}" data-num="1" aria-label="Your bid per unit">${btn("bid", cur != null ? "Change bid" : "Place bid", { id: t.id })}${cur != null ? btn("unbid", "Withdraw", { id: t.id, ghost: true }) : ""}</div>${cur != null ? `<small class="note">Your bid: ${money2(cur)} each</small>` : ""}`}</div>`; };
   return `<div class="card">${head("B2B market", "Institutional buyers")}${kv([["Reputation", dec(b.rep, 0) + " / 100"], ["On-time record", b.ontime + b.late ? pct(B.reliabilityOf(b)) : "no history"], ["Tenders won / lost", `${b.won} / ${b.lost}`], ["Sales team edge", "+" + dec(H.salesEdge(s) * 100) + " pts"]])}
+      <div class="card scroll">${head("Client credit", "Who pays")}<table class="tbl fixed"><thead><tr><th class="l">Buyer</th><th>Rating</th><th>Score</th><th>Pays after</th></tr></thead><tbody>${D.B2B.buyers.map(y => `<tr><td class="l">${esc(y.name)}</td><td>${B.ratingOf(B.credit(s, y.id))}</td><td>${dec(B.credit(s, y.id), 0)}</td><td>${y.terms} d</td></tr>`).join("")}</tbody></table></div>
       <small class="muted">Winner is chosen on price, reputation and delivery record. A sales team helps. Bids close ${D.B2B.openDays} days after a tender opens.</small></div>
     ${b.open.length ? b.open.map(card).join("") : `<div class="card"><small class="muted">No open tenders right now. New ones appear most days.</small></div>`}`;
 }

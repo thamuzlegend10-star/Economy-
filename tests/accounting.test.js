@@ -39,8 +39,8 @@ test("B2B delivery creates a receivable, cash arrives on the buyer's credit term
 
 test("an unpaid invoice is written off as bad debt", () => {
   const s = mk(), b = B.ensureB2B(s); post(s.ledger, s.day, "invoice", [{ acct: "receivables", dr: 1000 }, { acct: "sales_b2b", cr: 1000 }]);
-  b.ar.push({ id: 1, buyer: "chain", amount: 1000, issued: s.day, due: s.day }); D.B2B.buyers.find(x => x.id === "chain").risk = 1;
-  try { runDay(s); } finally { D.B2B.buyers.find(x => x.id === "chain").risk = 0.03; }
+  b.ar.push({ id: 1, buyer: "chain", amount: 1000, issued: s.day, due: s.day }); b.cr = { chain: -1000 };   // a buyer whose score is far below the floor never pays
+  runDay(s);
   assert.equal(balance(s.ledger, "bad_debt"), 1000); assert.equal(balance(s.ledger, "receivables"), 0); assert.ok(E.reconcile(s).ok, JSON.stringify(E.reconcile(s).problems));
 });
 

@@ -24,6 +24,27 @@ export const ensureB2B = s => (s.b2b = s.b2b || newB2B(s.seed));
 const rr = (b, lo, hi) => lo + (hi - lo) * streamNext(b);
 const ri = (b, lo, hi) => Math.floor(rr(b, lo, hi + 1));
 const wf = () => D.B2B.weights;
+// Client credit rating (AAA to DDD). Each buyer has a score that drifts a little every day, rises when it pays on time and falls hard when it
+// does not. The chance that an invoice is never paid comes from the score, so a falling rating is a real warning. Own random stream.
+const CR_STEP = 1000, CR_BANDS = [[90, "AAA"], [80, "AA"], [70, "A"], [60, "BBB"], [50, "BB"], [40, "B"], [30, "CCC"], [0, "DDD"]];
+export const ratingOf = score => CR_BANDS.find(([min]) => score >= min)[1];
+export function credit(s, id) {
+  const b = ensureB2B(s); b.cr = b.cr || {};
+  if (b.cr[id] == null) { const y = BUYER[id]; b.cr[id] = c(clamp(100 - CR_STEP * (y ? y.risk : 0.05), 5, 100)); }
+  return b.cr[id];
+}
+export const defaultRisk = (s, id) => c(clamp((100 - credit(s, id)) / CR_STEP, 0, 1));
+const crDrift = (s, b) => {
+  b.crng = b.crng == null ? seedFrom(s.seed, 0xc4ed) : b.crng; const o = { rng: b.crng };
+  for (const y of D.B2B.buyers) {
+    const before = ratingOf(credit(s, y.id)), base = 100 - CR_STEP * y.risk;
+    b.cr[y.id] = c(clamp(b.cr[y.id] + (base - b.cr[y.id]) * 0.04 + (streamNext(o) - 0.5) * 5, 5, 100));
+    const after = ratingOf(b.cr[y.id]);
+    if (after !== before && (b.ar || []).some(x => x.buyer === y.id) && CR_BANDS.findIndex(x => x[1] === after) > CR_BANDS.findIndex(x => x[1] === before))
+      mailPost(s, { from: "Credit desk", subject: `${y.name} was downgraded to ${after}`, body: `You are waiting for money from ${y.name}. A lower rating means a higher chance they do not pay. Think twice before taking more of their orders.`, goto: ["b2b", "contracts"], level: "bad" });
+  }
+  b.crng = o.rng;
+};
 export const reliabilityOf = b => { const n = b.ontime + b.late; return n ? b.ontime / n : 1; };
 
 // Stock the player could deliver right now for an item.
@@ -39,10 +60,10 @@ export function b2bDay(s) {
   if (!modOn(s, "b2b")) return;
   const b = ensureB2B(s); b.ar = b.ar || [];
   for (const x of b.ar.filter(v => v.due <= s.day)) {                // buyers pay on their credit terms; a few never pay
-    if (streamNext(b) < D.B2B.buyers.find(y => y.id === x.buyer).risk) { post(s.ledger, s.day, `Bad debt: ${BUYER[x.buyer].name} did not pay invoice #${x.id}`, [{ acct: "bad_debt", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.badDebt = c((b.badDebt || 0) + x.amount); mailPost(s, { from: BUYER[x.buyer].name, subject: `Invoice #${x.id} will not be paid`, body: `$${x.amount.toFixed(2)} is written off as bad debt.`, goto: ["finance", "ledger"], level: "bad" }); log(s, `${BUYER[x.buyer].name} did not pay invoice #${x.id}. Written off $${x.amount.toFixed(2)}.`); }
-    else { post(s.ledger, s.day, `Payment received from ${BUYER[x.buyer].name}, invoice #${x.id}`, [{ acct: "cash", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.collected = c((b.collected || 0) + x.amount); }
+    if (streamNext(b) < defaultRisk(s, x.buyer)) { b.cr[x.buyer] = c(Math.max(5, credit(s, x.buyer) - 25)); post(s.ledger, s.day, `Bad debt: ${BUYER[x.buyer].name} did not pay invoice #${x.id}`, [{ acct: "bad_debt", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.badDebt = c((b.badDebt || 0) + x.amount); mailPost(s, { from: BUYER[x.buyer].name, subject: `Invoice #${x.id} will not be paid`, body: `$${x.amount.toFixed(2)} is written off as bad debt.`, goto: ["finance", "ledger"], level: "bad" }); log(s, `${BUYER[x.buyer].name} did not pay invoice #${x.id}. Written off $${x.amount.toFixed(2)}.`); }
+    else { b.cr[x.buyer] = c(Math.min(100, credit(s, x.buyer) + 2)); post(s.ledger, s.day, `Payment received from ${BUYER[x.buyer].name}, invoice #${x.id}`, [{ acct: "cash", dr: x.amount }, { acct: "receivables", cr: x.amount }], "ar:" + x.id); b.collected = c((b.collected || 0) + x.amount); }
   }
-  b.ar = b.ar.filter(v => v.due > s.day);
+  b.ar = b.ar.filter(v => v.due > s.day); crDrift(s, b);
   for (const t of b.open.filter(x => x.closes <= s.day)) resolve(s, b, t);
   b.open = b.open.filter(x => x.closes > s.day);
   for (const k of b.active) if (k.status === "active" && s.day > k.due) late(s, b, k);
