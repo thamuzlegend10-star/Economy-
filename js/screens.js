@@ -243,7 +243,13 @@ export function scoring(s, f) {
   const fmt = (r) => r.unit === "$" ? money(r.value) : r.unit === "x" ? dec(r.value, 2) + "×" : dec(r.value, 1) + (r.unit === "%" ? "%" : "");
   const rows = sb.rows.map(r => `<tr><td class="l">${esc(r.name)}</td><td>${fmt(r)}</td><td>${dec(r.score, 0)}</td><td>${dec(r.points, 1)}</td></tr>`).join("");
   const inputs = D.KPIS.map(k => `<label class="fld"><span>${esc(k.name)}</span>${sel("w." + k.id, [0, 5, 10, 15, 20, 25, 30, 40, 50].map(x => [x, x + "%"]), f.w[k.id] != null ? f.w[k.id] : Math.round(w[k.id] * 100))}</label>`).join("");
-  return `${warningsCard(s)}<div class="card">${head("Score", "Weighted KPIs")}<div class="gradebig">${dec(sb.total, 1)}<small>out of 100</small></div></div>
+  const tp = Kp.targetProgress(s), tgs = Kp.ensureKpi(s).targets, lock = tp.locked;
+  const trows = tp.rows.map(r => `<tr class="${r.met ? "" : "warnc"}"><td class="l">${esc(r.name)}</td><td>${fmt(r)}</td><td>${fmt({ unit: r.unit, value: r.target })}</td><td>${r.met ? "Met" : dec(r.pct, 0) + "%"}</td></tr>`).join("");
+  const tin = D.KPIS.map(k => `<label class="fld"><span>${esc(k.name)} (${k.unit === "$" ? "dollars" : k.unit})</span><input type="number" min="0" step="any" inputmode="decimal" data-f="tg.${k.id}" data-num="1" ${lock ? "disabled" : ""} value="${f.tg && f.tg[k.id] != null ? f.tg[k.id] : tgs[k.id] || ""}" placeholder="no target"></label>`).join("");
+  const targets = `<div class="card">${head("Targets", lock ? "Set by the facilitator" : tp.rows.length ? `${tp.met} of ${tp.rows.length} met` : "Optional")}
+    ${tp.total != null ? `<div class="gradebig">${dec(tp.total, 0)}<small>% of target</small></div><div class="scroll"><table class="tbl fixed"><thead><tr><th class="l">KPI</th><th>Now</th><th>Target</th><th>Progress</th></tr></thead><tbody>${trows}</tbody></table></div>` : `<small class="muted">No targets yet. Pick a level below or type your own. Targets show how far you are; they do not change the score.</small>`}
+    ${lock ? "" : `<div class="row">${["easy", "standard", "hard"].map(l => btn("targetsPreset", l[0].toUpperCase() + l.slice(1), { id: l, ghost: true })).join("")}</div><div class="two">${tin}</div><div class="row">${btn("targets", "Save targets", { mini: false })}${btn("targetsClear", "Clear", { ghost: true, mini: false })}</div>`}</div>`;
+  return `${warningsCard(s)}<div class="card">${head("Score", "Weighted KPIs")}<div class="gradebig">${dec(sb.total, 1)}<small>out of 100</small></div></div>${targets}
     <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">KPI</th><th>Value</th><th>Score</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="card">${head("Weights", "Set what matters; they are re-balanced to 100%")}<div class="two">${inputs}</div><div class="row">${btn("weights", "Apply weights", { mini: false })}${btn("weightsReset", "Defaults", { ghost: true, mini: false })}</div></div>`;
 }

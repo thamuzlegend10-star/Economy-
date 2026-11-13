@@ -2,5 +2,5 @@
   "name": "economy",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --import ./tests/legacy.mjs --test tests/engine.test.js tests/credit.test.js tests/rating.test.js tests/branch.test.js tests/clientcredit.test.js tests/data.test.js tests/factory.test.js tests/b2b-mrp.test.js tests/ops.test.js tests/screens.test.js tests/stepA.test.js tests/forecast.test.js tests/fleet.test.js tests/hr2.test.js tests/accounting.test.js tests/bi.test.js tests/mail-scenario.test.js tests/lifecycle.test.js tests/economy.test.js tests/juiceshop.test.js tests/live.test.js tests/locations.test.js tests/map.test.js tests/gaps.test.js" }
+  "scripts": { "test": "node --import ./tests/legacy.mjs --test tests/engine.test.js tests/credit.test.js tests/rating.test.js tests/branch.test.js tests/clientcredit.test.js tests/targets.test.js tests/data.test.js tests/factory.test.js tests/b2b-mrp.test.js tests/ops.test.js tests/screens.test.js tests/stepA.test.js tests/forecast.test.js tests/fleet.test.js tests/hr2.test.js tests/accounting.test.js tests/bi.test.js tests/mail-scenario.test.js tests/lifecycle.test.js tests/economy.test.js tests/juiceshop.test.js tests/live.test.js tests/locations.test.js tests/map.test.js tests/gaps.test.js" }
 }

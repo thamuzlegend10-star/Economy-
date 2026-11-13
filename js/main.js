@@ -332,7 +332,7 @@ async function enterLive(role) {
   if (role === "guest" && !Lv.validCode(code)) { toast("A room code is six digits.", "err"); return; }
   leaveLive();
   live = Lv.createLive(Lv.supabaseTransport(), { onChange: renderLive,
-    onStart: (settings, at) => { adopt(E.newGame(settings), true); liveStartAt = at; liveFirst = false; closeMenu(); toast(role === "host" ? "Starting for everyone…" : "The host started the game.", "ok"); renderHud(); },
+    onStart: (settings, at) => { adopt(E.newGame(settings), true); if (settings.targets) Kp.applyPreset(s, settings.targets, true); liveStartAt = at; liveFirst = false; closeMenu(); toast(role === "host" ? "Starting for everyone…" : "The host started the game.", "ok"); renderHud(); },
     onHold: () => { renderHud(); renderAll(true); }, onEvent: ev => { if (!s || s.ended) return; const r = Sn.inject(s, ev); if (r.ok) { toast("Event from the host: " + (ev.title || ev.kind), "ok"); save(); renderAll(true); } } });
   toast("Connecting…", "ok");
   try { await (role === "host" ? live.host(name) : live.join(name, code)); } catch (e) { toast(e.message, "err"); live = null; return; }
@@ -344,7 +344,7 @@ $("lBack").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "men
 $("lHost").onclick = () => enterLive("host"); $("lJoin").onclick = () => enterLive("guest");
 $("lLeave").onclick = () => { leaveLive(); $("lJoinBox").hidden = false; $("lLobby").hidden = true; };
 $("lStart").onclick = () => {
-  if (!live) return; const c = setupValues(), r = live.start({ ...c, secPerDay: $("lSec").value, days: $("lDays").value, capital: $("lCap").value, scenario: $("lScn").value, mods: readMods("lMod"), difficulty: $("lDiff").value, checkpoint: Number($("lCk").value), seed: undefined });
+  if (!live) return; const c = setupValues(), r = live.start({ ...c, secPerDay: $("lSec").value, days: $("lDays").value, capital: $("lCap").value, scenario: $("lScn").value, mods: readMods("lMod"), difficulty: $("lDiff").value, checkpoint: Number($("lCk").value), targets: $("lTg").value, seed: undefined });
   if (!r.ok) toast(r.error, "err");
 };
 
