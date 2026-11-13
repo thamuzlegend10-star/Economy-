@@ -38,7 +38,7 @@ Machine maintenance and breakdowns,maintenance,should,yes,skip,factory retired b
 Staff Index and competency growth,hr,must,yes,yes,hr.js
 Recruitment; training; transfer; dismissal costs,hr,must,yes,yes,recruitment fee and severance booked
 Employee turnover,hr,should,yes,yes,morale and quits
-OCEAN personality in hiring,hr,could,yes,no,
+OCEAN personality in hiring,hr,could,yes,yes,interview shortlist of 3 with five traits per person; role fit sets starting skill; neuroticism raises quit risk; own model not a real test
 Service management with RFQs and resource scheduling,service,could,yes,no,customer service tickets only
 Complaints and customer satisfaction,service,should,yes,yes,tickets; satisfaction moves demand
 Business intelligence with sales analysis,bi,must,yes,yes,Insights > Data and BI

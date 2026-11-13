@@ -13,6 +13,28 @@ export const ROLE = Object.fromEntries(D.HR_ROLES.map(r => [r.id, r]));
 const FIRST = ["Ayu", "Budi", "Citra", "Dewi", "Eko", "Fajar", "Gita", "Hadi", "Indra", "Joko", "Kiki", "Lestari", "Mawar", "Nanda", "Putra", "Rani", "Sari", "Tono", "Umar", "Vina", "Wati", "Yusuf", "Zahra", "Agus", "Bayu", "Dian", "Fitri", "Galih", "Hana", "Irfan"];
 const LAST = ["Santoso", "Wijaya", "Pratama", "Lubis", "Siregar", "Nasution", "Hutapea", "Simanjuntak", "Harahap", "Kusuma", "Saputra", "Hidayat", "Purnama", "Rahman", "Tan", "Lim"];
 const hash = (a, b, c) => { let x = (a * 374761393 + b * 668265263 + c * 2246822519) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return (x ^ (x >>> 16)) >>> 0; };
+// ---------- interviews and personality (OCEAN) ----------
+// Each person has five traits. They come from the person's id, so they never change. Interviewing shows a shortlist for a role; a well-fitting hire
+// starts with higher skill, and a hire with high neuroticism is likelier to quit. People hired without an interview behave exactly as before.
+const OC = D.HR_OCEAN, tr = (x, i) => (x >>> (i * 5)) % 101;
+const traitsFrom = x => ({ O: tr(x, 0), C: tr(x, 1), E: tr(x, 2), A: tr(x, 3), N: tr(x, 4) });
+export const oceanOf = (s, m) => m.o || traitsFrom(hash(s.seed | 0, m.id, 0x0cea));
+export function fitOf(role, o) {
+  const w = OC.weights[role] || {}, sum = Object.values(w).reduce((a, v) => a + Math.abs(v), 0) || 1;
+  return Math.round(clamp(Object.entries(w).reduce((a, [k, v]) => a + v * (o[k] - 50) / 50, 0) / sum, -1, 1) * 100) / 100;
+}
+export const startSkill = fit => c(D.HR.skillStart * (1 + OC.skillSwing * fit));
+export function shortlist(s, role) {
+  const h = ensureHr(s), ri = D.HR_ROLES.findIndex(r => r.id === role); if (ri < 0) return [];
+  return Array.from({ length: OC.candidates }, (_, i) => { const x = hash(s.seed | 0, h.hires * 31 + ri * 7 + i, 0xca5), o = traitsFrom(hash(x, i, 0x0c3a)), fit = fitOf(role, o);
+    return { idx: i, name: `${FIRST[x % FIRST.length]} ${LAST[(x >>> 8) % LAST.length]}`, o, fit, skill: startSkill(fit) }; });
+}
+// Quit risk for a role scales with the neuroticism of the people hired by interview (others count as average).
+export function quitFactor(s, role) {
+  const cr = ensureHr(s).staff[role].crew || [], picked = cr.filter(m => m.o); if (!picked.length) return 1;
+  const avgN = picked.reduce((a, m) => a + m.o.N, 0) / picked.length, share = picked.length / Math.max(1, cr.length);
+  return 1 + OC.quitSwing * ((avgN - 50) / 50) * share;
+}
 export function syncCrew(s, role) {
   const h = ensureHr(s); h.seq = h.seq || 0; const st = h.staff[role]; st.crew = st.crew || [];
   while (st.crew.length < st.n) { const k = ++h.seq, x = hash(s.seed | 0, k, 7); st.crew.push({ id: k, name: `${FIRST[x % FIRST.length]} ${LAST[(x >>> 8) % LAST.length]}`, since: s.day, skill: c(clamp(st.skill + ((x >>> 16) % 21 - 10) / 100, 0.5, 2)) }); }
@@ -35,14 +57,19 @@ export const needOf = (s, role) => role === "retail" ? retailNeed(s) : role === 
 
 // Recruitment costs days of wages per hire. A temp (agency) contract costs a premium on the wage, never quits, needs no severance and ends by itself.
 export const recruitFee = (s, role, n = 1) => c(wageOf(s, role) * D.HR.recruitDays * n);
-export function hire(s, role, n = 1, contract = "perm", days = 14) {
+export function hire(s, role, n = 1, contract = "perm", days = 14, cand = null) {
   if (!ROLE[role]) return err("Unknown role."); n = Math.round(Number(n)); if (!Number.isFinite(n) || n < 1) return err("Hire at least one person.");
   const h = ensureHr(s), st = h.staff[role], fee = recruitFee(s, role, n);
   if (fee > balance(s.ledger, "cash") + 0.004) return err(`Not enough cash for the recruitment fee: $${fee.toFixed(2)}.`);
   if (contract === "temp") { days = Math.round(Number(days)); if (!D.HR.tempDays.includes(days)) return err("Choose a contract length."); h.temps.push({ role, n, until: s.day + days }); }
-  st.skill = c((st.skill * st.n + D.HR.skillStart * n) / (st.n + n)); st.n += n; h.hires += n; syncCrew(s, role);
+  st.skill = c((st.skill * st.n + (cand ? cand.skill : D.HR.skillStart) * n) / (st.n + n)); st.n += n; h.hires += n; syncCrew(s, role);
+  if (cand) { const m = st.crew[st.crew.length - 1]; if (m) { m.name = cand.name; m.o = { ...cand.o }; m.skill = cand.skill; } }
   if (fee > 0) { post(s.ledger, s.day, `Recruitment of ${n} ${ROLE[role].name.toLowerCase()}`, [{ acct: "wages", dr: fee }, { acct: "cash", cr: fee }], "hire:" + s.day + ":" + role + ":" + h.hires); h.recruitPaid = c(h.recruitPaid + fee); }
   return ok({ n: st.n, fee });
+}
+export function hireCandidate(s, role, idx, contract = "perm", days = 14) {
+  if (!ROLE[role]) return err("Unknown role."); const cand = shortlist(s, role)[Math.round(Number(idx))]; if (!cand) return err("Choose one of the people on the list.");
+  const r = hire(s, role, 1, contract, days, cand); return r.ok ? { ...r, name: cand.name } : r;
 }
 export function fire(s, role, n = 1) {
   if (!ROLE[role]) return err("Unknown role."); const st = ensureHr(s).staff[role]; n = Math.round(Number(n)); if (!Number.isFinite(n) || n < 1) return err("Choose how many.");
@@ -98,7 +125,7 @@ export function hrDay(s) {
   const cv = crew(s), target = clamp(55 + 60 * (h.wageMult - 1) + Math.min(15, h.training / 40) - pd.morale - (cv.coverage < 1 ? 15 * (1 - cv.coverage) : 0), 0, 100);
   h.morale = c(clamp(h.morale + (target - h.morale) * D.HR_EFFECTS.moraleDrift, 0, 100));
   // turnover: unhappy staff quit
-  for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30); for (let i = permN(s, r.id); i > 0; i--) if (streamNext(h) < p) { const cr = syncCrew(s, r.id), who = cr.length ? cr.splice(hash(s.day, st.n, cr.length) % cr.length, 1)[0] : null; st.n--; h.quits++; mailPost(s, { from: "HR", subject: `${who ? who.name : "A " + ROLE[r.id].name.toLowerCase().replace(/s$/, "")} resigned`, body: `${who ? who.name + " (" + ROLE[r.id].name.toLowerCase().replace(/s$/, "") + ", since day " + who.since + ") left. " : ""}Morale is ${Math.round(h.morale)}%. Raise wages or training to keep people.`, goto: ["hr", ""], level: "warn" }); log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }
+  for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30) * quitFactor(s, r.id); for (let i = permN(s, r.id); i > 0; i--) if (streamNext(h) < p) { const cr = syncCrew(s, r.id), who = cr.length ? cr.splice(hash(s.day, st.n, cr.length) % cr.length, 1)[0] : null; st.n--; h.quits++; mailPost(s, { from: "HR", subject: `${who ? who.name : "A " + ROLE[r.id].name.toLowerCase().replace(/s$/, "")} resigned`, body: `${who ? who.name + " (" + ROLE[r.id].name.toLowerCase().replace(/s$/, "") + ", since day " + who.since + ") left. " : ""}Morale is ${Math.round(h.morale)}%. Raise wages or training to keep people.`, goto: ["hr", ""], level: "warn" }); log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }
 }
 function payOut(s, acct, amount, memo) {
   amount = c(amount); if (amount <= 0) return;

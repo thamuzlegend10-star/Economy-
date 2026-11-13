@@ -17,7 +17,7 @@ import * as Ml from "./mail.js";
 import * as Js from "./juiceshop.js";
 import * as Sn from "./scenario.js";
 
-export const newForms = () => ({ fsite: "main", vendor: "agro", terms: "cod", rq: {}, bid: {}, br: { location: "", area: 80 }, tg: {}, mkt: { channel: "social", budget: 500, days: 7, cat: "all", demo: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, jm: {}, jcarrier: "hired", ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
+export const newForms = () => ({ fsite: "main", vendor: "agro", terms: "cod", rq: {}, bid: {}, br: { location: "", area: 80 }, tg: {}, iv: "retail", mkt: { channel: "social", budget: 500, days: 7, cat: "all", demo: "all" }, loan: { kind: "equipment", amount: 10000, term: 60 }, credit: 10000, w: {}, farea: 250, jm: {}, jcarrier: "hired", ev: { kind: "demand", mult: 1.2, days: 7, title: "" }, team: "", carrier: "hired", tempDays: 14, gl: "all", q: { juice: "apple", qty: 1000 } });
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const r = (res, msg) => (res && res.ok ? { ok: true, msg } : { ok: false, error: (res && res.error) || "Not possible." });
 
@@ -66,6 +66,7 @@ export function act(s, f, name, a = {}) {
     case "deliver": return r(B.deliver(s, n), "Delivered and paid.");
     // HR
     case "hire": return r(H.hire(s, id, 1), "Hired. Recruitment fee paid.");
+    case "hirePick": { const [role, idx] = String(id).split(":"); const x = H.hireCandidate(s, role, idx); return r(x, x.ok ? `Hired ${x.name}. Recruitment fee paid.` : ""); }
     case "hireTemp": return r(H.hire(s, id, 1, "temp", Number(f.tempDays) || 14), "Temp hired for the contract period.");
     case "fire": return r(H.fire(s, id, 1), "Let go.");
     case "wage": return r(H.setWageMult(s, a.value), "Wage level set.");

@@ -259,3 +259,11 @@ export const MKT_DEMO = {
   fallbackMix: { seniors: 0.30, adults: 0.40, juniors: 0.30 },      // household, stationery, juices and anything else
   focus: 2.5, off: 0.3,
 };
+
+// Personality (OCEAN: openness, conscientiousness, extraversion, agreeableness, neuroticism, each 0 to 100) of people you interview.
+// weights: what each role needs (negative means a lower score is better). fit runs from -1 to 1.
+export const HR_OCEAN = {
+  traits: [{ id: "O", name: "Openness" }, { id: "C", name: "Conscientiousness" }, { id: "E", name: "Extraversion" }, { id: "A", name: "Agreeableness" }, { id: "N", name: "Neuroticism" }],
+  weights: { retail: { E: 0.5, A: 0.5 }, warehouse: { C: 1 }, factory: { C: 0.7, N: -0.3 }, sales: { E: 0.6, O: 0.4 }, driver: { C: 0.6, N: -0.4 }, service: { A: 0.6, N: -0.4 } },
+  candidates: 3, skillSwing: 0.25, quitSwing: 0.4,
+};
