@@ -20,6 +20,7 @@ import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
 import { branchDay } from "./branch.js";
 import { curDay, exchangeFactor } from "./currency.js";
 import { stockDay } from "./stock.js";
+import * as Qc from "./quality.js";
 import { svcDay } from "./services.js";
 import { seasonMult, seasonDay } from "./season.js";
 import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut, csiFactor } from "./market.js";
@@ -59,7 +60,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
-  const s = { v: D.SAVE_VERSION, ...o, cal: true, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
+  const s = { v: D.SAVE_VERSION, ...o, cal: true, qcOn: true, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
     ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), jshop: newJshop(), mail: newMail(), scn: newScn(o.scenario, o.seed), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
@@ -125,14 +126,14 @@ function beginDay(s) {
 function arrivals(s) {
   const due = s.orders.filter(o => o.eta <= s.day);
   for (const o of due) {
-    post(s.ledger, s.day, `Delivery #${o.id} ${o.kind === "transfer" ? "from the warehouse" : "from " + SUPPLIER[o.sup].name}${o.dest === "wh" ? " to the warehouse" : ""}`, [{ acct: "inventory", dr: o.goods }, { acct: "transit", cr: o.goods }], "order:" + o.id);
+    const got = o.kind === "transfer" ? { qty: o.qty, value: o.goods, damaged: 0 } : Qc.receive(s, { ...o, pname: PRODUCT[o.pid].name }); if (o.kind === "transfer") post(s.ledger, s.day, `Delivery #${o.id} ${o.kind === "transfer" ? "from the warehouse" : "from " + SUPPLIER[o.sup].name}${o.dest === "wh" ? " to the warehouse" : ""}`, [{ acct: "inventory", dr: o.goods }, { acct: "transit", cr: o.goods }], "order:" + o.id);
     const dst = o.dest === "wh" ? s.wh : s; if (o.kind !== "transfer") trackArrival(s, o.sup, !!o.delayed);
     if (o.delayed && o.kind !== "transfer") mailPost(s, { from: SUPPLIER[o.sup].name, subject: `Order #${o.id} was late`, body: `Your ${PRODUCT[o.pid].name} order arrived after the promised day. This lowers the supplier's on-time record.`, goto: ["data", "bi"], level: "warn" });
-    dst.qty[o.pid] += o.qty; dst.val[o.pid] = c(dst.val[o.pid] + o.goods);
+    dst.qty[o.pid] += got.qty; dst.val[o.pid] = c(dst.val[o.pid] + got.value);
     s.today.arrivals.push({ id: o.id, pid: o.pid, qty: o.qty });
     s.feed.push({ id: ++s.feedSeq, kind: "truck", pid: o.pid, qty: o.qty, to: o.dest === "wh" ? "wh" : "retail", transfer: o.kind === "transfer" }); log(s, `Delivery #${o.id} arrived${o.dest === "wh" ? " at the warehouse" : ""}: ${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}.`);
   }
-  s.orders = s.orders.filter(o => o.eta > s.day);
+  s.orders = s.orders.filter(o => o.eta > s.day); Qc.qcDay(s);
   if (s.feed.length > 40) s.feed.splice(0, s.feed.length - 40);
 }
 

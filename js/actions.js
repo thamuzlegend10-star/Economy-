@@ -7,6 +7,7 @@ import * as M from "./mrp.js";
 import * as B from "./b2b.js";
 import * as H from "./hr.js";
 import * as St from "./stock.js";
+import * as Qc from "./quality.js";
 import * as Sv from "./services.js";
 import * as Br from "./branch.js";
 import * as K from "./market.js";
@@ -76,6 +77,9 @@ export function act(s, f, name, a = {}) {
     // marketing
     case "mktStart": return r(K.startCampaign(s, { ...f.mkt }), "Campaign started.");
     case "mktStop": return r(K.stopCampaign(s, n), "Campaign stopped.");
+    case "qcInspect": return r(Qc.toggleInspect(s, String(id) === "1"), String(id) === "1" ? "Inspection on." : "Inspection off.");
+    case "qcClaim": { const x = Qc.claim(s, id); return r(x, x.ok ? `Sent back. Credit ${x.back.toFixed(2)} dollars.` : ""); }
+    case "qcWriteOff": return r(Qc.writeOff(s, id), "Written off.");
     case "stockTake": { const x = St.stockTake(s); return r(x, x.ok ? (x.found.length ? `Counted: ${x.total.toFixed(2)} dollars of stock was missing.` : "Counted: nothing missing.") : ""); }
     case "svcQuote": { const rq = Sv.ensureSvc(s).rfqs.find(x => x.id === Number(id)); if (!rq) return r(null); const m = Number((f.sq || {})[id]) || 100; const x = Sv.sendQuote(s, id, Sv.marketPrice(rq) * m / 100); return r(x, x.ok ? `Quote sent. Chance to win about ${Math.round(x.chance * 100)}%. The client answers tomorrow.` : ""); }
     case "svcUp": return r(Sv.moveJob(s, id, -1), "");

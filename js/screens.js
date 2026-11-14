@@ -14,6 +14,7 @@ import * as Kp from "./kpi.js";
 import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
 import * as St from "./stock.js";
+import * as Qc from "./quality.js";
 import * as Se from "./season.js";
 import * as Bf from "./b2bforecast.js";
 import * as Sv from "./services.js";
@@ -239,7 +240,7 @@ export function statements(s) {
   const L = s.ledger, b = a => balance(L, a), t = totals(L);
   const nz = (a, label) => (Math.abs(b(a)) > 0.004 ? `<tr><td class="l">${label || ACCOUNTS[a].name}</td><td>${money2(b(a))}</td></tr>` : "");
   const rev = ["sales", "sales_b2b", "sales_ecom"].map(a => nz(a)).join(""), exp = ["cogs", ...OPEX].map(a => nz(a)).join(""), net = round2(t.revenue - t.costs);
-  const assets = ["cash", "receivables", "inventory", "inv_raw", "inv_fg", "transit", "machinery", "acc_deprec"].map(a => nz(a)).join(""), liab = ["overdraft", "payables", "tax_payable", "wages_payable", "credit", "longdebt", "escrow"].map(a => nz(a)).join("");
+  const assets = ["cash", "receivables", "inventory", "inv_raw", "inv_fg", "transit", "claims", "machinery", "acc_deprec"].map(a => nz(a)).join(""), liab = ["overdraft", "payables", "tax_payable", "wages_payable", "credit", "longdebt", "escrow"].map(a => nz(a)).join("");
   const cfw = Ac.cashFlow(s), cash = b("cash");
   const tbl = (title, rows, foot) => `<div class="card scroll"><b>${title}</b><table class="tbl fixed"><tbody>${rows}</tbody>${foot ? `<tfoot>${foot}</tfoot>` : ""}</table></div>`;
   const R = Kp.ratios(s), pct = v => v == null ? "n/a" : dec(v, 1) + "%", x = v => v == null ? "n/a" : dec(v, 2);
@@ -299,6 +300,17 @@ export function competitors(s) {
     <small class="muted">Amber means a rival is cheaper than you by more than 5%. Shoppers compare your price with the rivals, so when they cut, your sales fall unless you follow.</small>${economyCard(s)}<div class="card"><b>Revenue per day</b>${chartRev}</div>`;
 }
 
+export function quality(s) {
+  if (!s.qcOn) return `<div class="card">${head("Delivery quality", "Not in this game")}<small class="muted">This game was started before quality checks existed, so deliveries always arrive whole. Start a new game to use them.</small></div>`;
+  const k = Qc.ensureQc(s), sm = Qc.summary(s), lots = Qc.openLots(s), rows = Qc.supplierRows(s);
+  const open = lots.length ? `<table class="tbl fixed"><thead><tr><th class="l">Goods</th><th>Units</th><th>Value</th><th>Time left</th><th></th></tr></thead><tbody>${lots.map(l => `<tr><td class="l">${esc(D.PRODUCTS.find(p => p.id === l.pid).name)}<br><small class="muted">${esc(Qc.supplierRows(s).find(r => r.id === l.sup)?.name || l.sup)}, order #${l.order}</small></td><td>${num(l.qty)}</td><td>${money(l.value)}</td><td>${Math.max(0, Qc.QC.claimDays - (s.day - l.day))} d</td><td>${btn("qcClaim", "Send back", { id: l.id })} ${btn("qcWriteOff", "Write off", { id: l.id, ghost: true })}</td></tr>`).join("")}</tbody></table>` : `<small class="muted">No damaged goods are waiting. When a checked delivery arrives with broken units, they show here.</small>`;
+  const sup = rows.length ? `<table class="tbl fixed"><thead><tr><th class="l">Supplier</th><th>Deliveries</th><th>Damaged</th><th>Expected</th><th>Credit</th></tr></thead><tbody>${rows.map(r => `<tr><td class="l">${esc(r.name)}</td><td>${num(r.deliveries)}</td><td>${dec(r.rate * 100, 1)}%</td><td>${dec(r.expected * 100, 1)}%</td><td>${Math.round(r.recover * 100)}%</td></tr>`).join("")}</tbody></table>` : `<small class="muted">No deliveries yet.</small>`;
+  return `<div class="card">${head("Delivery quality", sm.inspect ? "Inspection on" : "Inspection off")}${kv([["Inspection fee per delivery", sm.inspect ? money(Qc.QC.fee) : "none"], ["Waiting claims", `${num(sm.open)}, ${money(sm.openValue)}`], ["Fees paid so far", money(sm.fees)], ["Units sent back", num(sm.claimed)], ["Credit received", money(sm.refunded)], ["Lost to damage", money(sm.lost)]])}
+    <div class="row">${btn("qcInspect", sm.inspect ? "Turn inspection off" : "Turn inspection on", { id: sm.inspect ? "0" : "1", ghost: sm.inspect, mini: false })}</div>
+    <small class="muted">Each delivery can arrive with broken units, more often from poor suppliers. With inspection on you pay ${money(Qc.QC.fee)} a delivery and the broken units are set aside, so you can send them back for a credit within ${Qc.QC.claimDays} days. With inspection off there is no fee, but the damage is found only on the shelf and the supplier takes nothing back.</small></div>
+    <div class="card scroll"><b>Waiting claims</b>${open}</div>
+    <div class="card scroll"><b>By supplier</b>${sup}<small class="muted">Damaged is the share of units that arrived broken. Expected is what the supplier's record predicts. Credit is the part of the price a supplier pays back.</small></div>`;
+}
 export function freshness(s) {
   const k = St.ensureStk(s), per = St.perishables();
   const cards = per.map(p => { const bs = St.batchesOf(s, p.id), val = s.qty[p.id] > 0 ? s.val[p.id] / s.qty[p.id] : 0;

@@ -17,7 +17,7 @@ B2B demand forecast,forecast,could,yes,yes,expected tendered units per product f
 Currency exchange and central bank rate forecast,forecast,could,yes,yes,exchange index drives import supplier prices; central bank rate drives bank charges; 7-day outlook with band
 Vendor purchasing with approval step,procurement,must,yes,yes,purchase orders; requisitions
 Supplier lead time; reliability and price tiers,procurement,must,yes,yes,supplier choice on PO
-Delivery quality check and damaged goods,procurement,could,yes,partial,late and short deliveries only
+Delivery quality check and damaged goods,procurement,could,yes,yes,damage chance follows supplier reliability; optional inspection fee; claim or write-off; lapses after 3 days; new games only
 Supplier performance tracking,procurement,should,yes,yes,delivery performance in BI
 Warehouse rent with terms (daily; 7-day; 30-day),logistics,should,yes,partial,rent per day only
 Auto-replenish by minimum stock and shipment size,logistics,should,yes,yes,Warehouse auto rules

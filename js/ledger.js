@@ -42,6 +42,7 @@ export const ACCOUNTS = {
   wages_payable: { type:"liability", name:"Accrued wages" },
   bad_debt:  { type:"expense",   name:"Bad debt written off" },
   shrinkage: { type:"expense",   name:"Spoilage and stock loss" },
+  claims:    { type:"asset",     name:"Supplier claims (damaged goods)" },
 };
 const DEBIT_NORMAL = new Set(["asset", "expense"]);
 export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor", "bad_debt", "shrinkage"];
@@ -50,7 +51,7 @@ const MAX_ENTRIES = 1500, MAX_OLD = 14000;   // recent entries in full; older on
 // Cash-flow buckets (direct method). The counter-account of every cash movement decides the bucket.
 export const CF_BUCKETS = ["customers", "suppliers", "wages", "tax", "other", "investing", "financing"];
 const CF_OF = { sales: "customers", sales_b2b: "customers", sales_ecom: "customers", sales_service: "customers", receivables: "customers",
-  inventory: "suppliers", inv_raw: "suppliers", inv_fg: "suppliers", payables: "suppliers", transit: "suppliers", cogs: "suppliers", escrow: "suppliers",
+  inventory: "suppliers", inv_raw: "suppliers", inv_fg: "suppliers", payables: "suppliers", transit: "suppliers", claims: "suppliers", cogs: "suppliers", escrow: "suppliers",
   wages: "wages", wages_payable: "wages", cogs_labor: "wages", tax: "tax", tax_payable: "tax",
   machinery: "investing", acc_deprec: "investing", capital: "financing", credit: "financing", longdebt: "financing" };
 export const newCf = () => Object.fromEntries(CF_BUCKETS.map(k => [k, 0]));

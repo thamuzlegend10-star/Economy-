@@ -83,7 +83,7 @@ function viewFor() {
   if (m === "mail") return ui.sub.mail === "facilitator" ? SC.facilitatorScreen(s, ui.f, ui.results, live && live.state.phase !== "lobby" && live.state.phase !== "idle" ? { code: live.state.code, role: live.state.role, board: live.leaderboard(), stopped: live.state.phase === "running" && live.stopped(s.day), day: s.day, ck: (live.state.settings && live.state.settings.checkpoint) || 0 } : null) : SC.mailScreen(s);
   if (m === "data") return sub === "market" ? SC.competitors(s) : sub === "bi" ? SC.biScreen(s) : sub === "forecast" ? SC.forecast(s) : sub === "currency" ? SC.currency(s) : SC.scoring(s, ui.f);
   if (m === "warehouse" && sub === "b2b") return SC.b2bContracts(s);
-  if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), freshness: x => SC.freshness(x), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
+  if (m === "retail") return { location: UI.location, procurement: x => UI.buy(x, ui), freshness: x => SC.freshness(x), quality: x => SC.quality(x), store: x => UI.store(x, "table"), price: x => UI.store(x, "prices"), tx: UI.transactions }[sub](s);
   if (m === "warehouse") return UI.warehouse(s, sub);
   if (m === "shipping") return UI.ship(s, ui);
   return UI.soon(...SOON[m]);
