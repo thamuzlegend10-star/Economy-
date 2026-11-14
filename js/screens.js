@@ -15,6 +15,7 @@ import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
 import * as St from "./stock.js";
 import * as Se from "./season.js";
+import * as Bf from "./b2bforecast.js";
 import * as Sv from "./services.js";
 import * as Ex from "./exportdata.js";
 import { getLocation } from "./locations.js";
@@ -106,6 +107,13 @@ export function factoryMrp(s) {
 // ================= B2B =================
 const buyer = id => (D.B2B.buyers.find(b => b.id === id) || { name: id }).name;
 const clientCredit = (s, id) => { const sc = B.credit(s, id), r = B.defaultRisk(s, id); return `${B.ratingOf(sc)} (${dec(r * 100, 1)}% of invoices go unpaid)`; };
+function b2bOutlookCard(s) {
+  const rows = Bf.allOutlook(s); if (!rows.length) return "";
+  const body = rows.map(r => `<tr class="${r.gap > 0 ? "warnc" : ""}"><td class="l">${esc(r.item.name)}</td><td>${num(Math.round(r.rate))}</td><td>${num(Math.round(r.winnable))}</td><td>${num(r.committed)}</td><td>${num(r.stock)}</td><td>${r.gap > 0 ? "buy " + num(r.gap) : "enough"}</td></tr>`).join("");
+  return `<div class="card scroll">${head("Demand outlook", `Next ${Bf.OUT.horizon} days`)}<table class="tbl fixed"><thead><tr><th class="l">Product</th><th>Asked / day</th><th>You win / day</th><th>Owed</th><th>In stock</th><th>Stock plan</th></tr></thead><tbody>${body}</tbody></table>
+    <small class="muted">Buyers post about ${dec(D.B2B.tendersPerDay[1] / 2, 1)} tenders a day, each for a set list of goods. "Asked" blends that pattern with what you have seen in the last ${Bf.OUT.window} days. "You win" uses your win rate (${Math.round(Bf.winRate(s) * 100)}%${ensureB2Bwins(s) ? "" : ", a guess until you have bid a few times"}). "Stock plan" covers those wins for ${Bf.OUT.horizon} days plus what you already owe buyers, against warehouse stock.</small></div>`;
+}
+const ensureB2Bwins = s => { const b = s.b2b || {}; return (b.won || 0) + (b.lost || 0) >= Bf.OUT.minBids; };
 export function b2bMarket(s, f) {
   const b = B.ensureB2B(s);
   const card = t => { const have = B.available(s, t.pid), isFixed = t.kind === "fixed", cur = t.bid;
@@ -114,6 +122,7 @@ export function b2bMarket(s, f) {
       ${isFixed ? `<div class="row">${btn("accept", `Accept · ${money(t.qty * t.price)}`, { id: t.id, mini: false })}</div>` :
         `<div class="row"><input type="number" inputmode="decimal" step="0.01" min="0.01" max="${t.ceiling}" placeholder="Your price" value="${cur ?? f.bid[t.id] ?? ""}" data-f="bid.${t.id}" data-num="1" aria-label="Your bid per unit">${btn("bid", cur != null ? "Change bid" : "Place bid", { id: t.id })}${cur != null ? btn("unbid", "Withdraw", { id: t.id, ghost: true }) : ""}</div>${cur != null ? `<small class="note">Your bid: ${money2(cur)} each</small>` : ""}`}</div>`; };
   return `<div class="card">${head("B2B market", "Institutional buyers")}${kv([["Reputation", dec(b.rep, 0) + " / 100"], ["On-time record", b.ontime + b.late ? pct(B.reliabilityOf(b)) : "no history"], ["Tenders won / lost", `${b.won} / ${b.lost}`], ["Sales team edge", "+" + dec(H.salesEdge(s) * 100) + " pts"]])}
+      ${b2bOutlookCard(s)}
       <div class="card scroll">${head("Client credit", "Who pays")}<table class="tbl fixed"><thead><tr><th class="l">Buyer</th><th>Rating</th><th>Score</th><th>Pays after</th></tr></thead><tbody>${D.B2B.buyers.map(y => `<tr><td class="l">${esc(y.name)}</td><td>${B.ratingOf(B.credit(s, y.id))}</td><td>${dec(B.credit(s, y.id), 0)}</td><td>${y.terms} d</td></tr>`).join("")}</tbody></table></div>
       <small class="muted">Winner is chosen on price, reputation and delivery record. A sales team helps. Bids close ${D.B2B.openDays} days after a tender opens.</small></div>
     ${b.open.length ? b.open.map(card).join("") : `<div class="card"><small class="muted">No open tenders right now. New ones appear most days.</small></div>`}`;

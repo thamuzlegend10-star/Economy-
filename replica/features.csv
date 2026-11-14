@@ -13,7 +13,7 @@ Competitor price and stock effect on sales,retail,must,yes,yes,rival price wave
 Staff index (headcount x competency) effect on sales,retail,should,yes,yes,six departments
 Holidays and seasonality effect on demand,retail,should,yes,yes,56-day year with six named periods; category demand multipliers; forecast and mail know the calendar; new games only
 Daily retail demand forecast per product,forecast,should,yes,yes,Insights > Forecast
-B2B demand forecast,forecast,could,yes,partial,known B2B contracts only
+B2B demand forecast,forecast,could,yes,yes,expected tendered units per product from the buyer pattern blended with tenders seen; win rate; stock plan for 14 days
 Currency exchange and central bank rate forecast,forecast,could,yes,yes,exchange index drives import supplier prices; central bank rate drives bank charges; 7-day outlook with band
 Vendor purchasing with approval step,procurement,must,yes,yes,purchase orders; requisitions
 Supplier lead time; reliability and price tiers,procurement,must,yes,yes,supplier choice on PO
