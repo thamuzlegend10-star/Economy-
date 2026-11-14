@@ -7,13 +7,14 @@ import { JUICE } from "./factory.js";
 import { round2 } from "./ledger.js";
 import { expectedPrice } from "./economy.js";
 import { getLocation } from "./locations.js";
+import { seasonMult } from "./season.js";
 
 const c = round2;
 const sum = a => a.reduce((x, y) => x + y, 0);
 
 // Observed daily demand (units sold plus units customers wanted but could not buy), de-seasonalised.
 export function series(s, pid, n = D.FORECAST.window) {
-  return s.history.slice(-n).map(h => ({ day: h.day, raw: (h.units[pid] || 0) + (h.lost[pid] || 0), y: ((h.units[pid] || 0) + (h.lost[pid] || 0)) / WEEK[h.day % 7] }));
+  return s.history.slice(-n).map(h => ({ day: h.day, raw: (h.units[pid] || 0) + (h.lost[pid] || 0), y: ((h.units[pid] || 0) + (h.lost[pid] || 0)) / WEEK[h.day % 7] / seasonMult(s, D.PRODUCTS.find(x => x.id === pid).cat, h.day) }));
 }
 function fit(pts) {                                        // least squares y = a + b * i, i = 0..n-1. a is the level at the first point
   const n = pts.length, xs = pts.map((_, i) => i), mx = sum(xs) / n, my = sum(pts.map(p => p.y)) / n;
@@ -22,14 +23,14 @@ function fit(pts) {                                        // least squares y = 
 }
 export function model(s, pid, pts = series(s, pid)) {
   const n = pts.length;
-  if (n < D.FORECAST.minPoints) { const lvl = expectedDemand(s, pid) / WEEK[s.day % 7]; return { level: lvl, trend: 0, sigma: lvl * 0.15, n, basis: "model" }; }
+  if (n < D.FORECAST.minPoints) { const lvl = expectedDemand(s, pid) / WEEK[s.day % 7] / seasonMult(s, PRODUCT[pid].cat); return { level: lvl, trend: 0, sigma: lvl * 0.15, n, basis: "model" }; }
   const { a, b } = fit(pts), resid = pts.map((p, i) => p.y - (a + b * i)), sigma = Math.sqrt(sum(resid.map(r => r * r)) / Math.max(1, n - 2));
   const last = a + b * (n - 1); return { level: Math.max(0, last), trend: b, sigma: Math.max(sigma, last * 0.03), n, basis: "history" };
 }
 // Forecast for the day k days after the last closed day (k = 1 is the day in progress). Weekday pattern is put back.
 export function forecastDay(s, pid, k, m = model(s, pid)) {
   const lastClosed = s.history.length ? s.history[s.history.length - 1].day : s.day - 1, day = lastClosed + k;
-  return Math.max(0, (m.level + m.trend * k) * WEEK[day % 7] * outlook(s, pid, day));
+  return Math.max(0, (m.level + m.trend * k) * WEEK[day % 7] * seasonMult(s, PRODUCT[pid].cat, day) * outlook(s, pid, day));
 }
 // What is known about the future that the sales history cannot show: rival prices (they follow a known wave and any announced cut) and scenario events already running.
 // Both are compared with their average over the history window, so the forecast moves only by the difference.
@@ -49,7 +50,7 @@ export const dailyAverage = (s, pid, days = 7) => forecastTotal(s, pid, days) / 
 export function forecastError(s, pid) {
   const all = series(s, pid, D.FORECAST.window + D.FORECAST.errorWindow), errs = [];
   for (let i = D.FORECAST.minPoints; i < all.length; i++) {
-    const m = model(s, pid, all.slice(Math.max(0, i - D.FORECAST.window), i)), pred = Math.max(0, m.level + m.trend) * WEEK[all[i].day % 7];
+    const m = model(s, pid, all.slice(Math.max(0, i - D.FORECAST.window), i)), pred = Math.max(0, m.level + m.trend) * WEEK[all[i].day % 7] * seasonMult(s, PRODUCT[pid].cat, all[i].day);
     if (all[i].raw > 0) errs.push(Math.abs(pred - all[i].raw) / all[i].raw);
   }
   return errs.length ? sum(errs.slice(-D.FORECAST.errorWindow)) / Math.min(errs.length, D.FORECAST.errorWindow) : null;

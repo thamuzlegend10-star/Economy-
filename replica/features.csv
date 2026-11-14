@@ -11,7 +11,7 @@ Up to seven stores,retail,should,yes,partial,main shop plus up to 3 branches; br
 Price per product with elasticity,retail,must,yes,yes,Shop > Prices
 Competitor price and stock effect on sales,retail,must,yes,yes,rival price wave
 Staff index (headcount x competency) effect on sales,retail,should,yes,yes,six departments
-Holidays and seasonality effect on demand,retail,should,yes,partial,events random; no yearly calendar
+Holidays and seasonality effect on demand,retail,should,yes,yes,56-day year with six named periods; category demand multipliers; forecast and mail know the calendar; new games only
 Daily retail demand forecast per product,forecast,should,yes,yes,Insights > Forecast
 B2B demand forecast,forecast,could,yes,partial,known B2B contracts only
 Currency exchange and central bank rate forecast,forecast,could,yes,yes,exchange index drives import supplier prices; central bank rate drives bank charges; 7-day outlook with band

@@ -9,7 +9,7 @@ import * as SC from "../js/screens.js";
 import * as D from "../js/data.js";
 import { balance } from "../js/ledger.js";
 
-const mk = (o = {}) => { const s = E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 250000, seed: 13, ...o }); F.rentFactory(s, 500); return s; };
+const mk = (o = {}) => { const s = E.newGame({ location: "id-medan-central", area: 300, secPerDay: 10, days: 60, capital: 250000, seed: 13, ...o }); F.rentFactory(s, 500); s.cal = false; return s; };   // these tests are about the weekday pattern, so the yearly calendar is off
 const runDay = s => { const d = s.day; while (!s.ended && s.day === d) E.tick(s, 0.5); };
 const stockUp = s => { F.placeRawOrder(s, { vendor: "agro", lines: [{ rid: "appleConc", qty: 3000 }, { rid: "orangePulp", qty: 3000 }, { rid: "water", qty: 20000 }] }); F.placeRawOrder(s, { vendor: "packco", lines: [{ rid: "bottles", qty: 20000 }, { rid: "caps", qty: 20000 }] }); for (let i = 0; i < 6 && s.fx.pos.length; i++) runDay(s); };
 // Give a game a made-up history: demand per product per day, so the forecast can be checked against a known answer.

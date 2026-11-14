@@ -14,6 +14,7 @@ import * as Kp from "./kpi.js";
 import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
 import * as St from "./stock.js";
+import * as Se from "./season.js";
 import * as Sv from "./services.js";
 import * as Ex from "./exportdata.js";
 import { getLocation } from "./locations.js";
@@ -309,6 +310,13 @@ export function currency(s) {
     <small class="muted">The band is a one in five chance of being outside it. It assumes the central bank rate stays where it is. If the bank moves, the outlook moves too.</small></div>
     <div class="card"><b>Index, last days</b>${chart}</div>`;
 }
+function calendarCard(s) {
+  if (!s.cal) return "";
+  const up = Se.upcoming(s, 28), now = Se.periodsOn(s.day), yr = Se.dayOfYear(s.day);
+  const rows = up.map(p => `<tr class="${p.inDays === 0 ? "" : p.inDays <= D.SEASON.warnDays ? "warnc" : ""}"><td class="l">${esc(p.name)}</td><td>${p.inDays === 0 ? "now, " + p.left + " d left" : "in " + p.inDays + " d"}</td><td class="l">${esc(Se.effectText(p))}</td></tr>`).join("");
+  return `<div class="card scroll">${head("Calendar", `Day ${yr} of ${D.SEASON.year}`)}${up.length ? `<table class="tbl fixed"><thead><tr><th class="l">Period</th><th>When</th><th class="l">Demand</th></tr></thead><tbody>${rows}</tbody></table>` : `<small class="muted">Nothing special in the next 4 weeks.</small>`}
+    <small class="muted">${now.length ? esc(now.map(p => p.name).join(", ")) + " is on now. " : ""}The year repeats every ${D.SEASON.year} days. The forecast knows the calendar, so it puts holiday demand back in. Order early: deliveries take days to arrive.</small></div>`;
+}
 export function forecast(s) {
   const per = D.PRODUCTS.map(p => { const a = Fc.retailAdvice(s, p.id), sp = D.SUPPLIERS.find(x => x.id === a.supplier), tr = a.trend / Math.max(1, a.level) * 100;
     return `<div class="card"><div class="shophead"><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)}</b><small>${a.basis === "history" ? "from sales history" : "from the demand model (few days of history)"}</small></div>
@@ -319,7 +327,7 @@ export function forecast(s) {
       ${kv([["Contracts to fill", num(a.contracts)], ["Web sales / day", num(a.webPerDay)], ["In stock + queued", `${num(a.fg)} + ${num(a.queued)}`], ["Still needed", num(a.qty)]])}
       <div class="row">${btn("advMake", a.qty ? `Queue ${num(a.qty)} bottles` : "Enough planned", { id: j.id, dis: !a.qty || !s.fx.machines.length, mini: false })}</div></div>`; }).join("");
   const cp = Kp.competitorPrices(s).map(r => { const avg = r.rivals.reduce((x, y) => x + y, 0) / r.rivals.length; return `<div class="kv1"><div><span>${esc(r.name)}: you vs rivals</span><b class="${r.you > avg * 1.05 ? "warnc" : ""}">${money2(r.you)} vs ${money2(avg)}</b></div></div>`; }).join("");
-  return `<div class="card">${head("Forecast", "Built from your real sales")}<small class="muted">Demand is the units sold plus the units customers wanted but could not buy. The weekday pattern is removed, a trend is fitted, and the pattern is put back. Safety stock covers demand noise and late suppliers. The advice counts stock, deliveries on the way and free space.</small>${cp}</div>${per}${jc}`;
+  return `<div class="card">${head("Forecast", "Built from your real sales")}<small class="muted">Demand is the units sold plus the units customers wanted but could not buy. The weekday pattern is removed, a trend is fitted, and the pattern is put back. Safety stock covers demand noise and late suppliers. The advice counts stock, deliveries on the way and free space.</small>${cp}</div>${calendarCard(s)}${per}${jc}`;
 }
 
 // ================= LEDGER: trial balance, tax, receivables, journal =================

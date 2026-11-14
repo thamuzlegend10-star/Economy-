@@ -276,3 +276,14 @@ export const SVC = {
   hoursPerStaff: 8, ticketShare: 0.25, perJobPerDay: 16, rfqChance: 0.55, maxOpen: 6, quoteDays: 3, deadlineSlack: [3, 9], capMult: [0.95, 1.35],
   lateStep: 0.10, lateCap: 0.5, cancelAfter: 5, cancelPenalty: 0.15, quoteMin: 0.7, quoteMax: 1.5,
 };
+
+// ---------- Calendar ----------
+// A game year is 56 days. from and to are days of that year. mult is the demand multiplier by product category (all = every category).
+export const SEASON = { year: 56, warnDays: 3, periods: [
+  { id: "fast",   name: "Fasting month",   from: 8,  to: 14, mult: { food: 1.15, drinks: 1.10 }, note: "Families shop for the evening meal and for sweets and drinks." },
+  { id: "eid",    name: "Eid holiday",     from: 15, to: 18, mult: { food: 1.30, drinks: 1.20, electronics: 1.15 }, note: "Big gatherings and gifts." },
+  { id: "school", name: "Back to school",  from: 24, to: 29, mult: { electronics: 1.25, food: 1.05 }, note: "Students and parents buy gadgets and snacks." },
+  { id: "heat",   name: "Hot season",      from: 33, to: 41, mult: { drinks: 1.25, food: 0.97 }, note: "Hot weather sends shoppers to cold drinks." },
+  { id: "slow",   name: "Quiet weeks",     from: 43, to: 47, mult: { all: 0.93 }, note: "Wallets are tight after the holidays." },
+  { id: "sale",   name: "Year-end sale",   from: 49, to: 55, mult: { electronics: 1.35, food: 1.10, drinks: 1.10 }, note: "Shoppers hunt for deals and gifts." },
+] };
