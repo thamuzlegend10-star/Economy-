@@ -57,3 +57,47 @@ Retail core: already built in Economy (see features.csv, weighted parity 80.7 pe
 
 ## Honest note
 Economy was built from the user's master spec, so parity is measured against the spec plus these public pages, not against hands-on use of MonsoonSIM.
+
+## Research pass 2 (public web, read 15 Nov 2026)
+Read at human speed, public pages only, no login. The public site has no in-game screenshots (the app is behind a login), so there are no new files in `replica/screens/`. Everything below is from text.
+
+### Added sources
+| source | url | gave |
+| --- | --- | --- |
+| Retail (RTL) module page | https://www.monsoonsim.com/news/1061484/retail-rtl-module | the six retail menus, purchase options, approvals, FMCG rules, QC |
+| Marketing (MKT) module page | https://www.monsoonsim.com/news/1061493/marketing-mkt-module | media vs consumer type, report subscription, facilitator settings |
+| Warehouse and logistics page | https://www.monsoonsim.com/news/1061494/warehouse-logistics-whs-module | rent terms, close rules, trigger-point replenishment, shipping |
+| Wholesale (B2B) page | https://www.monsoonsim.com/news/1061497/wholesales-b2b-module | straight deals, bids, tie rule, minimum bidders, pickup or delivery |
+| Forecast (FCS) page | https://www.monsoonsim.com/news/1061492/forecast-fcs-module | what each forecast shows, per location or per team demand |
+| HCM page | https://www.monsoonsim.com/news/1062247/human-capital-management-hcm-module | staff index formula, 10 percent a day competency growth, fees |
+| Facilitator step-by-step | https://www.monsoonsim.com/news/1225120/first-game-first-confidence-a-step-by-step-guide-for-new-monsoonsim-facilitators | game setup order, step-through mode, scoring matrix example |
+| Facilitator guide | https://www.monsoonsim.com/news/908839/mastering-monsoonsim-a-step-by-step-guide-to-facilitating-an-engaging-business-simulation-game | facilitator screens, player types, run controls |
+| Play-style tips | https://www.monsoonsim.com/news/3365/optimizing-gameplay-strategies-for-running-monsoonsim-games-effectively | monitoring tools, KPIs, pitfalls |
+| FAQ | https://www.monsoonsim.com/guide.html?stage=MSIM_FAQ | game length, day length, configurable items |
+| Retail competition page | https://www.monsoonsim.com/news/1248000/monsoonsim-business-competition-2025-retail-edition-information-page | registration flow only; no rules or numbers |
+| Not reachable | fandom wiki Retail page, ACM paper | the fetch failed, nothing used |
+
+### Learner screens named by the public pages
+Retail has six menus: Location, Procurement, Store, Retail Sales and Price, Transaction, Forecast (if on). A magnifying-glass menu opens the data explorer (for example operating expenses by staff). Warehouse has a Move Stock menu. Finance has journals, statements, loans and overdraft. Marketing and HR are described by actions, not screens. Pages do not give layouts.
+
+### Facilitator screens and flow
+Member login, Active Guide (module menu plus an AI help chat), Game I Facilitate (list and "New Game"), Game Server (status bar with currency, game days and time settings, module icons below), Module Configuration (module picker plus a settings panel), Team Creation (typed or auto-numbered names), Game Admin (registration link). Setup order: name the game and locale, pick modules, set each module's parameters, create teams, optionally add robot or virtual players, confirm Day 0, share the link. Run controls: Initialise, Stop, Run, Step, Step One Day. Monitoring: learner activity graph, transaction counts by team, player and department, cash and net profit graphs, live transactions.
+
+### Rules found that our game does not have yet
+- Retail purchase options: Immediate, Future-dated, and Blanket (staggered) delivery.
+- Retail rent has a contract length and Manage Rental rules (a long contract cannot change size mid-term; daily contracts carry no discount).
+- Step-through mode: advance one day at a time, and re-initialise to Day 0.
+- Bankruptcy after a configurable number of delinquent days (up to 50). Ours is fixed at 3 overdraft days.
+- Per-module complexity (beginner, intermediate, advanced) and showing or hiding concepts.
+- Price elasticity is a per-product setting the facilitator chooses (high or low).
+- B2B: minimum bidders (bid cancelled if too few), customer pickup versus company delivery as a switch.
+- Marketing: daily market-intelligence subscription fee; media-to-consumer fit set or random at start.
+- FMCG store has a display area and a back room, and batches move between them.
+- Facilitator monitor: activity and transaction counts per team.
+
+### Rules we already match (checked against these pages)
+Staff index as headcount times competency with a 10 percent a day rise in a new department; price and marketing splitting demand with rivals; overflow fees; QC pays only for good units; warehouse close only when empty; trigger-point replenishment; straight deals and lowest-price bids; client credit AAA to DDD; seller stars; OCEAN fit; demand forecasts; scoring matrix with KPI targets.
+
+### Honest limit
+Public pages describe features and rules, not numbers. Prices, rates, fees and screen layouts are not published, so any figure in our game is our own model.
+
