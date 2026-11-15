@@ -289,7 +289,7 @@ function bindMods(boxId, prefix) {
 function setupValues() {
   const inf = $("sDaysInf") && $("sDaysInf").checked;
   const dVal = inf ? 0 : $("sDays").value;
-  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod"), difficulty: $("sDiff").value, bkDays: $("sBk").value });
+  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod"), difficulty: $("sDiff").value, bkDays: $("sBk").value, elastSet: Object.fromEntries(D.PRODUCTS.map(p => [p.id, $("sEl_" + p.id).value])) });
 }
 // The setup steps and the live "Your start" card. Every control keeps its own id; this only moves between panels and summarises the choices.
 let cfgStep = 1; const CFG_LAST = 5;
@@ -301,7 +301,7 @@ function cfgGo(n) {
 }
 function cfgSummary(c, info) {
   const on = Object.values(c.mods || {}).filter(Boolean).length, all = Object.keys(c.mods || {}).length, scn = D.SCENARIOS.find(x => x.id === ($("sScn").value || "free")), tg = $("sTg").value;
-  const rows = [["Place", LOC.getLocation(c.location).name], ["Shop size", UI.num(c.area) + " m²"], ["Rent", UI.money2(info.rent) + " a day"], ["Money", UI.money(c.capital)], ["Length", c.days ? `${c.days} days, about ${Math.round(c.secPerDay * c.days / 60)} min` : "No end"], ["Departments", all ? `${on} of ${all} on` : "All on"], ["Scenario", scn ? scn.name : "Free play"], ["Difficulty", c.difficulty[0].toUpperCase() + c.difficulty.slice(1)], ["Bankrupt after", c.bkDays + " days overdrawn"], ["KPI targets", tg ? tg[0].toUpperCase() + tg.slice(1) : "None"]];
+  const rows = [["Place", LOC.getLocation(c.location).name], ["Shop size", UI.num(c.area) + " m²"], ["Rent", UI.money2(info.rent) + " a day"], ["Money", UI.money(c.capital)], ["Length", c.days ? `${c.days} days, about ${Math.round(c.secPerDay * c.days / 60)} min` : "No end"], ["Departments", all ? `${on} of ${all} on` : "All on"], ["Scenario", scn ? scn.name : "Free play"], ["Difficulty", c.difficulty[0].toUpperCase() + c.difficulty.slice(1)], ["Bankrupt after", c.bkDays + " days overdrawn"], ["Price sensitivity", D.PRODUCTS.map(p => (c.elastSet[p.id] || "normal")).every(v => v === "normal") ? "Normal" : "Custom"], ["KPI targets", tg ? tg[0].toUpperCase() + tg.slice(1) : "None"]];
   $("cfgSum").innerHTML = `<b>Your start</b>${rows.map(([k, v]) => `<div class="ln"><span>${UI.esc(k)}</span><b>${UI.esc(v)}</b></div>`).join("")}<small class="muted">About ${UI.money(info.revenue)} of sales a day at full stock.</small>`;
 }
 $("cfgNav").addEventListener("click", e => { const b = e.target.closest("[data-cfg]"); if (b) cfgGo(Number(b.dataset.cfg)); });
@@ -321,7 +321,7 @@ $("sArea").oninput = () => { $("sAreaN").value = $("sArea").value; readSetup(); 
 $("sAreaN").oninput = () => { $("sArea").value = Math.min(D.AREA.max, Math.max(D.AREA.min, Number($("sAreaN").value) || D.AREA.min)); readSetup(); };
 $("areaChips").onclick = e => { const b = e.target.closest("[data-area]"); if (b) { $("sAreaN").value = $("sArea").value = b.dataset.area; readSetup(); } };
 for (const id of ["sSec", "sDays", "sCap"]) $(id).oninput = readSetup;
-$("sDiff").onchange = readSetup; $("sBk").onchange = readSetup; $("sTg").onchange = readSetup; $("sMods").addEventListener("change", readSetup);
+$("sDiff").onchange = readSetup; $("sBk").onchange = readSetup; $("sEl").addEventListener("change", readSetup); $("sTg").onchange = readSetup; $("sMods").addEventListener("change", readSetup);
 if ($("sDaysInf")) $("sDaysInf").onchange = () => { $("sDays").disabled = $("sDaysInf").checked; readSetup(); };
 $("sScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); const scnShow = () => { const id = $("sScn").value; $("scnNote").textContent = ""; $("scnList").innerHTML = UI.scenarioList(D.SCENARIOS, id); };
 $("sScn").onchange = () => { scnShow(); readSetup(); }; scnShow();

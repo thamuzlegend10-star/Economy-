@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as E from "../js/engine.js";
+import * as D from "../js/data.js";
 import { totals, post } from "../js/ledger.js";
 
 const mk = (o = {}) => E.newGame({ location: "id-medan-central", area: 300, secPerDay: 20, days: 30, capital: 60000, seed: 12, ...o });
@@ -31,4 +32,17 @@ test("overdrawn long enough ends the game, and not before the limit", () => {
     let n = 0; while (!s.ended && n < 80) { E.stepDay(s); n++; }
     assert.equal(s.ended && s.ended.reason, "bankrupt"); assert.equal(n, lim, "limit " + lim);
   }
+});
+
+test("price sensitivity is a per-product setup choice that changes how much price matters", () => {
+  const a = mk(), hi = mk({ elastSet: { noodles: "high", milk: "bogus" } }), lo = mk({ elastSet: { noodles: "low" } });
+  assert.deepEqual(a.elastSet, {}); assert.deepEqual(hi.elastSet, { noodles: "high" });
+  const p = D.PRODUCTS.find(x => x.id === "noodles"); for (const g of [a, hi, lo]) E.setPrice(g, "noodles", g.prices.noodles * 1.3);
+  const da = E.expectedDemand(a, "noodles"), dh = E.expectedDemand(hi, "noodles"), dl = E.expectedDemand(lo, "noodles");
+  assert.ok(dh < da && da < dl, `${dh} < ${da} < ${dl}`); assert.equal(E.elastOf(a, p), p.elast);
+  const same = E.expectedDemand(hi, "milk") === E.expectedDemand(a, "milk"); assert.equal(same, true);
+});
+test("restart keeps the price sensitivity; old games without it behave as normal", () => {
+  const s = mk({ elastSet: { earbuds: "low" } }); assert.deepEqual(E.restartSame(s).elastSet, { earbuds: "low" });
+  const old = mk(); delete old.elastSet; assert.equal(E.elastOf(old, D.PRODUCTS[0]), D.PRODUCTS[0].elast);
 });

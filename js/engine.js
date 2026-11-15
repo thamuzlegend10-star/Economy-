@@ -53,6 +53,7 @@ export function cleanSetup(o = {}) {
     area: n(o.area, D.AREA, D.AREA.def), secPerDay: n(o.secPerDay, D.SECONDS_PER_DAY, D.SECONDS_PER_DAY.def),
     days: isInf ? 0 : n(o.days, D.DAYS, D.DAYS.def), capital: n(o.capital, D.CAPITAL, D.CAPITAL.def),
     seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal", bkDays: D.BK_DAYS.includes(Number(o.bkDays)) ? Number(o.bkDays) : 3,
+    elastSet: Object.fromEntries(D.PRODUCTS.filter(p => o.elastSet && ["low", "high"].includes(o.elastSet[p.id])).map(p => [p.id, o.elastSet[p.id]])),
   };
 }
 export const MACHINE_PER_DAY = m => (D.MACHINES.find(x => x.id === m.type) || { perDay: 0 }).perDay;
@@ -104,10 +105,12 @@ export function dashboard(s) {
 }
 
 // ---------- demand ----------
+// A product's price sensitivity, with the setup choice (low, normal, high) applied. Games without the choice use the normal value.
+export const elastOf = (s, p) => p.elast * (D.ELAST[s.elastSet && s.elastSet[p.id]] || 1);
 export function demandFor(s, p, loc = s.location, sqm = s.area) {
   const L = getLocation(loc), price = s.prices[p.id];
   const area = Math.pow(sqm / D.AREA.def, 0.3);
-  const pf = clamp(Math.pow(expectedPrice(s, p) / price, p.elast * L.priceSens * priceCut(s, p.cat)), 0.01, 2.5);
+  const pf = clamp(Math.pow(expectedPrice(s, p) / price, elastOf(s, p) * L.priceSens * priceCut(s, p.cat)), 0.01, 2.5);
   return p.base * L.demand * L.cat[p.cat] * area * pf * (1 - 0.3 * L.competition) * WEEK[s.day % 7] * s.noise * demandLift(s, p.cat) * retailBoost(s) * csiFactor(s) * eventMult(s, "demand") * demandMood(s, p.cat) * D.diff(s).demand * seasonMult(s, p.cat);
 }
 export const expectedDemand = (s, pid) => Math.round(demandFor(s, PRODUCT[pid]));

@@ -2,7 +2,7 @@
 import { post, balance, round2 } from "./ledger.js";
 import * as D from "./data.js";
 import { streamNext, seedFrom } from "./rng.js";
-import { log, PRODUCT } from "./engine.js";
+import { log, PRODUCT, elastOf } from "./engine.js";
 import { JUICE } from "./factory.js";
 import { serviceCapacity, retailBoost } from "./hr.js";
 
@@ -88,7 +88,7 @@ export function ecomDay(s) {
   if (!e.catalog.length) return;
   const visitors = webTraffic(s);
   for (const pid of e.catalog) {
-    const p = item(pid), price = e.prices[pid], conv = D.ECOM.baseConversion * clamp(Math.pow(p.ref * 1.1 / price, p.elast), 0.05, 3) * sellerFactor(s);
+    const p = item(pid), price = e.prices[pid], conv = D.ECOM.baseConversion * clamp(Math.pow(p.ref * 1.1 / price, PRODUCT[pid] ? elastOf(s, p) : p.elast), 0.05, 3) * sellerFactor(s);
     e.acc += visitors / e.catalog.length * conv; const want = Math.floor(e.acc); e.acc -= want; if (want < 1) continue;
     const src = stockOf(s, pid), have = src.qty[pid], n = Math.min(want, have), lost = want - n;
     if (lost) { e.today.lost += lost; e.stats.lost += lost; }

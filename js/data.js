@@ -38,6 +38,8 @@ export const SPACE_STEPS = [10, 25, 50, 100, 250, 500];
 // ---------- Warehouse: a separate, much bigger building with its own bulk suppliers ----------
 // Goods bought here arrive in the warehouse. From there they can be sent to the shop (a transfer, which costs a trip fee) or, later, to B2B.
 // Days in a row overdrawn before bankruptcy: the choices in setup.
+// How strongly one product reacts to its price, as a setup choice (multiplies the product's own elasticity).
+export const ELAST = { low: 0.7, normal: 1, high: 1.4 };
 export const BK_DAYS = [3, 5, 10, 20, 50];
 export const WH = { minArea: 500, maxArea: 20000, areaSteps: [500, 1000, 2500, 5000, 10000], spacePerM2: 200, rentPerM2: 1.4, minQty: 25000, maxQty: 1000000,
   // Rent terms: a longer commitment gives a cheaper daily rate. Leaving early costs the rent still owed on the term.

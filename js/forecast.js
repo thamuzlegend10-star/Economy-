@@ -2,7 +2,7 @@
 // Safety stock and reorder points come from demand noise, lead time and supplier reliability. Nothing here changes state.
 import { ensureJshop, shopPerDay as shopPerDay0 } from "./juiceshop.js";
 import * as D from "./data.js";
-import { PRODUCT, WEEK, expectedDemand, distanceKm, unitCost, spaceFree, whFree } from "./engine.js";
+import { elastOf, PRODUCT, WEEK, expectedDemand, distanceKm, unitCost, spaceFree, whFree } from "./engine.js";
 import { JUICE } from "./factory.js";
 import { round2 } from "./ledger.js";
 import { expectedPrice } from "./economy.js";
@@ -37,7 +37,7 @@ export function forecastDay(s, pid, k, m = model(s, pid)) {
 const evMult = (s, day) => (s.scn ? s.scn.events.filter(e => e.kind === "demand" && e.from <= day && e.until >= day).reduce((a, e) => a * e.mult, 1) : 1);
 export function outlook(s, pid, day) {
   const p = D.PRODUCTS.find(x => x.id === pid); if (!p || !s.history.length) return 1;
-  const L = getLocation(s.location), price = Math.max(0.01, s.prices[pid]), ex = p.elast * L.priceSens;
+  const L = getLocation(s.location), price = Math.max(0.01, s.prices[pid]), ex = elastOf(s, p) * L.priceSens;
   const at = d => Math.pow(expectedPrice(s, p, d) / price, ex) * evMult(s, d);
   const last = s.history[s.history.length - 1].day; let base = 0, n = 0;
   for (let d = Math.max(1, last - D.FORECAST.window + 1); d <= last; d++) { base += at(d); n++; }

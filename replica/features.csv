@@ -61,7 +61,7 @@ Retail rent contract length and Manage Rental rules,retail,should,yes,yes,daily;
 Step-through mode and reset to Day 0,session,should,yes,yes,Step day button while paused (solo only); Restart from day 1 in the menu keeps the same setup and seed
 Configurable bankruptcy delinquency limit,finance,could,yes,yes,setup choice of 3; 5; 10; 20 or 50 overdrawn days; old games keep 3
 Per-module complexity levels and hidden concepts,facilitator,could,yes,partial,departments can be switched off; no levels
-Per-product price elasticity setting,facilitator,could,yes,no,fixed in data
+Per-product price elasticity setting,facilitator,could,yes,yes,setup choice of low; normal; high per product (0.7x; 1x; 1.4x); solo setup only; live rooms keep normal
 B2B minimum bidders and pickup or delivery switch,b2b,could,yes,no,
 Market intelligence daily subscription fee,marketing,could,yes,yes,rival prices locked until you subscribe; 15 dollars a day marketing cost; new games only
 Store display area and back room with batch moves,retail,could,yes,no,one stock pool
