@@ -21,6 +21,7 @@ import { branchDay } from "./branch.js";
 import { curDay, exchangeFactor } from "./currency.js";
 import { stockDay } from "./stock.js";
 import * as Qc from "./quality.js";
+import { intelDay } from "./intel.js";
 import { blanketDay } from "./blanket.js";
 import { svcDay } from "./services.js";
 import { seasonMult, seasonDay } from "./season.js";
@@ -61,7 +62,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
-  const s = { v: D.SAVE_VERSION, ...o, cal: true, qcOn: true, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
+  const s = { v: D.SAVE_VERSION, ...o, cal: true, qcOn: true, intelFee: true, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
     ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), jshop: newJshop(), mail: newMail(), scn: newScn(o.scenario, o.seed), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
@@ -423,7 +424,7 @@ function overflowDay(s) {
   post(s.ledger, s.day, `Storage overflow fee (${Math.round(o).toLocaleString("en-US")} space over capacity)`, lines, "ovf:" + s.day);
 }
 function closeDay(s) {
-  flush(s); stockDay(s);
+  flush(s); stockDay(s); intelDay(s);
   const day = s.day, before = balance(s.ledger, "cash");
   const rent = c(shopRent(s) + whRent(s));
   const pay = Math.max(0, Math.min(before, rent)), over = c(rent - pay);

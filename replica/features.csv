@@ -63,6 +63,6 @@ Configurable bankruptcy delinquency limit,finance,could,yes,yes,setup choice of 
 Per-module complexity levels and hidden concepts,facilitator,could,yes,partial,departments can be switched off; no levels
 Per-product price elasticity setting,facilitator,could,yes,no,fixed in data
 B2B minimum bidders and pickup or delivery switch,b2b,could,yes,no,
-Market intelligence daily subscription fee,marketing,could,yes,no,rival price view is free
+Market intelligence daily subscription fee,marketing,could,yes,yes,rival prices locked until you subscribe; 15 dollars a day marketing cost; new games only
 Store display area and back room with batch moves,retail,could,yes,no,one stock pool
 Facilitator activity and transaction counts per team,facilitator,could,yes,no,live board shows score only

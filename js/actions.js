@@ -8,6 +8,7 @@ import * as B from "./b2b.js";
 import * as H from "./hr.js";
 import * as St from "./stock.js";
 import * as Qc from "./quality.js";
+import * as In from "./intel.js";
 import * as Bl from "./blanket.js";
 import * as Sv from "./services.js";
 import * as Br from "./branch.js";
@@ -81,6 +82,8 @@ export function act(s, f, name, a = {}) {
     case "shopTerm": { const x = E.setShopTerm(s, String(id)); return r(x, x.ok ? `Rent term set. Rent ${x.rent.toFixed(2)} dollars a day.` : ""); }
     case "blkCreate": { const o = { sup: "metro", pid: "noodles", total: 20000, count: 4, start: 0, gap: 7, ...(f.blk || {}) }; const x = Bl.createBlanket(s, { supplier: o.sup, pid: o.pid, total: o.total, count: o.count, start: o.start, gap: o.gap }); return r(x, x.ok ? `Blanket order #${x.blanket.id} agreed.` : ""); }
     case "blkCancel": return r(Bl.cancelBlanket(s, id), "Cancelled.");
+    case "intelOn": return r(In.subscribe(s), "Subscribed.");
+    case "intelOff": return r(In.unsubscribe(s), "Subscription cancelled.");
     case "qcInspect": return r(Qc.toggleInspect(s, String(id) === "1"), String(id) === "1" ? "Inspection on." : "Inspection off.");
     case "qcClaim": { const x = Qc.claim(s, id); return r(x, x.ok ? `Sent back. Credit ${x.back.toFixed(2)} dollars.` : ""); }
     case "qcWriteOff": return r(Qc.writeOff(s, id), "Written off.");

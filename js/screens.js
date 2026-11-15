@@ -15,6 +15,7 @@ import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
 import * as St from "./stock.js";
 import * as Qc from "./quality.js";
+import * as In from "./intel.js";
 import * as Bl from "./blanket.js";
 import * as Se from "./season.js";
 import * as Bf from "./b2bforecast.js";
@@ -293,12 +294,17 @@ export function scoring(s, f) {
     <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">KPI</th><th>Value</th><th>Score</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="card">${head("Weights", "Set what matters; they are re-balanced to 100%")}<div class="two">${inputs}</div><div class="row">${btn("weights", "Apply weights", { mini: false })}${btn("weightsReset", "Defaults", { ghost: true, mini: false })}</div></div>`;
 }
+export function intelCard(s) {
+  const k = In.ensureIntel(s);
+  return `<div class="card">${head("Market intelligence", k.on ? "Subscribed" : "Not subscribed")}${kv([["Fee", `${money(In.INTEL.fee)} a day`], ["Paid so far", money(k.paid)], ["Days subscribed", num(k.days)]])}<div class="row">${k.on ? btn("intelOff", "Cancel subscription", { ghost: true, mini: false }) : btn("intelOn", `Subscribe, ${money(In.INTEL.fee)} a day`, { mini: false })}</div><small class="muted">The subscription shows the three rival shops' prices for every product, with a warning when a rival is cheaper than you. Without it you can only guess what shoppers compare you to. The fee is a marketing cost, charged every night while you subscribe.</small></div>`;
+}
 export function competitors(s) {
+  if (!In.intelActive(s)) return `${intelCard(s)}<div class="card"><b>Competitor prices</b><small class="muted">Locked. Subscribe above to see what the rivals charge.</small></div>${economyCard(s)}`;
   const rows = Kp.competitorPrices(s).map(r => `<tr><td class="l">${esc(r.name)}</td><td>${money2(r.you)}</td>${r.rivals.map(x => `<td class="${r.you > x * 1.05 ? "warnc" : ""}">${money2(x)}</td>`).join("")}</tr>`).join("");
   const nets = s.history.slice(-30), max = Math.max(1, ...nets.map(h => h.revenue));
   const chartRev = nets.length ? `<div class="chart" role="img" aria-label="Revenue per day">${nets.map(h => `<div class="col"><i style="height:${Math.max(3, h.revenue / max * 100)}%"></i><small>${h.day}</small></div>`).join("")}</div>` : `<small class="muted">The first day report appears when day 1 ends.</small>`;
   return `<div class="card scroll"><b>Competitor prices</b><table class="tbl fixed"><thead><tr><th class="l">Product</th><th>You</th><th>Rival A</th><th>Rival B</th><th>Rival C</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <small class="muted">Amber means a rival is cheaper than you by more than 5%. Shoppers compare your price with the rivals, so when they cut, your sales fall unless you follow.</small>${economyCard(s)}<div class="card"><b>Revenue per day</b>${chartRev}</div>`;
+    <small class="muted">Amber means a rival is cheaper than you by more than 5%. Shoppers compare your price with the rivals, so when they cut, your sales fall unless you follow.</small>${In.intelNeeded(s) ? intelCard(s) : ""}${economyCard(s)}<div class="card"><b>Revenue per day</b>${chartRev}</div>`;
 }
 
 export function blanketCard(s, f) {
@@ -367,7 +373,7 @@ export function forecast(s) {
   const jc = D.JUICES.map(j => { const a = Fc.juiceAdvice(s, j.id); return `<div class="card"><div class="shophead"><b><span class="dot" style="background:${j.color}"></span>${esc(j.name.replace(" (1 L)", ""))}</b><small>production advice</small></div>
       ${kv([["Contracts to fill", num(a.contracts)], ["Web sales / day", num(a.webPerDay)], ["In stock + queued", `${num(a.fg)} + ${num(a.queued)}`], ["Still needed", num(a.qty)]])}
       <div class="row">${btn("advMake", a.qty ? `Queue ${num(a.qty)} bottles` : "Enough planned", { id: j.id, dis: !a.qty || !s.fx.machines.length, mini: false })}</div></div>`; }).join("");
-  const cp = Kp.competitorPrices(s).map(r => { const avg = r.rivals.reduce((x, y) => x + y, 0) / r.rivals.length; return `<div class="kv1"><div><span>${esc(r.name)}: you vs rivals</span><b class="${r.you > avg * 1.05 ? "warnc" : ""}">${money2(r.you)} vs ${money2(avg)}</b></div></div>`; }).join("");
+  const cp = !In.intelActive(s) ? "" : Kp.competitorPrices(s).map(r => { const avg = r.rivals.reduce((x, y) => x + y, 0) / r.rivals.length; return `<div class="kv1"><div><span>${esc(r.name)}: you vs rivals</span><b class="${r.you > avg * 1.05 ? "warnc" : ""}">${money2(r.you)} vs ${money2(avg)}</b></div></div>`; }).join("");
   return `<div class="card">${head("Forecast", "Built from your real sales")}<small class="muted">Demand is the units sold plus the units customers wanted but could not buy. The weekday pattern is removed, a trend is fitted, and the pattern is put back. Safety stock covers demand noise and late suppliers. The advice counts stock, deliveries on the way and free space.</small>${cp}</div>${calendarCard(s)}${per}${jc}`;
 }
 
