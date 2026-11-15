@@ -64,5 +64,5 @@ Per-module complexity levels and hidden concepts,facilitator,could,yes,partial,d
 Per-product price elasticity setting,facilitator,could,yes,yes,setup choice of low; normal; high per product (0.7x; 1x; 1.4x); solo setup only; live rooms keep normal
 B2B minimum bidders and pickup or delivery switch,b2b,could,yes,partial,pickup or deliver switch built (deliver costs freight by buyer distance); minimum bidders not built because rivals are bots in solo play
 Market intelligence daily subscription fee,marketing,could,yes,yes,rival prices locked until you subscribe; 15 dollars a day marketing cost; new games only
-Store display area and back room with batch moves,retail,could,yes,no,one stock pool
+Store display area and back room with batch moves,retail,could,yes,yes,customers buy only from the shelf; staff restock 1-8 times a day or Restock now; four display layouts; new games only
 Facilitator activity and transaction counts per team,facilitator,could,yes,yes,host sees orders; units sold; B2B deals; missed sales per player and a flag for no orders after day 3; counts come from players devices

@@ -15,6 +15,7 @@ import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
 import * as St from "./stock.js";
 import * as Qc from "./quality.js";
+import * as Sh from "./shelf.js";
 import * as In from "./intel.js";
 import * as Bl from "./blanket.js";
 import * as Se from "./season.js";
@@ -293,6 +294,16 @@ export function scoring(s, f) {
   return `${warningsCard(s)}<div class="card">${head("Score", "Weighted KPIs")}<div class="gradebig">${dec(sb.total, 1)}<small>out of 100</small></div></div>${targets}
     <div class="card scroll"><table class="tbl fixed"><thead><tr><th class="l">KPI</th><th>Value</th><th>Score</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="card">${head("Weights", "Set what matters; they are re-balanced to 100%")}<div class="two">${inputs}</div><div class="row">${btn("weights", "Apply weights", { mini: false })}${btn("weightsReset", "Defaults", { ghost: true, mini: false })}</div></div>`;
+}
+export function shelfCard(s) {
+  if (!s.shelfOn) return `<div class="card">${head("Shelf and back room", "Not in this game")}<small class="muted">This game was started before shelves existed, so customers buy straight from your stock. Start a new game to use them.</small></div>`;
+  Sh.ensureShelf(s); const k = s.shelfCfg;
+  const rows = D.PRODUCTS.map(p => `<tr><td class="l">${esc(p.name)}</td><td>${num(Sh.onShelf(s, p.id))} / ${num(Sh.shelfCap(s, p.id))}</td><td>${num(Sh.backRoom(s, p.id))}</td><td class="${(k.missed[p.id] || 0) ? "warnc" : ""}">${num(k.missed[p.id] || 0)}</td></tr>`).join("");
+  return `<div class="card scroll">${head("Shelf and back room", "Customers buy only what is on the shelf")}<table class="tbl fixed"><thead><tr><th class="l">Product</th><th>On shelf / space</th><th>Back room</th><th>Missed, shelf empty</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="row">${btn("shelfNow", "Restock now", { mini: false })}</div>
+    <b>Display layout</b><div class="chips">${Sh.SHELF.presets.map(x => btn("shelfPreset", x.name, { id: x.id, ghost: x.id !== k.preset })).join("")}</div>
+    <b>Staff restock the shelf</b><div class="chips">${Sh.SHELF.freqs.map(n => btn("shelfFreq", n + (n === 1 ? " time a day" : " times a day"), { id: n, ghost: n !== k.freq })).join("")}</div>
+    <small class="muted">The display area is ${Math.round(Sh.SHELF.share * 100)}% of your shop space. Staff move stock from the back room to the shelf on the schedule above, at ${money(Sh.SHELF.runCost)} a run when something moves. If a shelf runs empty while the back room has stock, those sales are lost. Restock now is free and instant. Missed sales are counted since the game began.</small></div>`;
 }
 export function intelCard(s) {
   const k = In.ensureIntel(s);

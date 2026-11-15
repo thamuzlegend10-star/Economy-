@@ -8,6 +8,7 @@ import * as B from "./b2b.js";
 import * as H from "./hr.js";
 import * as St from "./stock.js";
 import * as Qc from "./quality.js";
+import * as Sh from "./shelf.js";
 import * as In from "./intel.js";
 import * as Bl from "./blanket.js";
 import * as Sv from "./services.js";
@@ -84,6 +85,9 @@ export function act(s, f, name, a = {}) {
     case "blkCancel": return r(Bl.cancelBlanket(s, id), "Cancelled.");
     case "intelOn": return r(In.subscribe(s), "Subscribed.");
     case "intelOff": return r(In.unsubscribe(s), "Subscription cancelled.");
+    case "shelfNow": { const x = Sh.restock(s, false); return r(x, x.ok ? (x.moved ? `Moved ${x.moved.toLocaleString("en-US")} units to the shelf.` : "The shelves are already full.") : ""); }
+    case "shelfPreset": return r(Sh.setShelf(s, { preset: String(id) }), "Layout changed.");
+    case "shelfFreq": return r(Sh.setShelf(s, { freq: Number(id) }), "Schedule changed.");
     case "qcInspect": return r(Qc.toggleInspect(s, String(id) === "1"), String(id) === "1" ? "Inspection on." : "Inspection off.");
     case "qcClaim": { const x = Qc.claim(s, id); return r(x, x.ok ? `Sent back. Credit ${x.back.toFixed(2)} dollars.` : ""); }
     case "qcWriteOff": return r(Qc.writeOff(s, id), "Written off.");

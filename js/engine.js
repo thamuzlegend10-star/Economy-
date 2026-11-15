@@ -21,6 +21,7 @@ import { branchDay } from "./branch.js";
 import { curDay, exchangeFactor } from "./currency.js";
 import { stockDay } from "./stock.js";
 import * as Qc from "./quality.js";
+import { shelfStep, noteMissed } from "./shelf.js";
 import { intelDay } from "./intel.js";
 import { blanketDay } from "./blanket.js";
 import { svcDay } from "./services.js";
@@ -63,7 +64,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
-  const s = { v: D.SAVE_VERSION, ...o, cal: true, qcOn: true, intelFee: true, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
+  const s = { v: D.SAVE_VERSION, ...o, cal: true, qcOn: true, intelFee: true, shelfOn: true, rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
     ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), jshop: newJshop(), mail: newMail(), scn: newScn(o.scenario, o.seed), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
@@ -400,16 +401,17 @@ export function devTopUp(s) {
 function stepOnce(s) {
   if (s.dev) devTopUp(s);
   const n = s.stepsPerDay, w = Math.sin(Math.PI * (s.dayStep + 0.5) / n) * Math.PI / 2;
-  s.pend = s.pend || {};
+  s.pend = s.pend || {}; shelfStep(s);
   for (const p of D.PRODUCTS) {
     s.accum[p.id] += s.demand[p.id] * w / n;
     let want = Math.floor(s.accum[p.id]); if (want < 1) continue;
     s.accum[p.id] -= want;
-    const have = s.qty[p.id], q = Math.min(want, have), lost = want - q;
+    const have = s.qty[p.id], shown = s.shelfOn ? Math.min(have, (s.shelf && s.shelf[p.id]) || 0) : have, q = Math.min(want, shown), lost = want - q;
+    if (s.shelfOn && lost && have > shown) noteMissed(s, p.id, Math.min(lost, have - shown));
     if (lost) { s.today.lost[p.id] += lost; s.stats.prod[p.id].lost += lost; s.stats.lost += lost; }
     if (q < 1) continue;
     const cost = q === have ? s.val[p.id] : c(s.val[p.id] / have * q), rev = c(q * s.prices[p.id]);
-    s.qty[p.id] -= q; s.val[p.id] = c(s.val[p.id] - cost);
+    s.qty[p.id] -= q; s.val[p.id] = c(s.val[p.id] - cost); if (s.shelfOn) s.shelf[p.id] = Math.max(0, s.shelf[p.id] - q);
     const f = (s.pend[p.id] = s.pend[p.id] || { units: 0, rev: 0, cogs: 0 }); f.units += q; f.rev = c(f.rev + rev); f.cogs = c(f.cogs + cost);
     s.today.units[p.id] += q; s.today.rev = c(s.today.rev + rev); s.today.cogs = c(s.today.cogs + cost);
     const sp = s.stats.prod[p.id]; sp.units += q; sp.rev = c(sp.rev + rev); sp.cogs = c(sp.cogs + cost); s.stats.units += q;
