@@ -21,6 +21,7 @@ import { branchDay } from "./branch.js";
 import { curDay, exchangeFactor } from "./currency.js";
 import { stockDay } from "./stock.js";
 import * as Qc from "./quality.js";
+import { blanketDay } from "./blanket.js";
 import { svcDay } from "./services.js";
 import { seasonMult, seasonDay } from "./season.js";
 import { newMkt, mktDay, newEcom, ecomDay, newSrv, srvDay, demandLift, priceCut, csiFactor } from "./market.js";
@@ -119,7 +120,7 @@ function beginDay(s) {
   for (const sp of ALL_SUP) {                                           // supplier prices drift (supplier stock is unlimited)
     const i = s.supIdx[sp.id]; s.supIdx[sp.id] = Math.round(clamp(i + (rnd(s) - 0.5) * 0.05 + (1 - i) * 0.08, 0.9, 1.15) * 1000) / 1000;
   }
-  whTermDay(s); curDay(s); econDay(s); scenarioDay(s); arrivals(s); juiceArrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
+  whTermDay(s); curDay(s); blanketDay(s); econDay(s); scenarioDay(s); arrivals(s); juiceArrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
 }
 
@@ -173,7 +174,7 @@ export function quote(s, supId, pid, qty) {
 
 // A purchase order can carry several products from one supplier. It is all-or-nothing: one quote, one payment, one shipping fee,
 // and one shipment record per product (so each product's delivery shows on its own line).
-export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired") {
+export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired", lock = null) {
   const wh = dest === "wh", sp = SUPPLIER[supId];
   if (!sp || (wh ? !D.WH_SUPPLIERS.includes(sp) : !D.SUPPLIERS.includes(sp))) return err("Unknown supplier.");
   if (wh && s.wh.area <= 0) return err("Rent a warehouse first.");
@@ -192,7 +193,7 @@ export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired") 
   const km = distanceKm(s.location, sp), L = getLocation(s.location), days = Math.max(1, Math.ceil(km / sp.speed + sp.prep));
   const errors = [];
   const out = items.map(l => {
-    const p = PRODUCT[l.pid], disc = discountFor(l.qty, table), baseUnit = unitCost(s, sp, l.pid), unit = c(baseUnit * (1 - disc)), goods = c(unit * l.qty);
+    const p = PRODUCT[l.pid], disc = discountFor(l.qty, table), baseUnit = unitCost(s, sp, l.pid), unit = lock && lock[l.pid] > 0 ? lock[l.pid] : c(baseUnit * (1 - disc)), goods = c(unit * l.qty);
     const ship = c(sp.rate * km * l.qty * p.space * L.logistics);
     return { pid: l.pid, qty: l.qty, discount: disc, baseUnit, unit, goods, ship, space: l.qty * p.space };
   });
@@ -208,10 +209,10 @@ export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired") 
   return { supplier: supId, dest, carrier, plan, km, days: dd, eta: s.day + dd, lines: out, fee, goods, ship, total, space, reliability: sp.reliability, errors, ok: !errors.length };
 }
 
-export function placeOrders(s, { supplier, lines, dest = "retail", carrier = "hired" } = {}) {
+export function placeOrders(s, { supplier, lines, dest = "retail", carrier = "hired", lock = null } = {}) {
   if (s.ended) return err("The game is over.");
   if (dest === "wh" && !modOn(s, "warehouse")) return err(offMsg("warehouse"));
-  const q = quoteMulti(s, supplier, lines, dest, carrier);
+  const q = quoteMulti(s, supplier, lines, dest, carrier, lock);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
   const own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "supplier pickup") : 0;

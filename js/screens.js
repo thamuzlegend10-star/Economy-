@@ -15,6 +15,7 @@ import * as Br from "./branch.js";
 import * as Cu from "./currency.js";
 import * as St from "./stock.js";
 import * as Qc from "./quality.js";
+import * as Bl from "./blanket.js";
 import * as Se from "./season.js";
 import * as Bf from "./b2bforecast.js";
 import * as Sv from "./services.js";
@@ -300,6 +301,19 @@ export function competitors(s) {
     <small class="muted">Amber means a rival is cheaper than you by more than 5%. Shoppers compare your price with the rivals, so when they cut, your sales fall unless you follow.</small>${economyCard(s)}<div class="card"><b>Revenue per day</b>${chartRev}</div>`;
 }
 
+export function blanketCard(s, f) {
+  const o = { sup: "metro", pid: "noodles", total: 20000, count: 4, start: 0, gap: 7, ...(f.blk || {}) }, q = Bl.blanketQuote(s, { supplier: o.sup, pid: o.pid, total: o.total, count: o.count, start: o.start, gap: o.gap });
+  const supOpts = D.SUPPLIERS.map(x => [x.id, x.name]), pOpts = D.PRODUCTS.map(p => [p.id, p.name]);
+  const form = `<div class="two"><label>Supplier${sel("blk.sup", supOpts, o.sup, false)}</label><label>Product${sel("blk.pid", pOpts, o.pid, false)}</label></div>
+    <div class="two"><label>Total units<input type="number" inputmode="numeric" min="1" step="100" value="${esc(o.total)}" data-f="blk.total" data-num="1" aria-label="Total units"></label><label>Shipments${sel("blk.count", Bl.BLK.counts.map(n => [n, n === 1 ? "1 (one delivery)" : n + " shipments"]), o.count)}</label></div>
+    <div class="two"><label>First shipment${sel("blk.start", Bl.BLK.starts.map(n => [n, n ? "in " + n + " days" : "today"]), o.start)}</label><label>Days between${sel("blk.gap", Bl.BLK.gaps.map(n => [n, n + " days"]), o.gap)}</label></div>`;
+  const prev = q.ok ? `<div class="quote"><div class="ln"><span>Fixed unit price</span><b>${money2(q.unit)}${q.discount ? ` (${Math.round(q.discount * 100)}% volume discount)` : ""}</b></div><div class="ln"><span>Goods in total</span><b>${money(q.goodsTotal)}</b></div><div class="ln"><span>Saved against separate orders</span><b>${money(q.saving)}</b></div>
+    <div class="ln"><span>Shipments</span><b>${q.sched.map(x => `day ${x.day}: ${num(x.qty)}`).join(" · ")}</b></div></div>` : `<div class="err">${esc(q.error)}</div>`;
+  const open = Bl.openBlankets(s), rows = open.map(b => { const n = Bl.nextShip(b); return `<tr><td class="l">#${b.id} ${esc(D.PRODUCTS.find(p => p.id === b.pid).name)}<br><small class="muted">${esc(D.SUPPLIERS.find(x => x.id === b.sup).name)}</small></td><td>${money2(b.unit)}</td><td>${num(b.got)} of ${num(b.total)}</td><td>${n ? "day " + n.day + (b.waits ? ` (waiting ${b.waits})` : "") : "-"}</td><td>${btn("blkCancel", "Cancel", { id: b.id, ghost: true })}</td></tr>`; }).join("");
+  return `<div class="card">${head("Blanket and future orders", "One deal, scheduled shipments")}${form}${prev}<div class="row">${btn("blkCreate", "Agree this order", { mini: false, dis: !q.ok })}</div>
+    <small class="muted">The price is fixed today and uses the volume discount for the whole quantity. Each shipment is paid and sent on its day with its own shipping fee. For one later delivery, pick 1 shipment and a start date. If cash or space is short on a shipment day it waits, and after ${Bl.BLK.maxWaits} days in a row the agreement ends. Shop deliveries only.</small></div>
+    ${open.length ? `<div class="card scroll"><b>Open agreements</b><table class="tbl fixed"><thead><tr><th class="l">Order</th><th>Price</th><th>Delivered</th><th>Next</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}`;
+}
 export function rentTermCard(s) {
   const now = E.shopTermNow(s), left = E.shopTermLeft(s), base = E.dailyRent(s.location, s.area);
   const opts = D.WH.terms.map(x => `<tr class="${x.id === now.id ? "" : ""}"><td class="l">${x.name}</td><td>${money(base * x.mult)} a day</td><td>${x.days ? Math.round((1 - x.mult) * 100) + "% off" : "no discount"}</td><td>${x.id === now.id ? `<span class="tag ok">${left ? left + " d left" : "now"}</span>` : btn("shopTerm", "Choose", { id: x.id, ghost: true, dis: left > 0 })}</td></tr>`).join("");

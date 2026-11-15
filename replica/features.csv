@@ -56,8 +56,8 @@ Investor and underwriter roles,session,could,yes,skip,needs certification and a 
 Department tabs in one top row with a sub-tab strip,ui,must,yes,yes,MonsoonSIM skin shipped
 Approval queue for every action,ui,could,yes,skip,Economy acts instantly by design
 Game configuration wizard (session; company; departments; rules; summary),facilitator,should,yes,yes,five-step setup with live summary; solo KPI target preset; no per-team or round scheduling
-Purchase options: immediate; future-dated; blanket,procurement,should,yes,no,orders are immediate only
-Retail rent contract length and Manage Rental rules,retail,should,yes,no,shop rent is per day with add-space only; warehouse has terms
+Purchase options: immediate; future-dated; blanket,procurement,should,yes,yes,blanket order with fixed price and 1-6 scheduled shipments; 1 shipment with a later start is a future order; shop deliveries only
+Retail rent contract length and Manage Rental rules,retail,should,yes,yes,daily; 7-day; 30-day terms; size fixed while a term runs
 Step-through mode and reset to Day 0,session,should,yes,yes,Step day button while paused (solo only); Restart from day 1 in the menu keeps the same setup and seed
 Configurable bankruptcy delinquency limit,finance,could,yes,yes,setup choice of 3; 5; 10; 20 or 50 overdrawn days; old games keep 3
 Per-module complexity levels and hidden concepts,facilitator,could,yes,partial,departments can be switched off; no levels
