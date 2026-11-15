@@ -40,6 +40,12 @@ export const SPACE_STEPS = [10, 25, 50, 100, 250, 500];
 // Days in a row overdrawn before bankruptcy: the choices in setup.
 // How strongly one product reacts to its price, as a setup choice (multiplies the product's own elasticity).
 export const ELAST = { low: 0.7, normal: 1, high: 1.4 };
+// Complexity: how much of the game is shown and switched on. Advanced is everything (and how every older game plays).
+export const LEVELS = [
+  { id: "beginner", name: "Beginner", note: "The basics: buying, pricing, staff and the bank. No shelf, no delivery checks, no free rival prices to pay for, and the advanced screens are hidden.", hideTabs: ["branch"], hideSubs: ["retail.freshness", "retail.quality", "finance.ledger", "finance.statements", "b2b.services", "data.currency", "data.bi"] },
+  { id: "intermediate", name: "Intermediate", note: "Adds delivery checks and freshness. Still no shelf or paid market intelligence, and branches and the ledger stay hidden.", hideTabs: ["branch"], hideSubs: ["finance.ledger", "data.currency", "data.bi"] },
+  { id: "advanced", name: "Advanced", note: "Everything: shelf and back room, delivery checks, market intelligence, branches, ledger and currency.", hideTabs: [], hideSubs: [] },
+];
 export const BK_DAYS = [3, 5, 10, 20, 50];
 export const WH = { minArea: 500, maxArea: 20000, areaSteps: [500, 1000, 2500, 5000, 10000], spacePerM2: 200, rentPerM2: 1.4, minQty: 25000, maxQty: 1000000,
   // Rent terms: a longer commitment gives a cheaper daily rate. Leaving early costs the rent still owed on the term.

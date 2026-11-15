@@ -51,17 +51,17 @@ export const NAV = [
   { id: "info", label: "Help", subs: [], action: true },
 ];
 const svg = id => `<svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICON[id]}</svg>`;
-export function navHtml(ui, mods) {
-  const on = NAV.filter(n => !tabOff(mods, n.id)), open = !!ui.more, wide = !!ui.wide;
+export function navHtml(ui, mods, level) {
+  const hid = level || D.LEVELS[2], on = NAV.filter(n => !tabOff(mods, n.id) && !hid.hideTabs.includes(n.id)), open = !!ui.more, wide = !!ui.wide;
   const btn = n => `<button data-main="${n.id}" class="${ui.main === n.id ? "on" : ""}"${n.id === "mail" && ui.unread ? ` aria-label="Mail, ${ui.unread} unread"` : ""}>${svg(n.id)}${n.id === "mail" && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${n.label}</span></button>`;
   const core = on.filter(n => !n.more && !n.action), more = on.filter(n => n.more), help = on.filter(n => n.action);
   const moreBtn = more.length ? `<button data-more="1" class="more${open ? " open" : ""}" aria-expanded="${!!open}">${svg("more")}${!open && ui.unread ? `<b class="badge">${ui.unread > 9 ? "9+" : ui.unread}</b>` : ""}<span>${open ? "Less" : "More"}</span><i class="chev" aria-hidden="true"></i></button>` : "";
-  if (wide) return { main: [...core, ...more].map(btn).join(""), sub: subHtml(mods, ui) };
+  if (wide) return { main: [...core, ...more].map(btn).join(""), sub: subHtml(mods, ui, hid) };
   const main = core.map(btn).join("") + moreBtn + (open ? `<div class="moregrp" role="group" aria-label="More departments">${more.map((n, i) => btn(n).replace("<button ", `<button style="--i:${i}" `)).join("")}</div>` : "") + help.map(btn).join("");
-  return { main, sub: subHtml(mods, ui) };
+  return { main, sub: subHtml(mods, ui, hid) };
 }
-function subHtml(mods, ui) {
-  const cur = NAV.find(n => n.id === ui.main), subs = (cur ? cur.subs : []).filter(([id]) => !(cur.id === "warehouse" && id === "b2b" && tabOff(mods, "b2b")));
+function subHtml(mods, ui, hid) {
+  const cur = NAV.find(n => n.id === ui.main), subs = (cur ? cur.subs : []).filter(([id]) => !(cur.id === "warehouse" && id === "b2b" && tabOff(mods, "b2b")) && !hid.hideSubs.includes(cur.id + "." + id));
   return subs.length > 1 ? subs.map(([id, label]) => `<button data-sub="${id}" class="${ui.sub[ui.main] === id ? "on" : ""}">${label}</button>`).join("") : "";
 }
 // The right-hand summary panel (wide screens): the numbers a player glances at all the time, as a plain list.

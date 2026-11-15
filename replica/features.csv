@@ -60,7 +60,7 @@ Purchase options: immediate; future-dated; blanket,procurement,should,yes,yes,bl
 Retail rent contract length and Manage Rental rules,retail,should,yes,yes,daily; 7-day; 30-day terms; size fixed while a term runs
 Step-through mode and reset to Day 0,session,should,yes,yes,Step day button while paused (solo only); Restart from day 1 in the menu keeps the same setup and seed
 Configurable bankruptcy delinquency limit,finance,could,yes,yes,setup choice of 3; 5; 10; 20 or 50 overdrawn days; old games keep 3
-Per-module complexity levels and hidden concepts,facilitator,could,yes,partial,departments can be switched off; no levels
+Per-module complexity levels and hidden concepts,facilitator,could,yes,partial,one game-wide level (beginner; intermediate; advanced) hides tabs and switches shelf; delivery checks and paid intelligence off; not per module
 Per-product price elasticity setting,facilitator,could,yes,yes,setup choice of low; normal; high per product (0.7x; 1x; 1.4x); solo setup only; live rooms keep normal
 B2B minimum bidders and pickup or delivery switch,b2b,could,yes,partial,pickup or deliver switch built (deliver costs freight by buyer distance); minimum bidders not built because rivals are bots in solo play
 Market intelligence daily subscription fee,marketing,could,yes,yes,rival prices locked until you subscribe; 15 dollars a day marketing cost; new games only
