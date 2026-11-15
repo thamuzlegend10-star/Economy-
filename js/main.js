@@ -340,7 +340,7 @@ function adopt(state, keepLive = false) {
 }
 
 // ---------- live play ----------
-const liveBoardCard = () => { const me = live && live.state.id, st = s; if (!st) return null; const d = E.dashboard(st), c = Sn.resultCard(st, 0); return { day: st.day, score: Kp.defaultScore(st), netWorth: c.netWorth, netProfit: c.netProfit, cash: d.cash, ended: !!st.ended, me }; };
+const liveBoardCard = () => { const me = live && live.state.id, st = s; if (!st) return null; const d = E.dashboard(st), c = Sn.resultCard(st, 0); return { day: st.day, score: Kp.defaultScore(st), netWorth: c.netWorth, netProfit: c.netProfit, cash: d.cash, ended: !!st.ended, me, orders: st.stats.orders, units: st.stats.units, deals: st.b2b ? st.b2b.won || 0 : 0, missed: st.stats.lost }; };
 function liveReport() { if (live && s && live.state.phase === "running") live.reportScore(liveBoardCard()); }
 function leaveLive() { if (live) { live.leave(); live = null; liveStartAt = 0; } if ($("bPause")) $("bPause").disabled = false; }
 function renderLive() {

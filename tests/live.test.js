@@ -134,3 +134,16 @@ test("checkpoints: automatic stop every N days waits for the host; manual hold a
   assert.equal(a.live.hold().ok, false);
   assert.ok(h.live.release(3).ok); assert.equal(a.live.state.held, false); assert.equal(a.live.stopped(3), false);
 });
+
+test("score cards carry optional activity counters, and old cards without them still work", async () => {
+  const { cleanScore } = await import("../js/live.js");
+  const full = cleanScore({ id: "a", name: "Ana", day: 5, score: 50, netWorth: 1, netProfit: 1, cash: 1, orders: 7, units: 120, deals: 2, missed: 9 });
+  assert.deepEqual([full.orders, full.units, full.deals, full.missed], [7, 120, 2, 9]);
+  const old = cleanScore({ id: "a", name: "Ana", day: 5, score: 50, netWorth: 1, netProfit: 1, cash: 1 }); assert.deepEqual([old.orders, old.units, old.deals, old.missed], [0, 0, 0, 0]);
+  const bad = cleanScore({ id: "a", name: "Ana", day: 5, score: 50, netWorth: 1, netProfit: 1, cash: 1, orders: -4, units: "x", deals: 1e12, missed: NaN }); assert.deepEqual([bad.orders, bad.units, bad.deals, bad.missed], [0, 0, 0, 0]);
+});
+test("the host sees an activity monitor and flags players with no orders", async () => {
+  const SC = await import("../js/screens.js");
+  const lv = { role: "host", code: "123456", board: [{ place: 1, name: "Ana", day: 5, score: 50, netWorth: 1, orders: 4, units: 10, deals: 1, missed: 2 }, { place: 2, name: "Ben", day: 5, score: 20, netWorth: 1, orders: 0, units: 0, deals: 0, missed: 0 }] };
+  const html = SC.activityCard(lv); assert.match(html, /Activity monitor/); assert.match(html, /warnr[\s\S]*Ben/); assert.match(html, /no orders yet/); assert.equal((html.match(/no orders yet/g) || []).length, 2 - 1);
+});

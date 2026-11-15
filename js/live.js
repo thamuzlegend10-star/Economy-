@@ -23,7 +23,8 @@ export function cleanScore(c) {
   if (!c || typeof c !== "object") return null;
   const name = cleanName(c.name), id = String(c.id || "").slice(0, 24);
   if (!id || !num(c.day, 0, 1000) || !num(c.score, 0, 100) || !num(c.netWorth, -1e9, 1e10) || !num(c.netProfit, -1e9, 1e10) || !num(c.cash, -1e9, 1e10)) return null;
-  return { id, name: name || "Player", day: Math.round(c.day), score: Math.round(c.score * 10) / 10, netWorth: Math.round(c.netWorth), netProfit: Math.round(c.netProfit), cash: Math.round(c.cash), ended: !!c.ended };
+  const cnt = v => (num(Number(v), 0, 1e9) ? Math.round(Number(v)) : 0);   // activity counters: optional, so older devices without them still work
+  return { id, name: name || "Player", day: Math.round(c.day), score: Math.round(c.score * 10) / 10, netWorth: Math.round(c.netWorth), netProfit: Math.round(c.netProfit), cash: Math.round(c.cash), ended: !!c.ended, orders: cnt(c.orders), units: cnt(c.units), deals: cnt(c.deals), missed: cnt(c.missed) };
 }
 export function cleanEvent(e) {
   if (!e || typeof e !== "object" || !["demand", "cost", "delay", "rival"].includes(e.kind)) return null;
@@ -92,7 +93,7 @@ export function createLive(transport, { now = Date.now, rand = Math.random, onCh
     leaderboard() {
       // Players who have left keep their last reported score on the board.
       const ids = [...new Set([...Object.keys(st.players), ...Object.keys(st.scores)])];
-      const rows = ids.map(id => { const p = st.players[id], c = st.scores[id] || { id, name: p.name, day: 0, score: 0, netWorth: 0, netProfit: 0, cash: 0, ended: false }; return { ...c, name: p ? p.name : c.name, host: !!(p && p.host), left: !p, me: id === st.id }; });
+      const rows = ids.map(id => { const p = st.players[id], c = st.scores[id] || { id, name: p.name, day: 0, score: 0, netWorth: 0, netProfit: 0, cash: 0, ended: false, orders: 0, units: 0, deals: 0, missed: 0 }; return { ...c, name: p ? p.name : c.name, host: !!(p && p.host), left: !p, me: id === st.id }; });
       return rows.sort((a, b) => b.score - a.score || b.netWorth - a.netWorth).map((r, i) => ({ ...r, place: i + 1 }));
     },
     leave() { leave(); st.phase = "idle"; st.role = null; st.players = {}; change(); },

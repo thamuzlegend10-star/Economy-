@@ -693,3 +693,4 @@ dialog.menu:has(#menuSetup:not([hidden])) { width:min(960px,96vw); }
 @keyframes cfgIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 @media (max-width:700px) { .cfg-body { grid-template-columns:minmax(0,1fr); } .cfg-sum { position:static; } .cfg-nav { grid-template-columns:repeat(5,44px); justify-content:space-between; } .cfg-tab span { display:none; } .cfg-tab { justify-content:center; padding:6px; } }
 @media (prefers-reduced-motion:reduce) { .cfg-step { animation:none; } }
+.tbl tr.warnr td { color:var(--brass); }
