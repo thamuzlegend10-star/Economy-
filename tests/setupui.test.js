@@ -10,10 +10,10 @@ test("setup has five steps, each with a tab and a panel", () => {
   for (let i = 1; i <= 5; i++) { assert.match(setup, new RegExp(`data-cfg="${i}"`)); assert.match(setup, new RegExp(`data-step="${i}"`)); }
 });
 test("every setup control the code reads is still present exactly once", () => {
-  for (const id of ["sLocBtn", "sLocLabel", "sArea", "sAreaN", "areaChips", "rentBox", "sSec", "sDays", "sDaysInf", "lenNote", "sCap", "sScn", "scnList", "sMods", "sDiff", "sTg", "cfgSum", "sBack", "sPrev", "sNext", "sStart"]) assert.equal((setup.match(new RegExp(`id="${id}"`, "g")) || []).length, 1, id);
+  for (const id of ["sLocBtn", "sLocLabel", "sArea", "sAreaN", "areaChips", "rentBox", "sSec", "sDays", "sDaysInf", "lenNote", "sCap", "sScn", "scnList", "sMods", "sDiff", "sBk", "sTg", "cfgSum", "sBack", "sPrev", "sNext", "sStart"]) assert.equal((setup.match(new RegExp(`id="${id}"`, "g")) || []).length, 1, id);
 });
-test("only the last step shows Open the shop; the tabs name their step for screen readers", () => {
-  assert.match(setup, /id="sStart"[^>]*hidden/); assert.match(setup, /aria-label="Step 3: Session"/);
+test("Open the shop is always available, as the intro says; the tabs name their step for screen readers", () => {
+  assert.doesNotMatch(setup, /id="sStart"[^>]*hidden/); assert.match(setup, /aria-label="Step 3: Session"/);
 });
 test("every id used in setup is unique in the whole page", () => {
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]); const dup = ids.filter((x, i) => ids.indexOf(x) !== i); assert.deepEqual(dup, []);

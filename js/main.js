@@ -63,6 +63,7 @@ function renderHud() {
   const n = $("hNet"); setText(n, UI.money(d.netProfit)); n.className = d.netProfit < 0 ? "neg" : d.netProfit > 0 ? "pos" : "";
   setHtml($("side"), UI.sideHtml(s));
   setText($("locLabel"), `${LOC.getLocation(s.location).city} · ${s.area} m²`);
+  $("bStep").hidden = !(paused && !live && !s.ended && !$("menuDlg").open); $("mRestart").hidden = !s || !!live;
   $("bPause").disabled = !!live; $("bPause").textContent = paused ? "Resume" : "Pause"; $("bPause").classList.toggle("on", paused);
   const wait = live && Date.now() < liveStartAt ? Math.ceil((liveStartAt - Date.now()) / 1000) : 0, lb = live && live.state.phase !== "lobby" ? live.leaderboard().find(r => r.me) : null;
   const stopped = live && live.state.phase === "running" && s && !s.ended && live.stopped(s.day);
@@ -113,14 +114,19 @@ function renderView(force) {
 function renderAll(force) { if (s && Ml.unread(s) !== ui.unread) { ui.unread = Ml.unread(s); renderNav(); } renderHud(); renderView(force); lastView = performance.now(); }
 
 // ---------- game loop (the engine owns time; frames only feed it elapsed seconds) ----------
+function afterTick() {
+  if (s.day !== lastDay) { liveReport(); const r = s.lastReport; if (r && lastDay) toast(`Day ${r.day}: sales ${UI.money(r.revenue)}, net ${UI.money(r.net)}`, r.net >= 0 ? "ok" : "err"); lastDay = s.day; save(); renderAll(true); }
+  if (s.ended) { liveReport(); save(); renderAll(true); showFinal(); }
+}
+$("bStep").onclick = () => { if (!s || s.ended || live || !paused) return; E.stepDay(s); afterTick(); renderHud(); };
+$("mRestart").onclick = () => { if (!s || live) return; if (!confirm("Start this same game again from day 1? Your progress in it is lost.")) return; adopt(E.restartSame(s)); closeMenu(); toast("Back at day 1 with the same setup.", "ok"); };
 let prev = performance.now();
 function loop(now) {
   const dt = Math.min(0.5, (now - prev) / 1000); prev = now;
   if (live && liveStartAt && !liveFirst && Date.now() >= liveStartAt) { liveFirst = true; liveReport(); }
   if (s && !paused && !s.ended && !document.hidden && !(live && Date.now() < liveStartAt) && !(live && live.state.phase === "running" && live.stopped(s.day))) {
     E.tick(s, dt);
-    if (s.day !== lastDay) { liveReport(); const r = s.lastReport; if (r && lastDay) toast(`Day ${r.day}: sales ${UI.money(r.revenue)}, net ${UI.money(r.net)}`, r.net >= 0 ? "ok" : "err"); lastDay = s.day; save(); renderAll(true); }
-    if (s.ended) { liveReport(); save(); renderAll(true); showFinal(); }
+    afterTick();
   }
   if (now - lastView > 400) renderAll(false);
   if (s && now - lastSave > 5000) save();
@@ -283,7 +289,7 @@ function bindMods(boxId, prefix) {
 function setupValues() {
   const inf = $("sDaysInf") && $("sDaysInf").checked;
   const dVal = inf ? 0 : $("sDays").value;
-  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod"), difficulty: $("sDiff").value });
+  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod"), difficulty: $("sDiff").value, bkDays: $("sBk").value });
 }
 // The setup steps and the live "Your start" card. Every control keeps its own id; this only moves between panels and summarises the choices.
 let cfgStep = 1; const CFG_LAST = 5;
@@ -291,11 +297,11 @@ function cfgGo(n) {
   cfgStep = Math.min(CFG_LAST, Math.max(1, n));
   document.querySelectorAll(".cfg-step").forEach(p => { p.hidden = Number(p.dataset.step) !== cfgStep; });
   document.querySelectorAll(".cfg-tab").forEach(b => { const on = Number(b.dataset.cfg) === cfgStep; b.classList.toggle("on", on); b.classList.toggle("done", Number(b.dataset.cfg) < cfgStep); b.setAttribute("aria-current", on ? "step" : "false"); });
-  $("sPrev").hidden = cfgStep === 1; $("sBack").hidden = cfgStep !== 1; $("sNext").hidden = cfgStep === CFG_LAST; $("sStart").hidden = cfgStep !== CFG_LAST;
+  $("sPrev").hidden = cfgStep === 1; $("sBack").hidden = cfgStep !== 1; $("sNext").hidden = cfgStep === CFG_LAST;
 }
 function cfgSummary(c, info) {
   const on = Object.values(c.mods || {}).filter(Boolean).length, all = Object.keys(c.mods || {}).length, scn = D.SCENARIOS.find(x => x.id === ($("sScn").value || "free")), tg = $("sTg").value;
-  const rows = [["Place", LOC.getLocation(c.location).name], ["Shop size", UI.num(c.area) + " m²"], ["Rent", UI.money2(info.rent) + " a day"], ["Money", UI.money(c.capital)], ["Length", c.days ? `${c.days} days, about ${Math.round(c.secPerDay * c.days / 60)} min` : "No end"], ["Departments", all ? `${on} of ${all} on` : "All on"], ["Scenario", scn ? scn.name : "Free play"], ["Difficulty", c.difficulty[0].toUpperCase() + c.difficulty.slice(1)], ["KPI targets", tg ? tg[0].toUpperCase() + tg.slice(1) : "None"]];
+  const rows = [["Place", LOC.getLocation(c.location).name], ["Shop size", UI.num(c.area) + " m²"], ["Rent", UI.money2(info.rent) + " a day"], ["Money", UI.money(c.capital)], ["Length", c.days ? `${c.days} days, about ${Math.round(c.secPerDay * c.days / 60)} min` : "No end"], ["Departments", all ? `${on} of ${all} on` : "All on"], ["Scenario", scn ? scn.name : "Free play"], ["Difficulty", c.difficulty[0].toUpperCase() + c.difficulty.slice(1)], ["Bankrupt after", c.bkDays + " days overdrawn"], ["KPI targets", tg ? tg[0].toUpperCase() + tg.slice(1) : "None"]];
   $("cfgSum").innerHTML = `<b>Your start</b>${rows.map(([k, v]) => `<div class="ln"><span>${UI.esc(k)}</span><b>${UI.esc(v)}</b></div>`).join("")}<small class="muted">About ${UI.money(info.revenue)} of sales a day at full stock.</small>`;
 }
 $("cfgNav").addEventListener("click", e => { const b = e.target.closest("[data-cfg]"); if (b) cfgGo(Number(b.dataset.cfg)); });
@@ -315,7 +321,7 @@ $("sArea").oninput = () => { $("sAreaN").value = $("sArea").value; readSetup(); 
 $("sAreaN").oninput = () => { $("sArea").value = Math.min(D.AREA.max, Math.max(D.AREA.min, Number($("sAreaN").value) || D.AREA.min)); readSetup(); };
 $("areaChips").onclick = e => { const b = e.target.closest("[data-area]"); if (b) { $("sAreaN").value = $("sArea").value = b.dataset.area; readSetup(); } };
 for (const id of ["sSec", "sDays", "sCap"]) $(id).oninput = readSetup;
-$("sDiff").onchange = readSetup; $("sTg").onchange = readSetup; $("sMods").addEventListener("change", readSetup);
+$("sDiff").onchange = readSetup; $("sBk").onchange = readSetup; $("sTg").onchange = readSetup; $("sMods").addEventListener("change", readSetup);
 if ($("sDaysInf")) $("sDaysInf").onchange = () => { $("sDays").disabled = $("sDaysInf").checked; readSetup(); };
 $("sScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); const scnShow = () => { const id = $("sScn").value; $("scnNote").textContent = ""; $("scnList").innerHTML = UI.scenarioList(D.SCENARIOS, id); };
 $("sScn").onchange = () => { scnShow(); readSetup(); }; scnShow();

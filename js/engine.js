@@ -50,7 +50,7 @@ export function cleanSetup(o = {}) {
     location: typeof o.location === "string" && hasLocation(o.location) && o.location !== "default" ? o.location : "id-medan-central",
     area: n(o.area, D.AREA, D.AREA.def), secPerDay: n(o.secPerDay, D.SECONDS_PER_DAY, D.SECONDS_PER_DAY.def),
     days: isInf ? 0 : n(o.days, D.DAYS, D.DAYS.def), capital: n(o.capital, D.CAPITAL, D.CAPITAL.def),
-    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal",
+    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal", bkDays: D.BK_DAYS.includes(Number(o.bkDays)) ? Number(o.bkDays) : 3,
   };
 }
 export const MACHINE_PER_DAY = m => (D.MACHINES.find(x => x.id === m.type) || { perDay: 0 }).perDay;
@@ -425,7 +425,7 @@ function closeDay(s) {
   if (day % 7 === 0) mailPost(s, { from: "Management", subject: `Week ${day / 7} report`, body: `Revenue today $${Math.round(rep.revenue).toLocaleString("en-US")}, net today $${Math.round(rep.net).toLocaleString("en-US")}, cash $${Math.round(rep.cash).toLocaleString("en-US")}. Open Data Explorer for the full picture.`, goto: ["data", "bi"] });
   s.history.push(rep); if (s.history.length > 90) s.history.shift(); s.lastReport = rep;
   log(s, `Day ${day} closed: revenue $${rep.revenue.toFixed(0)}, net $${net.toFixed(0)}.`);
-  if (s.overdraftDays >= 3) { s.ended = { reason: "bankrupt", day }; return; }
+  if (s.overdraftDays >= bankruptDays(s)) { s.ended = { reason: "bankrupt", day }; return; }
   if (s.days > 0 && day >= s.days) { s.ended = { reason: "completed", day }; return; }
   s.day++; beginDay(s);
 }
@@ -436,6 +436,12 @@ export function tick(s, dt) {
   while (s.acc >= STEP - 1e-9 && !s.ended) { s.acc -= STEP; stepOnce(s); n++; }
   return n;
 }
+// Step-through: run exactly to the start of the next day, then stop. Used by the Step button while the game is paused.
+// Days in a row overdrawn before the company is bankrupt. Games from before this setting was added keep three.
+export const bankruptDays = s => (D.BK_DAYS.includes(s.bkDays) ? s.bkDays : 3);
+export function stepDay(s) { if (s.ended) return 0; const d = s.day; let n = 0; s.acc = 0; while (s.day === d && !s.ended) { stepOnce(s); n++; } return n; }
+// Start the same game again from day 1: same place, size, money, length, scenario, departments, difficulty and seed.
+export const restartSame = s => newGame(cleanSetup(s));
 export function advanceSteps(s, n) { while (n-- > 0 && !s.ended) stepOnce(s); }
 
 // ---------- integrity, report, save ----------
