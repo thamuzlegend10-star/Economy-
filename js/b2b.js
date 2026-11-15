@@ -125,11 +125,13 @@ function award(s, b, t, price, how) {
 }
 
 // ---------- delivery ----------
+// Who moves the goods. "pickup" (the default, and every older game): the buyer collects, so you pay nothing. "deliver": you ship to the buyer and pay freight.
+export const freightFor = (s, k) => (s.b2bShip === "deliver" ? c(k.qty * refPrice(k.pid) * D.B2B.freightRate * BUYER[k.buyer].km) : 0);
 export function quoteDelivery(s, id) {
   const k = ensureB2B(s).active.find(x => x.id === id); if (!k) return err("Unknown contract.");
   const have = available(s, k.pid), value = c(k.qty * k.price), errors = [];
   if (have < k.qty) errors.push(`Not enough stock: need ${k.qty.toLocaleString("en-US")}, have ${have.toLocaleString("en-US")} ${PRODUCT[k.pid] ? "in the warehouse" : "at the factory"}.`);
-  return { id, qty: k.qty, value, errors, ok: !errors.length };
+  return { id, qty: k.qty, value, freight: freightFor(s, k), errors, ok: !errors.length };
 }
 export function deliver(s, id) {
   if (s.ended) return err("The game is over.");
@@ -140,6 +142,10 @@ export function deliver(s, id) {
   post(s.ledger, s.day, `B2B delivery #${k.id} to ${BUYER[k.buyer].name}`, [{ acct: "receivables", dr: q.value }, { acct: "sales_b2b", cr: q.value }], "b2b:" + k.id);
   b.ar = b.ar || []; b.ar.push({ id: k.id, buyer: k.buyer, amount: q.value, issued: s.day, due: s.day + D.B2B.buyers.find(y => y.id === k.buyer).terms });
   post(s.ledger, s.day, `Cost of B2B delivery #${k.id}`, [{ acct: "cogs", dr: cost }, { acct: retail ? "inventory" : "inv_fg", cr: cost }], "b2b:" + k.id);
+  if (q.freight > 0) {
+    const cash = Math.max(0, balance(s.ledger, "cash")), paid = c(Math.min(cash, q.freight)), short = c(q.freight - paid);
+    post(s.ledger, s.day, `Freight for B2B delivery #${k.id}`, [{ acct: "delivery", dr: q.freight }, ...(paid > 0 ? [{ acct: "cash", cr: paid }] : []), ...(short > 0 ? [{ acct: "overdraft", cr: short }] : [])], "b2b:frt:" + k.id);
+  }
   const onTime = s.day <= k.due;
   if (onTime) { b.ontime++; b.rep = clamp(b.rep + D.B2B.reputationGain, 0, 100); } else { b.late++; }
   k.status = "done"; b.history.push({ ...k, result: onTime ? "on time" : "late", revenue: q.value, day: s.day }); b.active = b.active.filter(x => x !== k);

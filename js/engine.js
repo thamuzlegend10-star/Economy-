@@ -52,7 +52,7 @@ export function cleanSetup(o = {}) {
     location: typeof o.location === "string" && hasLocation(o.location) && o.location !== "default" ? o.location : "id-medan-central",
     area: n(o.area, D.AREA, D.AREA.def), secPerDay: n(o.secPerDay, D.SECONDS_PER_DAY, D.SECONDS_PER_DAY.def),
     days: isInf ? 0 : n(o.days, D.DAYS, D.DAYS.def), capital: n(o.capital, D.CAPITAL, D.CAPITAL.def),
-    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal", bkDays: D.BK_DAYS.includes(Number(o.bkDays)) ? Number(o.bkDays) : 3,
+    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal", bkDays: D.BK_DAYS.includes(Number(o.bkDays)) ? Number(o.bkDays) : 3, b2bShip: o.b2bShip === "deliver" ? "deliver" : "pickup",
     elastSet: Object.fromEntries(D.PRODUCTS.filter(p => o.elastSet && ["low", "high"].includes(o.elastSet[p.id])).map(p => [p.id, o.elastSet[p.id]])),
   };
 }

@@ -289,7 +289,7 @@ function bindMods(boxId, prefix) {
 function setupValues() {
   const inf = $("sDaysInf") && $("sDaysInf").checked;
   const dVal = inf ? 0 : $("sDays").value;
-  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod"), difficulty: $("sDiff").value, bkDays: $("sBk").value, elastSet: Object.fromEntries(D.PRODUCTS.map(p => [p.id, $("sEl_" + p.id).value])) });
+  return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod"), difficulty: $("sDiff").value, bkDays: $("sBk").value, b2bShip: $("sShip").value, elastSet: Object.fromEntries(D.PRODUCTS.map(p => [p.id, $("sEl_" + p.id).value])) });
 }
 // The setup steps and the live "Your start" card. Every control keeps its own id; this only moves between panels and summarises the choices.
 let cfgStep = 1; const CFG_LAST = 5;
@@ -321,7 +321,7 @@ $("sArea").oninput = () => { $("sAreaN").value = $("sArea").value; readSetup(); 
 $("sAreaN").oninput = () => { $("sArea").value = Math.min(D.AREA.max, Math.max(D.AREA.min, Number($("sAreaN").value) || D.AREA.min)); readSetup(); };
 $("areaChips").onclick = e => { const b = e.target.closest("[data-area]"); if (b) { $("sAreaN").value = $("sArea").value = b.dataset.area; readSetup(); } };
 for (const id of ["sSec", "sDays", "sCap"]) $(id).oninput = readSetup;
-$("sDiff").onchange = readSetup; $("sBk").onchange = readSetup; $("sEl").addEventListener("change", readSetup); $("sTg").onchange = readSetup; $("sMods").addEventListener("change", readSetup);
+$("sDiff").onchange = readSetup; $("sBk").onchange = readSetup; $("sShip").onchange = readSetup; $("sEl").addEventListener("change", readSetup); $("sTg").onchange = readSetup; $("sMods").addEventListener("change", readSetup);
 if ($("sDaysInf")) $("sDaysInf").onchange = () => { $("sDays").disabled = $("sDaysInf").checked; readSetup(); };
 $("sScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); const scnShow = () => { const id = $("sScn").value; $("scnNote").textContent = ""; $("scnList").innerHTML = UI.scenarioList(D.SCENARIOS, id); };
 $("sScn").onchange = () => { scnShow(); readSetup(); }; scnShow();
