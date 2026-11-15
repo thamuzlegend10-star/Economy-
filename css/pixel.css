@@ -675,3 +675,21 @@ body { font-variant-numeric:tabular-nums; }
   .content { gap:14px !important; }
   button.big { width:auto !important; min-width:240px; align-self:flex-start; padding:10px 26px; }
 }
+
+/* New game setup: five steps with a live summary beside them. */
+dialog.menu:has(#menuSetup:not([hidden])) { width:min(960px,96vw); }
+.cfg-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px; margin:10px 0 14px; }
+.cfg-tab { display:flex; align-items:center; gap:8px; min-height:44px; padding:6px 10px; background:var(--surface-2); color:var(--muted); border:2px solid var(--px-hi); text-align:left; transition:border-color .2s, color .2s, transform .15s; }
+.cfg-tab i { flex:none; display:inline-grid; place-items:center; width:22px; height:22px; border:2px solid var(--line); font-style:normal; font-weight:700; font-size:.78rem; }
+.cfg-tab span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.cfg-tab.on { border-color:var(--brass); color:var(--fg); } .cfg-tab.on i { background:var(--brass); border-color:var(--brass); color:var(--bg); }
+.cfg-tab.done i { border-color:var(--mint); color:var(--mint); } .cfg-tab:active { transform:translateY(1px); }
+.cfg-body { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:14px; align-items:start; }
+.cfg-step { animation:cfgIn .28s var(--ease, ease-out); } .cfg-step[hidden] { display:none; }
+.cfg-h { display:flex; flex-direction:column; gap:2px; padding-bottom:8px; border-bottom:2px solid var(--px-hi); } .cfg-h b { font-size:1.05rem; }
+.cfg-sum { position:sticky; top:0; display:grid; gap:2px; padding:12px; background:var(--sheet, var(--surface-2)); border:2px solid var(--px-hi); } .cfg-sum > b { margin-bottom:6px; }
+.cfg-sum .ln { display:flex; justify-content:space-between; gap:10px; padding:4px 0; border-bottom:1px dashed var(--line); } .cfg-sum .ln span { color:var(--muted); flex:none; } .cfg-sum .ln b { min-width:0; text-align:right; overflow-wrap:anywhere; }
+.cfg-sum small { margin-top:8px; }
+@keyframes cfgIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+@media (max-width:700px) { .cfg-body { grid-template-columns:minmax(0,1fr); } .cfg-sum { position:static; } .cfg-nav { grid-template-columns:repeat(5,44px); justify-content:space-between; } .cfg-tab span { display:none; } .cfg-tab { justify-content:center; padding:6px; } }
+@media (prefers-reduced-motion:reduce) { .cfg-step { animation:none; } }

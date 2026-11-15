@@ -227,7 +227,7 @@ let menuPaused = false;
 function closeMenu() { if ($("menuDlg").open) $("menuDlg").close(); }
 $("menuDlg").addEventListener("close", () => { if (menuPaused) { paused = false; menuPaused = false; renderHud(); } });
 $("mContinue").onclick = closeMenu; $("mClose").onclick = closeMenu;
-$("mNew").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "menuSetup"; }); readSetup(); };
+$("mNew").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "menuSetup"; }); cfgGo(1); readSetup(); };
 $("mHelp").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "menuHelp"; }); };
 document.querySelectorAll("[data-back]").forEach(b => b.addEventListener("click", () => { SECTIONS.forEach(id => { $(id).hidden = id !== "menuMain"; }); }));
 $("sBack").onclick = () => { SECTIONS.forEach(id => { $(id).hidden = id !== "menuMain"; }); };
@@ -285,6 +285,21 @@ function setupValues() {
   const dVal = inf ? 0 : $("sDays").value;
   return E.cleanSetup({ location: chosenLoc, area: $("sAreaN").value, secPerDay: $("sSec").value, days: dVal, capital: $("sCap").value, mods: readMods("sMod"), difficulty: $("sDiff").value });
 }
+// The setup steps and the live "Your start" card. Every control keeps its own id; this only moves between panels and summarises the choices.
+let cfgStep = 1; const CFG_LAST = 5;
+function cfgGo(n) {
+  cfgStep = Math.min(CFG_LAST, Math.max(1, n));
+  document.querySelectorAll(".cfg-step").forEach(p => { p.hidden = Number(p.dataset.step) !== cfgStep; });
+  document.querySelectorAll(".cfg-tab").forEach(b => { const on = Number(b.dataset.cfg) === cfgStep; b.classList.toggle("on", on); b.classList.toggle("done", Number(b.dataset.cfg) < cfgStep); b.setAttribute("aria-current", on ? "step" : "false"); });
+  $("sPrev").hidden = cfgStep === 1; $("sBack").hidden = cfgStep !== 1; $("sNext").hidden = cfgStep === CFG_LAST; $("sStart").hidden = cfgStep !== CFG_LAST;
+}
+function cfgSummary(c, info) {
+  const on = Object.values(c.mods || {}).filter(Boolean).length, all = Object.keys(c.mods || {}).length, scn = D.SCENARIOS.find(x => x.id === ($("sScn").value || "free")), tg = $("sTg").value;
+  const rows = [["Place", LOC.getLocation(c.location).name], ["Shop size", UI.num(c.area) + " m²"], ["Rent", UI.money2(info.rent) + " a day"], ["Money", UI.money(c.capital)], ["Length", c.days ? `${c.days} days, about ${Math.round(c.secPerDay * c.days / 60)} min` : "No end"], ["Departments", all ? `${on} of ${all} on` : "All on"], ["Scenario", scn ? scn.name : "Free play"], ["Difficulty", c.difficulty[0].toUpperCase() + c.difficulty.slice(1)], ["KPI targets", tg ? tg[0].toUpperCase() + tg.slice(1) : "None"]];
+  $("cfgSum").innerHTML = `<b>Your start</b>${rows.map(([k, v]) => `<div class="ln"><span>${UI.esc(k)}</span><b>${UI.esc(v)}</b></div>`).join("")}<small class="muted">About ${UI.money(info.revenue)} of sales a day at full stock.</small>`;
+}
+$("cfgNav").addEventListener("click", e => { const b = e.target.closest("[data-cfg]"); if (b) cfgGo(Number(b.dataset.cfg)); });
+$("sNext").onclick = () => cfgGo(cfgStep + 1); $("sPrev").onclick = () => cfgGo(cfgStep - 1);
 function readSetup() {
   const c = setupValues(), info = E.siteInfo(c.location, c.area), cap = E.capacityOf(c.area);
   $("sLocLabel").textContent = LOC.getLocation(c.location).name;
@@ -292,6 +307,7 @@ function readSetup() {
   const rentTerm = isInf ? " · <b>Infinite days mode</b>" : ` · <b>${UI.money(info.rent * c.days)}</b> for ${c.days} days`;
   $("rentBox").innerHTML = `<div class="big"><b>${UI.money2(info.rentM2)}</b> / m² / day</div><div>Total rent: <b>${UI.money2(info.rent)}</b> per day${rentTerm}</div>
     <div>Storage: <b>${UI.num(cap)}</b> space (about ${UI.num(cap)} noodles, or half as many milk)</div><div class="muted">Estimated sales: ${UI.money(info.revenue)} per day at full stock.</div>`;
+  cfgSummary(c, info);
   const total = c.secPerDay * c.days;
   $("lenNote").textContent = isInf ? "Infinite days mode. Game runs continuously without a day limit." : `The whole game takes about ${Math.floor(total / 60)} min ${total % 60} s of real time.`;
 }
@@ -299,14 +315,15 @@ $("sArea").oninput = () => { $("sAreaN").value = $("sArea").value; readSetup(); 
 $("sAreaN").oninput = () => { $("sArea").value = Math.min(D.AREA.max, Math.max(D.AREA.min, Number($("sAreaN").value) || D.AREA.min)); readSetup(); };
 $("areaChips").onclick = e => { const b = e.target.closest("[data-area]"); if (b) { $("sAreaN").value = $("sArea").value = b.dataset.area; readSetup(); } };
 for (const id of ["sSec", "sDays", "sCap"]) $(id).oninput = readSetup;
+$("sDiff").onchange = readSetup; $("sTg").onchange = readSetup; $("sMods").addEventListener("change", readSetup);
 if ($("sDaysInf")) $("sDaysInf").onchange = () => { $("sDays").disabled = $("sDaysInf").checked; readSetup(); };
 $("sScn").innerHTML = D.SCENARIOS.map(x => `<option value="${x.id}">${x.name}</option>`).join(""); const scnShow = () => { const id = $("sScn").value; $("scnNote").textContent = ""; $("scnList").innerHTML = UI.scenarioList(D.SCENARIOS, id); };
-$("sScn").onchange = scnShow; scnShow();
-$("scnList").addEventListener("click", e => { const b = e.target.closest("[data-scn]"); if (b) { $("sScn").value = b.dataset.scn; scnShow(); } });
+$("sScn").onchange = () => { scnShow(); readSetup(); }; scnShow();
+$("scnList").addEventListener("click", e => { const b = e.target.closest("[data-scn]"); if (b) { $("sScn").value = b.dataset.scn; scnShow(); readSetup(); } });
 $("sStart").onclick = () => {
   const c = { ...setupValues(), scenario: $("sScn").value }; $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay;
   if (c.days) $("sDays").value = c.days;
-  adopt(E.newGame(c)); closeMenu(); toast("Shop open. Order stock in Shop, Buy stock.", "ok");
+  adopt(E.newGame(c)); if ($("sTg").value) Kp.applyPreset(s, $("sTg").value, false); closeMenu(); toast("Shop open. Order stock in Shop, Buy stock.", "ok");
 };
 
 function adopt(state, keepLive = false) {
@@ -357,7 +374,7 @@ function showFinal() {
   $("finalBody").innerHTML = UI.finalReport(s); if (!$("finalDlg").open) $("finalDlg").showModal();
 }
 $("finalClose").onclick = () => $("finalDlg").close();
-$("finalNew").onclick = () => { $("finalDlg").close(); openMenu("menuSetup"); readSetup(); };
+$("finalNew").onclick = () => { $("finalDlg").close(); openMenu("menuSetup"); cfgGo(1); readSetup(); };
 
 // ---------- boot ----------
 wideQ.addEventListener("change", e => { ui.wide = e.matches; ui.more = false; renderNav(); });

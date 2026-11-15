@@ -55,3 +55,5 @@ FMCG batches; expiry and stock takes,retail,could,yes,partial,milk has a 10 day 
 Investor and underwriter roles,session,could,yes,skip,needs certification and a real class setup
 Department tabs in one top row with a sub-tab strip,ui,must,yes,yes,MonsoonSIM skin shipped
 Approval queue for every action,ui,could,yes,skip,Economy acts instantly by design
+Game configuration wizard (session; company; departments; rules; summary),facilitator,should,yes,yes,five-step setup with live summary; solo KPI target preset; no per-team or round scheduling
+
