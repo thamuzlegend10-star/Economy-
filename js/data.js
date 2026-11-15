@@ -37,7 +37,9 @@ export const SPACE_STEPS = [10, 25, 50, 100, 250, 500];
 
 // ---------- Warehouse: a separate, much bigger building with its own bulk suppliers ----------
 // Goods bought here arrive in the warehouse. From there they can be sent to the shop (a transfer, which costs a trip fee) or, later, to B2B.
-export const WH = { minArea: 500, maxArea: 20000, areaSteps: [500, 1000, 2500, 5000, 10000], spacePerM2: 200, rentPerM2: 1.4, minQty: 25000, maxQty: 1000000 };
+export const WH = { minArea: 500, maxArea: 20000, areaSteps: [500, 1000, 2500, 5000, 10000], spacePerM2: 200, rentPerM2: 1.4, minQty: 25000, maxQty: 1000000,
+  // Rent terms: a longer commitment gives a cheaper daily rate. Leaving early costs the rent still owed on the term.
+  terms: [{ id: "day", name: "Daily", days: 0, mult: 1 }, { id: "week", name: "7 days", days: 7, mult: 0.92 }, { id: "month", name: "30 days", days: 30, mult: 0.8 }] };
 export const WH_QTY = [25000, 50000, 100000, 200000, 300000, 500000, 750000, 1000000];
 export const WH_BULK = [[500000, 0.20], [200000, 0.16], [100000, 0.12], [50000, 0.08], [25000, 0.04]];
 export const WH_SUPPLIERS = [

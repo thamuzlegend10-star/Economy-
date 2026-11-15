@@ -154,7 +154,8 @@ $("view").addEventListener("click", e => {
   else if (t.id === "poOpen") openPo("retail");
   else if (t.id === "whPoOpen") openPo("wh");
   else if (t.id === "spOpen") { ui.spaceMode = "shop"; ui.space = D.SPACE_STEPS.find(n => n <= D.AREA.max - s.area) || 10; renderSp(); $("spDlg").showModal(); }
-  else if (t.id === "whRentOpen") { ui.spaceMode = "wh"; ui.space = D.WH.areaSteps.find(n => n <= D.WH.maxArea - s.wh.area) || D.WH.minArea; renderSp(); $("spDlg").showModal(); }
+  else if (t.id === "whRelease") { if (!confirm("Give up the warehouse? Leaving inside a term costs the rent still owed.")) return; const r = E.releaseWarehouse(s); if (!r.ok) toast(r.error, "err"); else { toast(r.fee > 0 ? `Warehouse given up. Fee ${UI.money2(r.fee)}.` : "Warehouse given up.", "ok"); save(); renderAll(true); } }
+  else if (t.id === "whRentOpen") { ui.spaceTerm = (s.wh.area && E.whTermNow(s).id) || "day"; ui.spaceMode = "wh"; ui.space = D.WH.areaSteps.find(n => n <= D.WH.maxArea - s.wh.area) || D.WH.minArea; renderSp(); $("spDlg").showModal(); }
   else if (t.id === "trOpen") { ui.tr = { qty: {} }; renderTr(); $("trDlg").showModal(); }
 });
 // Module screens: selects and inputs. Form fields only store a value; a re-draw updates quotes and totals.
@@ -167,12 +168,12 @@ $("view").addEventListener("change", e => {
   if (t.dataset.ecf) { const r = act(s, ui.f, "ecomAds", { value: t.value }); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
 });
 $("view").addEventListener("input", e => { const t = e.target; if (s && t && t.dataset && t.dataset.f && t.type === "number") setField(ui.f, t.dataset.f, t.value, true); });
-function renderSp() { if (s) { $("spTitle").textContent = ui.spaceMode === "wh" ? (s.wh.area ? "Rent more warehouse space" : "Rent a warehouse") : "Rent more space"; $("spBody").innerHTML = UI.spaceForm(s, ui.space, ui.spaceMode); } }
-$("spDlg").addEventListener("change", e => { if (e.target.id === "spExtra") { ui.space = Number(e.target.value); renderSp(); } });
+function renderSp() { if (s) { $("spTitle").textContent = ui.spaceMode === "wh" ? (s.wh.area ? "Rent more warehouse space" : "Rent a warehouse") : "Rent more space"; $("spBody").innerHTML = UI.spaceForm(s, ui.space, ui.spaceMode, ui.spaceTerm || "day"); } }
+$("spDlg").addEventListener("change", e => { if (e.target.id === "spExtra") { ui.space = Number(e.target.value); renderSp(); } else if (e.target.id === "spTerm") { ui.spaceTerm = e.target.value; renderSp(); } });
 $("spDlg").addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || !s) return;
   if (t.id === "spX" || t.id === "spCancel") $("spDlg").close();
-  else if (t.id === "spSubmit") { const wh = ui.spaceMode === "wh", r = wh ? E.rentWarehouse(s, ui.space) : E.rentMoreSpace(s, ui.space); if (!r.ok) { toast(r.error, "err"); renderSp(); return; } $("spDlg").close(); toast(`${wh ? "Warehouse" : "Shop"} is now ${r.area} m². Rent ${UI.money2(r.rent)} per day.`, "ok"); save(); renderAll(true); }
+  else if (t.id === "spSubmit") { const wh = ui.spaceMode === "wh", r = wh ? E.rentWarehouse(s, ui.space, ui.spaceTerm || "day") : E.rentMoreSpace(s, ui.space); if (!r.ok) { toast(r.error, "err"); renderSp(); return; } $("spDlg").close(); toast(`${wh ? "Warehouse" : "Shop"} is now ${r.area} m². Rent ${UI.money2(r.rent)} per day.`, "ok"); save(); renderAll(true); }
 });
 const PB = () => (ui.poMode === "wh" ? ui.whbuy : ui.buy);
 function renderTr() { if (s) $("trBody").innerHTML = UI.transferForm(s, ui.tr); }

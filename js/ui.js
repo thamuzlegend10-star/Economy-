@@ -116,7 +116,7 @@ export function warehouse(s, sub = "stock") {
     + D.JUICES.filter(j => s.fx.fg.qty[j.id] > 0).map(j => `<tr><td><span class="dot" style="background:${j.color}"></span> ${esc(j.name)}</td><td>${num(s.fx.fg.qty[j.id])}</td><td>${money(s.fx.fg.val[j.id])}</td><td>${num(s.fx.fg.qty[j.id] * j.space)}</td></tr>`).join("");
   const over = w.overflow > 0 ? `<div class="err">Over capacity by ${num(w.overflow)} space. Overflow costs ${money2(w.overflow * D.OVERFLOW.perSpacePerDay)} per day. Rent more space or move goods out.</div>` : "";
   return `<div class="card"><b>Warehouse storage: ${pct(w.capacity ? w.used / w.capacity : 0)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, w.capacity ? w.used / w.capacity * 100 : 0)}%"></i></div>
-    <small>${num(w.used)} of ${num(w.capacity)} space used in ${num(w.area)} m². ${num(w.incoming)} more is reserved for deliveries on the way. Rent ${money2(E.whRent(s))} per day.</small><button class="ghost" id="whRentOpen">Rent more warehouse space</button></div>
+    <small>${num(w.used)} of ${num(w.capacity)} space used in ${num(w.area)} m². ${num(w.incoming)} more is reserved for deliveries on the way. Rent ${money2(E.whRent(s))} per day, ${E.whTermNow(s).days ? `${E.whTermNow(s).name} term, ${E.whTermLeft(s)} days left` : "daily term"}.</small><div class="row"><button class="ghost" id="whRentOpen">Rent more or change term</button><button class="ghost" id="whRelease">Give up warehouse</button></div><small class="muted">A longer term is cheaper per day. Giving up the warehouse early costs the rent still owed on the term. It must be empty first.</small></div>
     <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In warehouse</th><th>Value</th><th>Space used</th></tr></thead><tbody>${rows}${fxRows}</tbody></table></div>${over}`;
 }
 
@@ -186,19 +186,21 @@ export function store(s, part = "both") {
 }
 
 // Rent more space dialog body.
-export function spaceForm(s, extra, mode = "shop") {
+export function spaceForm(s, extra, mode = "shop", ui_term = "day") {
   const wh = mode === "wh", cur = wh ? s.wh.area : s.area, max = wh ? D.WH.maxArea : D.AREA.max, room = max - cur;
-  const q = wh ? E.whRentQuote(s, extra) : E.spaceQuote(s, extra), label = wh ? "warehouse" : "shop";
+  const q = wh ? E.whRentQuote(s, extra, ui_term) : E.spaceQuote(s, extra), label = wh ? "warehouse" : "shop";
   const steps = (wh ? D.WH.areaSteps : D.SPACE_STEPS).filter(n => n <= room);
   const opts = steps.map(n => `<option value="${n}" ${n === extra ? "selected" : ""}>${wh && !cur ? "" : "+"}${n} m²</option>`).join("");
   if (!opts) return `<div class="err">Your ${label} is already at the ${num(max)} m² limit.</div><div class="po-actions"><button class="ghost" id="spCancel" type="button">Close</button></div>`;
   const now = wh ? E.whRent(s) : E.dailyRent(s.location, s.area), cap = wh ? D.WH.spacePerM2 : D.SPACE_PER_M2;
-  return `<label class="fld"><span>${wh && !cur ? "Warehouse size" : "Add space"}</span><select id="spExtra">${opts}</select></label>
+  const termSel = wh ? `<label class="fld"><span>Rent term</span><select id="spTerm">${D.WH.terms.map(x => `<option value="${x.id}" ${x.id === ui_term ? "selected" : ""}>${x.name}${x.days ? ` · ${Math.round((1 - x.mult) * 100)}% off` : ""}</option>`).join("")}</select></label>` : "";
+  return `<label class="fld"><span>${wh && !cur ? "Warehouse size" : "Add space"}</span><select id="spExtra">${opts}</select></label>${termSel}
     <div class="quote">
       <div class="ln"><span>Now</span><b>${cur ? `${num(cur)} m² · ${money2(now)} / day` : "No warehouse yet"}</b></div>
       <div class="ln"><span>Price</span><b>${money2(q.rate)} / m² / day</b></div>
       <div class="ln tot"><span>After</span><b>${num(q.newArea)} m²</b></div>
-      <div class="ln"><span>Rent per day</span><b>${money2(q.newRent)} (+${money2(q.extraRent)})</b></div>
+      ${wh && q.term ? `<div class="ln"><span>Term</span><b>${q.term.name}${q.keptTerm ? " (current term kept)" : q.term.days ? `, ${q.term.days} days` : ""}</b></div>` : ""}
+      <div class="ln"><span>Rent per day</span><b>${money2(q.newRent)} (${q.extraRent >= 0 ? "+" : ""}${money2(q.extraRent)})</b></div>
       <div class="ln"><span>Storage</span><b>${num(q.newCapacity)} (+${num(q.addedCapacity)})</b></div>
       <div class="ln"><span>Storage per m²</span><b>${num(cap)}</b></div></div>
     ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}

@@ -119,10 +119,11 @@ function beginDay(s) {
   for (const sp of ALL_SUP) {                                           // supplier prices drift (supplier stock is unlimited)
     const i = s.supIdx[sp.id]; s.supIdx[sp.id] = Math.round(clamp(i + (rnd(s) - 0.5) * 0.05 + (1 - i) * 0.08, 0.9, 1.15) * 1000) / 1000;
   }
-  curDay(s); econDay(s); scenarioDay(s); arrivals(s); juiceArrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
+  whTermDay(s); curDay(s); econDay(s); scenarioDay(s); arrivals(s); juiceArrivals(s); factoryArrivals(s); b2bDay(s); mrpDay(s);
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
 }
 
+function whTermDay(s) { const w = s.wh; if (w && w.area > 0 && w.term && w.term !== "day" && w.until && s.day === w.until) mailPost(s, { from: "Warehouse landlord", subject: "Your warehouse term has ended", body: `The ${whTerm(w.term).name} term is over. You now pay the daily rate until you pick a term again.`, goto: ["warehouse", "stock"] }); }
 function arrivals(s) {
   const due = s.orders.filter(o => o.eta <= s.day);
   for (const o of due) {
@@ -253,25 +254,41 @@ export const margin = (s, pid) => { const q = s.qty[pid], avg = q ? s.val[pid] /
 
 // ---------- warehouse ----------
 export const whRentPerM2 = (loc = "default") => c(D.WH.rentPerM2 * getLocation(loc).rent);
-export const whRent = s => (s.wh && s.wh.area > 0 ? c(whRentPerM2(s.location) * s.wh.area) : 0);
-export function whRentQuote(s, extra) {
+export const whTerm = id => D.WH.terms.find(x => x.id === id) || D.WH.terms[0];
+// The term in force: a term with days left, otherwise daily. Games saved before terms existed have none, so they pay the daily rate as before.
+export const whTermNow = s => { const w = s.wh, t = whTerm(w && w.term); return t.days > 0 && s.day < (w.until || 0) ? t : D.WH.terms[0]; };
+export const whTermLeft = s => (whTermNow(s).days > 0 ? Math.max(0, s.wh.until - s.day) : 0);
+export const whRent = s => (s.wh && s.wh.area > 0 ? c(whRentPerM2(s.location) * s.wh.area * whTermNow(s).mult) : 0);
+export function whRentQuote(s, extra, termId) {
   extra = Math.round(Number(extra));
   if (!Number.isFinite(extra) || extra < 1) return err("Choose how many m² to add.");
   const first = s.wh.area <= 0, add = first ? Math.max(extra, D.WH.minArea) : extra, room = D.WH.maxArea - s.wh.area;
   const q = { extra: add, first, newArea: s.wh.area + add, rate: whRentPerM2(s.location), errors: [] };
-  q.newRent = c(q.rate * q.newArea); q.extraRent = c(q.rate * add); q.newCapacity = Math.floor(q.newArea * D.WH.spacePerM2); q.addedCapacity = add * D.WH.spacePerM2;
+  // Picking "daily" while a longer term still runs keeps that term. Picking a term starts it afresh from today.
+  const cur = whTermNow(s), pick = whTerm(termId); q.term = pick.days === 0 && cur.days > 0 ? cur : pick; q.keptTerm = pick.days === 0 && cur.days > 0;
+  q.newRent = c(q.rate * q.newArea * q.term.mult); q.extraRent = c(q.newRent - whRent(s)); q.newCapacity = Math.floor(q.newArea * D.WH.spacePerM2); q.addedCapacity = add * D.WH.spacePerM2;
   if (add > room) q.errors.push(room > 0 ? `The most you can add is ${room} m² (warehouses are at most ${D.WH.maxArea} m²).` : `Your warehouse is already at the ${D.WH.maxArea} m² limit.`);
   q.ok = !q.errors.length; return q;
 }
-export function rentWarehouse(s, extra) {
+export function rentWarehouse(s, extra, termId) {
   if (s.ended) return err("The game is over.");
   if (!modOn(s, "warehouse")) return err(offMsg("warehouse"));
-  const q = whRentQuote(s, extra);
+  const q = whRentQuote(s, extra, termId);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
-  s.wh.area = q.newArea;
+  s.wh.area = q.newArea; if (!q.keptTerm) { s.wh.term = q.term.id; s.wh.until = q.term.days > 0 ? s.day + q.term.days : 0; }
   log(s, `${q.first ? "Rented a warehouse of" : "Rented"} ${q.extra} m²${q.first ? "" : " more"}. The warehouse is now ${s.wh.area} m². Rent is $${q.newRent.toFixed(2)} per day.`);
   return ok({ area: s.wh.area, rent: q.newRent });
+}
+// Give up the warehouse. It must be empty with nothing on the way. Leaving inside a term costs the rent still owed on it.
+export function releaseWarehouse(s) {
+  if (s.ended) return err("The game is over.");
+  if (!s.wh || s.wh.area <= 0) return err("You have no warehouse.");
+  if (D.PRODUCTS.some(p => s.wh.qty[p.id] > 0) || s.orders.some(o => o.dest === "wh" || o.kind === "transfer") || (s.fx && s.fx.raw && D.RAW.some(r => s.fx.raw.qty[r.id] > 0))) return err("Empty the warehouse first, and wait for deliveries to it.");
+  const left = whTermLeft(s), fee = c(whRent(s) * left);
+  if (fee > 0) post(s.ledger, s.day, `Early exit from the warehouse term (${left} days of rent)`, [{ acct: "rent", dr: fee }, { acct: "cash", cr: fee }], "whexit");
+  log(s, `Gave up the warehouse${fee > 0 ? `. Early exit fee $${fee.toFixed(2)}` : ""}.`);
+  s.wh.area = 0; s.wh.term = "day"; s.wh.until = 0; return ok({ fee });
 }
 // Send goods from the warehouse to the shop. One trip fee plus a charge per space unit; arrives after one day; all-or-nothing.
 export function quoteTransfer(s, lines, carrier = "hired") {

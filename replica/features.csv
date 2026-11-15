@@ -19,7 +19,7 @@ Vendor purchasing with approval step,procurement,must,yes,yes,purchase orders; r
 Supplier lead time; reliability and price tiers,procurement,must,yes,yes,supplier choice on PO
 Delivery quality check and damaged goods,procurement,could,yes,yes,damage chance follows supplier reliability; optional inspection fee; claim or write-off; lapses after 3 days; new games only
 Supplier performance tracking,procurement,should,yes,yes,delivery performance in BI
-Warehouse rent with terms (daily; 7-day; 30-day),logistics,should,yes,partial,rent per day only
+Warehouse rent with terms (daily; 7-day; 30-day),logistics,should,yes,yes,7-day 8% off and 30-day 20% off the daily rate; term lapses to daily; early exit pays the rent still owed; warehouse must be empty to give up
 Auto-replenish by minimum stock and shipment size,logistics,should,yes,yes,Warehouse auto rules
 Third-party carriers with distance based time and cost,logistics,must,yes,yes,carriers plus own trucks
 Overflow storage fees,logistics,must,yes,yes,space used and overflow
