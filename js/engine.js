@@ -123,7 +123,7 @@ function beginDay(s) {
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
 }
 
-function whTermDay(s) { const w = s.wh; if (w && w.area > 0 && w.term && w.term !== "day" && w.until && s.day === w.until) mailPost(s, { from: "Warehouse landlord", subject: "Your warehouse term has ended", body: `The ${whTerm(w.term).name} term is over. You now pay the daily rate until you pick a term again.`, goto: ["warehouse", "stock"] }); }
+function whTermDay(s) { if (s.rentTerm && s.rentTerm.id !== "day" && s.rentTerm.until && s.day === s.rentTerm.until) mailPost(s, { from: "Shop landlord", subject: "Your shop rent term has ended", body: `The ${whTerm(s.rentTerm.id).name} term is over. You now pay the daily rate until you pick a term again. You can also change the shop size now.`, goto: ["retail", "location"] }); const w = s.wh; if (w && w.area > 0 && w.term && w.term !== "day" && w.until && s.day === w.until) mailPost(s, { from: "Warehouse landlord", subject: "Your warehouse term has ended", body: `The ${whTerm(w.term).name} term is over. You now pay the daily rate until you pick a term again.`, goto: ["warehouse", "stock"] }); }
 function arrivals(s) {
   const due = s.orders.filter(o => o.eta <= s.day);
   for (const o of due) {
@@ -254,6 +254,18 @@ export const margin = (s, pid) => { const q = s.qty[pid], avg = q ? s.val[pid] /
 
 // ---------- warehouse ----------
 export const whRentPerM2 = (loc = "default") => c(D.WH.rentPerM2 * getLocation(loc).rent);
+// The shop's own rent term. Same terms and discounts as the warehouse. While a long term runs the size is fixed; games from before terms existed pay the daily rate.
+export const shopTermNow = s => { const t = whTerm(s.rentTerm && s.rentTerm.id); return t.days > 0 && s.day < (s.rentTerm.until || 0) ? t : D.WH.terms[0]; };
+export const shopTermLeft = s => (shopTermNow(s).days > 0 ? Math.max(0, s.rentTerm.until - s.day) : 0);
+export const shopRent = s => c(dailyRent(s.location, s.area) * shopTermNow(s).mult);
+export function setShopTerm(s, id) {
+  if (s.ended) return err("The game is over.");
+  const t = D.WH.terms.find(x => x.id === id); if (!t) return err("Choose a rent term.");
+  if (shopTermLeft(s) > 0) return err(`Your ${shopTermNow(s).name} term has ${shopTermLeft(s)} more days. You can pick a new one when it ends.`);
+  s.rentTerm = { id: t.id, until: t.days > 0 ? s.day + t.days : 0 };
+  log(s, `Shop rent term set to ${t.name}. Rent is $${shopRent(s).toFixed(2)} per day.`);
+  return ok({ rent: shopRent(s), term: t });
+}
 export const whTerm = id => D.WH.terms.find(x => x.id === id) || D.WH.terms[0];
 // The term in force: a term with days left, otherwise daily. Games saved before terms existed have none, so they pay the daily rate as before.
 export const whTermNow = s => { const w = s.wh, t = whTerm(w && w.term); return t.days > 0 && s.day < (w.until || 0) ? t : D.WH.terms[0]; };
@@ -340,7 +352,8 @@ export function spaceQuote(s, extra) {
   if (!Number.isFinite(extra) || extra < 1) return err("Choose how many m² to add.");
   const room = D.AREA.max - s.area;
   const q = { extra, newArea: s.area + extra, rate: rentPerM2(s.location), errors: [] };
-  q.extraRent = dailyRent(s.location, extra); q.newRent = dailyRent(s.location, q.newArea); q.newCapacity = capacityOf(q.newArea); q.addedCapacity = capacityOf(q.newArea) - capacityOf(s.area);
+  const mult = shopTermNow(s).mult; q.extraRent = c(dailyRent(s.location, extra) * mult); q.newRent = c(dailyRent(s.location, q.newArea) * mult);
+  if (shopTermLeft(s) > 0) q.errors.push(`Your ${shopTermNow(s).name} rent term has ${shopTermLeft(s)} more days, so the shop size is fixed until then.`); q.newCapacity = capacityOf(q.newArea); q.addedCapacity = capacityOf(q.newArea) - capacityOf(s.area);
   if (extra > room) q.errors.push(room > 0 ? `The most you can add is ${room} m² (shops are at most ${D.AREA.max} m²).` : `Your shop is already at the ${D.AREA.max} m² limit.`);
   q.ok = !q.errors.length; return q;
 }
@@ -351,7 +364,7 @@ export function rentMoreSpace(s, extra) {
   if (!q.ok) return err(q.errors[0]);
   s.area = q.newArea;
   for (const p of D.PRODUCTS) s.demand[p.id] = demandFor(s, p);
-  log(s, `Rented ${q.extra} m² more. The shop is now ${s.area} m². Rent is $${q.newRent.toFixed(2)} per day.`);
+  log(s, `Rented ${q.extra} m² more. The shop is now ${s.area} m². Rent is $${shopRent(s).toFixed(2)} per day.`);
   return ok({ area: s.area, rent: q.newRent });
 }
 
@@ -411,7 +424,7 @@ function overflowDay(s) {
 function closeDay(s) {
   flush(s); stockDay(s);
   const day = s.day, before = balance(s.ledger, "cash");
-  const rent = c(dailyRent(s.location, s.area) + whRent(s));
+  const rent = c(shopRent(s) + whRent(s));
   const pay = Math.max(0, Math.min(before, rent)), over = c(rent - pay);
   const lines = [{ acct: "rent", dr: rent }];
   if (pay > 0) lines.push({ acct: "cash", cr: pay }); if (over > 0) lines.push({ acct: "overdraft", cr: over });

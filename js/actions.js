@@ -77,6 +77,7 @@ export function act(s, f, name, a = {}) {
     // marketing
     case "mktStart": return r(K.startCampaign(s, { ...f.mkt }), "Campaign started.");
     case "mktStop": return r(K.stopCampaign(s, n), "Campaign stopped.");
+    case "shopTerm": { const x = E.setShopTerm(s, String(id)); return r(x, x.ok ? `Rent term set. Rent ${x.rent.toFixed(2)} dollars a day.` : ""); }
     case "qcInspect": return r(Qc.toggleInspect(s, String(id) === "1"), String(id) === "1" ? "Inspection on." : "Inspection off.");
     case "qcClaim": { const x = Qc.claim(s, id); return r(x, x.ok ? `Sent back. Credit ${x.back.toFixed(2)} dollars.` : ""); }
     case "qcWriteOff": return r(Qc.writeOff(s, id), "Written off.");

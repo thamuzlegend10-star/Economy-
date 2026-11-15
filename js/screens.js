@@ -300,6 +300,12 @@ export function competitors(s) {
     <small class="muted">Amber means a rival is cheaper than you by more than 5%. Shoppers compare your price with the rivals, so when they cut, your sales fall unless you follow.</small>${economyCard(s)}<div class="card"><b>Revenue per day</b>${chartRev}</div>`;
 }
 
+export function rentTermCard(s) {
+  const now = E.shopTermNow(s), left = E.shopTermLeft(s), base = E.dailyRent(s.location, s.area);
+  const opts = D.WH.terms.map(x => `<tr class="${x.id === now.id ? "" : ""}"><td class="l">${x.name}</td><td>${money(base * x.mult)} a day</td><td>${x.days ? Math.round((1 - x.mult) * 100) + "% off" : "no discount"}</td><td>${x.id === now.id ? `<span class="tag ok">${left ? left + " d left" : "now"}</span>` : btn("shopTerm", "Choose", { id: x.id, ghost: true, dis: left > 0 })}</td></tr>`).join("");
+  return `<div class="card scroll">${head("Rent term", left ? `${now.name}, ${left} days left` : "Daily")}<table class="tbl fixed"><thead><tr><th class="l">Term</th><th>Rent</th><th>Saving</th><th></th></tr></thead><tbody>${opts}</tbody></table>
+    <small class="muted">A longer term is cheaper per day, but the shop size is fixed until it ends, so you cannot add space. When it ends you pay the daily rate until you pick a term again. Picking a term cannot be undone.</small></div>`;
+}
 export function quality(s) {
   if (!s.qcOn) return `<div class="card">${head("Delivery quality", "Not in this game")}<small class="muted">This game was started before quality checks existed, so deliveries always arrive whole. Start a new game to use them.</small></div>`;
   const k = Qc.ensureQc(s), sm = Qc.summary(s), lots = Qc.openLots(s), rows = Qc.supplierRows(s);

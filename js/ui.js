@@ -157,7 +157,7 @@ export function dashboard(s) {
     ${stat("Inventory", num(d.inventoryUnits) + " units", money2(d.inventoryValue) + " at cost")}
     ${stat("Products sold", num(d.unitsSold), "units, all days")}
     ${stat("Pending deliveries", d.pending, num(d.pendingUnits) + " units on the way")}
-    ${stat("Rent per day", money2(E.dailyRent(s.location, s.area)), `${s.area} m² at ${money2(E.rentPerM2(s.location))}`)}
+    ${stat("Rent per day", money2(E.shopRent(s)), `${s.area} m² at ${money2(E.rentPerM2(s.location))}`)}
   </div>
   <div class="card"><b>Storage: ${pct(d.utilization)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, d.utilization * 100)}%"></i></div>
     <small>${num(d.used)} of ${num(d.capacity)} space used. ${num(d.incoming)} more is reserved for deliveries on the way. Free to order: ${num(Math.max(0, E.spaceFree(s)))}.</small>
@@ -192,7 +192,7 @@ export function spaceForm(s, extra, mode = "shop", ui_term = "day") {
   const steps = (wh ? D.WH.areaSteps : D.SPACE_STEPS).filter(n => n <= room);
   const opts = steps.map(n => `<option value="${n}" ${n === extra ? "selected" : ""}>${wh && !cur ? "" : "+"}${n} m²</option>`).join("");
   if (!opts) return `<div class="err">Your ${label} is already at the ${num(max)} m² limit.</div><div class="po-actions"><button class="ghost" id="spCancel" type="button">Close</button></div>`;
-  const now = wh ? E.whRent(s) : E.dailyRent(s.location, s.area), cap = wh ? D.WH.spacePerM2 : D.SPACE_PER_M2;
+  const now = wh ? E.whRent(s) : E.shopRent(s), cap = wh ? D.WH.spacePerM2 : D.SPACE_PER_M2;
   const termSel = wh ? `<label class="fld"><span>Rent term</span><select id="spTerm">${D.WH.terms.map(x => `<option value="${x.id}" ${x.id === ui_term ? "selected" : ""}>${x.name}${x.days ? ` · ${Math.round((1 - x.mult) * 100)}% off` : ""}</option>`).join("")}</select></label>` : "";
   return `<label class="fld"><span>${wh && !cur ? "Warehouse size" : "Add space"}</span><select id="spExtra">${opts}</select></label>${termSel}
     <div class="quote">
