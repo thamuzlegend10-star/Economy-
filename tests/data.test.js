@@ -78,7 +78,7 @@ test("the page carries Open Graph and Twitter tags, and the preview files exist"
   const fs = await import("node:fs"), html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   for (const k of ["og:title", "og:description", "og:image", "og:url", "og:type"]) assert.match(html, new RegExp(`property="${k}"`), k);
   for (const k of ["twitter:card", "twitter:image"]) assert.match(html, new RegExp(`name="${k}"`), k);
-  assert.match(html, /<meta name="description" content="[^"]{60,}"/); assert.match(html, /og:image" content="https:\/\/[^"]+\/og\.png"/);
+  assert.match(html, /<meta name="description" content="[^"]{60,}"/); assert.match(html, /og:image" content="https:\/\/[^"]+\/og\.png(\?v=\w+)?"/);
   for (const f of ["../og.png", "../favicon.svg"]) assert.ok(fs.statSync(new URL(f, import.meta.url)).size > 100, f);
   assert.equal(fs.readFileSync(new URL("../og.png", import.meta.url)).subarray(1, 4).toString(), "PNG");
 });
