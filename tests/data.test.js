@@ -33,7 +33,7 @@ test("ids are unique across retail products, juices and raw materials", () => {
 });
 
 test("machines match the spec: 1,000 and 3,000 a day", () => {
-  assert.deepEqual(D.MACHINES.map(m => m.perDay), [1000, 3000]);
+  assert.deepEqual(D.MACHINES.filter(m => m.line === "juice").map(m => m.perDay), [1000, 3000]);
   for (const m of D.MACHINES) assert.ok(m.price > 0 && m.life > 0 && m.wear > 0 && m.pmDays > 0);
   assert.equal(D.MAINT.breakdownBelow, 30); assert.equal(D.MAINT.emergencyMult, 3);
 });
@@ -45,7 +45,7 @@ test("raw vendors only sell raw materials that exist, and together cover all of 
 });
 
 test("B2B buyers want known products; rival aggression is below the ceiling", () => {
-  const prods = new Set([...D.PRODUCTS, ...D.JUICES].map(p => p.id));
+  const prods = new Set([...D.PRODUCTS, ...D.GOODS].map(p => p.id));
   for (const b of D.B2B.buyers) for (const w of b.want) assert.ok(prods.has(w), w);
   const w = D.B2B.weights; assert.ok(Math.abs(w.price + w.reputation + w.reliability - 1) < 1e-9);
   for (const r of D.B2B.rivals) assert.ok(r.aggression > 0 && r.aggression < 1.2);

@@ -170,7 +170,7 @@ $("view").addEventListener("change", e => {
   if (t.dataset.f) { setField(ui.f, t.dataset.f, t.value, !!t.dataset.num); renderAll(true); return; }
   if (t.dataset.mj) { const id = t.dataset.mj, juice = $("mj-" + id + "-juice").value, pc = Number($("mj-" + id + "-qty").value) || 0, m = s.fx.machines.find(x => x.id === Number(id));
     const pcx = t.id.endsWith("-juice") && m && !m.job ? 100 : pc, r = act(s, ui.f, "setjob", { id, juice, qty: juice && m ? Math.round(E.MACHINE_PER_DAY(m) * pcx / 100) : 0 }); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); return; }
-  if (t.dataset.hrf) { const r = act(s, ui.f, t.dataset.hrf, { value: t.value }); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); return; }
+  if (t.dataset.hrf) { const r = act(s, ui.f, t.dataset.hrf, { value: t.value, id: t.dataset.mid }); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); return; }
   if (t.dataset.ecf) { const r = act(s, ui.f, "ecomAds", { value: t.value }); if (!r.ok) toast(r.error, "err"); save(); renderAll(true); }
 });
 $("view").addEventListener("input", e => { const t = e.target; if (s && t && t.dataset && t.dataset.f && t.type === "number") setField(ui.f, t.dataset.f, t.value, true); });

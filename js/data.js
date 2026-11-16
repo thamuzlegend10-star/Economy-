@@ -79,6 +79,11 @@ export const RAW = [
   { id: "water",       name: "Treated water",      unit: "L",      cost: 0.002, space: 0.1,  color: "#7cc4ff" },
   { id: "bottles",     name: "Bottles (1 L)",      unit: "pcs",    cost: 0.12,  space: 0.15, color: "#b9c2d6" },
   { id: "caps",        name: "Caps and labels",    unit: "pcs",    cost: 0.05,  space: 0.02, color: "#e8e1c8" },
+  // Electronics line (smart earbuds and digital watches)
+  { id: "lithiumCell",  name: "Lithium cells",       unit: "pcs", cost: 1.80, space: 0.02, color: "#e0b341" },
+  { id: "audioChip",    name: "Audio chips",         unit: "pcs", cost: 2.40, space: 0.01, color: "#6fa8dc" },
+  { id: "siliconeStrap", name: "Silicone straps and tips", unit: "pcs", cost: 0.60, space: 0.02, color: "#b48ead" },
+  { id: "microDisplay", name: "Micro displays",      unit: "pcs", cost: 3.20, space: 0.02, color: "#7fd1b9" },
 ];
 
 // ---------- Manufactured finished goods (juices). Each unit is one 1 L bottle. ----------
@@ -92,14 +97,27 @@ export const JUICES = [
     bom: { melonSyrup: 0.15, water: 0.85, bottles: 1, caps: 1 } },
 ];
 
+// ---------- Consumer gadgets (the second manufacturing line). Same shape as JUICES; each unit is one finished device. ----------
+export const GADGETS = [
+  { id: "smartEarbuds", name: "Smart earbuds", cat: "gadgets", line: "gadget", ref: 16.5, base: 0, elast: 1.4, space: 0.05, step: 0.5, color: "#6fa8dc", note: "Steady B2B demand",
+    bom: { lithiumCell: 2, audioChip: 1, siliconeStrap: 2 } },
+  { id: "digitalWatch", name: "Digital watch", cat: "gadgets", line: "gadget", ref: 21.5, base: 0, elast: 1.3, space: 0.06, step: 0.5, color: "#7fd1b9", note: "Higher margin",
+    bom: { lithiumCell: 1, audioChip: 1, microDisplay: 1, siliconeStrap: 1 } },
+];
+// Every finished good the factory can make. Juices go to the shop and the web store; gadgets are sold to businesses.
+export const GOODS = [...JUICES.map(j => ({ line: "juice", ...j })), ...GADGETS];
+
 // ---------- Machines ----------
 // perDay: bottles a machine can make per day at 100% health. life: days to depreciate to zero (straight line).
 // wear: health points lost per day running. pmCost: preventive maintenance price. pmDays: downtime of a service (4 to 8 hours).
 // operators: staff needed to run it. breakdownBelow: health under which a breakdown can happen. Emergency repair costs 3x pmCost and stops the line 1 to 2 days.
 export const MACHINES = [
-  { id: "std",  name: "Standard machine",   perDay: 1000, price: 12000, setup: 800,  life: 300, wear: 1.2, pmCost: 450,  pmDays: 0.25, operators: 1, space: 40 },
-  { id: "fast", name: "High-speed machine", perDay: 3000, price: 32000, setup: 1800, life: 300, wear: 2.0, pmCost: 1100, pmDays: 0.33, operators: 2, space: 90 },
+  { id: "std",  name: "Standard machine",   perDay: 1000, price: 12000, setup: 800,  life: 300, wear: 1.2, pmCost: 450,  pmDays: 0.25, operators: 1, space: 40, line: "juice" },
+  { id: "fast", name: "High-speed machine", perDay: 3000, price: 32000, setup: 1800, life: 300, wear: 2.0, pmCost: 1100, pmDays: 0.33, operators: 2, space: 90, line: "juice" },
+  { id: "elecStandard",  name: "Electronics assembly line", perDay: 600,  price: 18000, setup: 1200, life: 300, wear: 1.4, pmCost: 650,  pmDays: 0.25, operators: 1, space: 40, line: "gadget" },
+  { id: "elecPrecision", name: "Precision assembly cell",   perDay: 1800, price: 45000, setup: 2600, life: 300, wear: 2.2, pmCost: 1500, pmDays: 0.33, operators: 2, space: 90, line: "gadget" },
 ];
+export const AUTO_PM = [50, 60, 70, 80];   // health percent at which a machine services itself; null = off
 export const MAINT = { breakdownBelow: 30, breakdownChance: 0.25, emergencyMult: 3, downMin: 1, downMax: 2, restoreTo: 100, startHealth: 100 };
 
 // ---------- Procurement: payment terms, requisitions ----------
@@ -118,8 +136,10 @@ export const RAW_VENDORS = [
     hubs: [{ n: "Jakarta", lat: -6.2, lon: 106.8 }, { n: "Singapore", lat: 1.35, lon: 103.8 }] },
   { id: "packco", name: "PackCo Packaging",   desc: "Bottles and caps, low minimums.",   price: 1.00, reliability: 0.97, fee: 30,  rate: 0.00002, speed: 600, prep: 0.3, sells: ["bottles", "caps"],
     hubs: [{ local: true, n: "Your district" }] },
-  { id: "globalr", name: "Global Raw Supply", desc: "Everything, cheapest, often late.", price: 0.90, reliability: 0.85, fee: 220, rate: 0.000018, speed: 900, prep: 1.2, sells: ["appleConc", "orangePulp", "melonSyrup", "water", "bottles", "caps"],
+  { id: "globalr", name: "Global Raw Supply", desc: "Everything, cheapest, often late.", price: 0.90, reliability: 0.85, fee: 220, rate: 0.000018, speed: 900, prep: 1.2, sells: ["appleConc", "orangePulp", "melonSyrup", "water", "bottles", "caps", "lithiumCell", "audioChip", "siliconeStrap", "microDisplay"],
     hubs: [{ n: "Tokyo", lat: 35.7, lon: 139.8 }, { n: "New York", lat: 40.7, lon: -74 }] },
+  { id: "voltix", name: "Voltix Components", desc: "Cells, chips, straps and displays.", price: 1.00, reliability: 0.93, fee: 90, rate: 0.00002, speed: 800, prep: 0.8, sells: ["lithiumCell", "audioChip", "siliconeStrap", "microDisplay"],
+    hubs: [{ n: "Shenzhen", lat: 22.5, lon: 114.1 }, { n: "Singapore", lat: 1.35, lon: 103.8 }] },
 ];
 
 // ---------- Warehouse overflow and internal logistics ----------
@@ -140,9 +160,9 @@ export const B2B = {
   tier1Value: 60000,   // a tender worth at least this much needs a BBB credit rating or better
   buyers: [
     { id: "hotel",  name: "Grand Harbour Hotels", want: ["apple", "orange", "milk"],      qty: [4000, 20000],  ceiling: 1.05, penalty: 0.12, dueDays: [4, 8], terms: 7, risk: 0.01, km: 8 },
-    { id: "uni",    name: "City University",       want: ["noodles", "milk", "earbuds"],  qty: [3000, 25000],  ceiling: 0.98, penalty: 0.10, dueDays: [5, 10], terms: 14, risk: 0, km: 12 },
+    { id: "uni",    name: "City University",       want: ["noodles", "milk", "earbuds", "smartEarbuds"],  qty: [3000, 25000],  ceiling: 0.98, penalty: 0.10, dueDays: [5, 10], terms: 14, risk: 0, km: 12 },
     { id: "airline", name: "SkyLine Catering",     want: ["orange", "melon", "apple"],    qty: [6000, 30000],  ceiling: 1.10, penalty: 0.15, dueDays: [3, 7], terms: 5, risk: 0.02, km: 25 },
-    { id: "chain",  name: "QuickMart Chain",       want: ["noodles", "apple", "earbuds"], qty: [10000, 50000], ceiling: 0.92, penalty: 0.08, dueDays: [6, 12], terms: 21, risk: 0.03, km: 18 },
+    { id: "chain",  name: "QuickMart Chain",       want: ["noodles", "apple", "earbuds", "smartEarbuds", "digitalWatch"], qty: [10000, 50000], ceiling: 0.92, penalty: 0.08, dueDays: [6, 12], terms: 21, risk: 0.03, km: 18 },
   ],
   freightRate: 0.004,                       // when you deliver to the buyer: cost per unit = reference price x this x the buyer's distance in km
   tendersPerDay: [0, 2],                    // new tenders opened each day, inclusive
@@ -261,7 +281,7 @@ export const HR_EFFECTS = { moraleOutput: 0.15, retailBoost: 0.10, transferCut: 
 export const WARN = { cashLow: 3000, csiLow: 60, moraleLow: 40, healthLow: 40, storageHigh: 0.9, stockDays: 1.5 };
 
 // Factory building: rented floor area. Machines need floor space. Rent and utilities are paid every day and become part of the cost of the goods made that day.
-export const FACTORY = { minArea: 100, maxArea: 5000, areaSteps: [100, 250, 500, 1000, 2500], rentPerM2: 1.1, utilitiesPerM2: 0.12, sites: [{ id: "main", name: "Main plant", rentMult: 1, haul: 0 }, { id: "annex", name: "Annex (industrial estate)", rentMult: 0.8, haul: 40, maxArea: 2500 }] };
+export const FACTORY = { landPerM2: 260, taxRate: 0.04, minArea: 100, maxArea: 5000, areaSteps: [100, 250, 500, 1000, 2500], rentPerM2: 1.1, utilitiesPerM2: 0.12, sites: [{ id: "main", name: "Main plant", rentMult: 1, haul: 0 }, { id: "annex", name: "Annex (industrial estate)", rentMult: 0.8, haul: 40, maxArea: 2500 }] };
 
 // Forecasting: z is the service level multiplier for safety stock (1.65 is about 95%). window is how many days of history are used.
 export const FORECAST = { window: 14, minPoints: 3, z: 1.65, minSafetyDays: 1, reviewDays: 7, errorWindow: 10, lateDayRisk: 1 };

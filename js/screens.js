@@ -56,15 +56,17 @@ export function factoryMachines(s, f = { farea: 250, q: { juice: "apple", qty: 1
     return `<div class="card"><div class="shophead"><b>${esc(m.name)}</b>${chip(st, st === "running" ? "ok" : st === "broken" ? "bad" : "")}</div>
       <small>Health ${dec(m.health, 0)}% · efficiency ${pct(F.machineEfficiency(m))}${m.downDays ? ` · down ${m.downDays} more day${m.downDays > 1 ? "s" : ""}` : ""}</small>${meter(m.health, m.health < 30 ? "full" : m.health < 60 ? "warn" : "")}
       ${(()=>{ const _d=F.factoryDiag(s,m); return _d ? `<div class="diag-badge diag-${_d.kind}">${esc(_d.label)}</div>` : ""; })()}
-      <div class="two"><label class="fld"><span>Makes</span><select id="mj-${m.id}-juice" data-mj="${m.id}"><option value="">Nothing</option>${D.JUICES.map(x => opt(x.id, x.name, j)).join("")}</select></label>
+      <div class="two"><label class="fld"><span>Makes</span><select id="mj-${m.id}-juice" data-mj="${m.id}"><option value="">Nothing</option>${D.GOODS.filter(x => x.line === (t.line || "juice")).map(x => opt(x.id, x.name, j)).join("")}</select></label>
         <label class="fld"><span>Share of capacity</span><select id="mj-${m.id}-qty" data-mj="${m.id}">${jq.map(x => opt(x, x + "%", pc)).join("")}</select></label></div>
+      <label class="fld"><span>Auto service when health is at or under</span><select data-hrf="autoPm" data-mid="${m.id}">${F.AUTO_PM.map(x => opt(x === null ? "" : x, x === null ? "Off" : x + "%", m.autoPm == null ? "" : m.autoPm)).join("")}</select></label>
       <div class="row">${btn("pm", `Service · ${money(t.pmCost)}`, { id: m.id, ghost: true, dis: m.downDays > 0 })}<small class="muted">Stops about ${Math.round(t.pmDays * 24)} h, restores health</small></div>
       ${queueHtml(s, m, f)}</div>`; }).join("");
-  const fg = D.JUICES.map(j => `<tr><td class="l"><span class="dot" style="background:${j.color}"></span> ${esc(j.name.replace(" (1 L)", ""))}</td><td>${num((fx.today && fx.today.made[j.id]) || 0)}</td><td>${num(fx.fg.qty[j.id])}</td><td>${fx.fg.qty[j.id] ? money2(fx.fg.val[j.id] / fx.fg.qty[j.id]) : "-"}</td></tr>`).join("");
+  const fg = D.GOODS.map(j => `<tr><td class="l"><span class="dot" style="background:${j.color}"></span> ${esc(j.name.replace(" (1 L)", ""))}</td><td>${num((fx.today && fx.today.made[j.id]) || 0)}</td><td>${num(fx.fg.qty[j.id])}</td><td>${fx.fg.qty[j.id] ? money2(fx.fg.val[j.id] / fx.fg.qty[j.id]) : "-"}</td></tr>`).join("");
   const cw = H.crew(s);
   const site = f.fsite === "annex" ? "annex" : "main", fa = F.siteArea(s, site), room = (site === "annex" ? D.FACTORY.sites[1].maxArea : D.FACTORY.maxArea) - fa, sn = D.FACTORY.sites.find(x => x.id === site).name;
   const building = `<div class="card">${head("Factory building", fa ? num(fa) + " m²" : "not rented")}<label class="fld"><span>Site</span>${sel("fsite", D.FACTORY.sites.map(x => [x.id, x.name + (F.siteArea(s, x.id) ? " · " + F.siteArea(s, x.id) + " m²" : "")]), site, false)}</label>${kv([["Rent", `${money2(F.factoryRentPerM2(s) * D.FACTORY.sites.find(x => x.id === site).rentMult)} / m² / day`], ["Utilities", `${money2(D.FACTORY.utilitiesPerM2)} / m² / day`], ["Floor space used", `${num(F.machineSpaceAt(s, site))} of ${num(fa)} m²`], ...(F.annexHaul(s) ? [["Annex haulage", money2(F.annexHaul(s)) + " / day"]] : []), ["Running cost, all sites", money2(F.factoryRent(s) + F.factoryUtilities(s)) + " / day"]])}
-      <div class="row">${sel("farea", D.FACTORY.areaSteps.filter(x => x <= room || !room).map(x => [x, x + " m²"]), f.farea)}${btn("rentFactory", fa ? "Rent more" : "Rent factory", { dis: room <= 0, mini: false })}</div>
+      <div class="row">${sel("farea", D.FACTORY.areaSteps.filter(x => x <= room || !room).map(x => [x, x + " m²"]), f.farea)}${btn("rentFactory", fa ? "Rent more" : "Rent factory", { dis: room <= 0, mini: false })}${site === "main" ? btn("buyLand", `Buy instead · ${money(F.landCost(s, Math.max(f.farea, fa ? 1 : D.FACTORY.minArea)))}`, { dis: room <= 0, ghost: true }) : ""}</div>
+      ${F.ownedArea(s) ? `<small class="muted">You own ${num(F.ownedArea(s))} m² (no rent, property tax ${money2(F.propertyTaxPerDay(s))} a day).</small>` : ""}
       <small class="muted">Machines need floor space. Wages, rent and utilities of a day that made goods are added to the cost of those goods. On an idle day they are an expense.</small></div>`;
   return `${building}<div class="card">${head("Factory", "Bottles juice from raw materials")}<small class="muted">Each bottle needs the recipe's raw materials. Machines lose health as they run. Below ${D.MAINT.breakdownBelow}% they can break down: emergency repair costs ${D.MAINT.emergencyMult}× and the line stops 1 to 2 days. Operators come with the machine; with too few, output drops.</small>
       ${kv([["Operators", `${num(s.hr.staff.factory.n)} of ${num(H.operatorsNeeded(s))}`], ["Crew output", pct(cw.out)], ["Goods in storage", num(F.fgSpace(s)) + " space"]])}</div>
@@ -73,10 +75,11 @@ export function factoryMachines(s, f = { farea: 250, q: { juice: "apple", qty: 1
     <div class="tcos">${types}</div>`;
 }
 
+const MACHINE_LINE = m => (F.MACHINE[m.type].line || "juice");
 function queueHtml(s, m, f) {
   const q = m.queue || [], rows = q.map((b, i) => `<div class="qrow"><div class="row"><b>${i === 0 ? "Now" : "#" + (i + 1)}: ${num(b.qty)} ${esc(F.JUICE[b.juice].name.replace(" (1 L)", ""))}</b>${btn("qdrop", "Remove", { id: m.id, ghost: true, arg: `data-batch="${b.id}"` })}</div>${meter(b.done / b.qty * 100)}<small class="muted">${num(b.done)} of ${num(b.qty)} made</small></div>`).join("");
   return `<div class="qbox"><small class="muted">Production queue${q.length ? ` · about ${F.batchDaysLeft(s, m)} day(s) of work` : " · empty, the standing run above is used"}</small>${rows}
-    <div class="row">${sel("q.juice", D.JUICES.map(j => [j.id, j.name.replace(" (1 L)", "")]), f.q.juice, false)}${sel("q.qty", [500, 1000, 3000, 5000, 10000].map(x => [x, num(x)]), f.q.qty)}${btn("qadd", "Queue batch", { id: m.id, dis: q.length >= F.QUEUE_MAX })}</div></div>`;
+    <div class="row">${sel("q.juice", D.GOODS.filter(j => j.line === (MACHINE_LINE(m))).map(j => [j.id, j.name.replace(" (1 L)", "")]), (D.GOODS.find(j => j.id === f.q.juice && j.line === MACHINE_LINE(m)) || D.GOODS.find(j => j.line === MACHINE_LINE(m))).id, false)}${sel("q.qty", [500, 1000, 3000, 5000, 10000].map(x => [x, num(x)]), f.q.qty)}${btn("qadd", "Queue batch", { id: m.id, dis: q.length >= F.QUEUE_MAX })}</div></div>`;
 }
 export function factoryRaw(s, f) {
   const fx = F.ensureFactory(s), v = F.VENDOR[f.vendor], inc = F.rawIncoming(s), per = M.demandPerDay(s);

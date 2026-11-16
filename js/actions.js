@@ -40,11 +40,13 @@ export function act(s, f, name, a = {}) {
     // factory
     case "buyMachine": return r(F.buyMachine(s, { type: id, site: f.fsite }), "Machine bought and its operators hired.");
     case "rentFactory": return r(F.rentFactory(s, f.farea, f.fsite), "Factory space rented.");
-    case "qadd": return r(F.queueBatch(s, { machine: n, juice: f.q.juice, qty: f.q.qty }), "Batch queued.");
+    case "qadd": { const m = s.fx.machines.find(x => x.id === n), g = m && (F.canMake(m, f.q.juice) ? f.q.juice : D.GOODS.find(x => F.canMake(m, x.id)).id); return r(F.queueBatch(s, { machine: n, juice: g, qty: f.q.qty }), "Batch queued."); }
     case "qdrop": return r(F.dropBatch(s, { machine: n, id: a.batch }), "Batch removed.");
     case "advBuy": { const x = Fc.retailAdvice(s, id); if (!x.qty) return { ok: false, error: "No purchase is advised for this product right now." }; const o = E.placeOrders(s, { supplier: x.supplier, lines: [{ pid: id, qty: x.qty }] }); return r(o, `Ordered ${x.qty.toLocaleString("en-US")}. Arrives day ${o.eta}.`); }
     case "advMake": { const x = Fc.juiceAdvice(s, id); if (!x.qty) return { ok: false, error: "No production is advised for this juice right now." }; const ms = s.fx.machines.slice().sort((p, q) => F.batchDaysLeft(s, p) - F.batchDaysLeft(s, q)); if (!ms.length) return { ok: false, error: "Buy a machine first." }; return r(F.queueBatch(s, { machine: ms[0].id, juice: id, qty: x.qty }), `Queued ${x.qty.toLocaleString("en-US")} on ${ms[0].name}.`); }
     case "setjob": return r(F.setRun(s, { machine: n, juice: a.juice, qty: num(a.qty) }), a.qty > 0 ? "Production run set." : "Production stopped.");
+    case "buyLand": return r(F.buyFactoryLand(s, f.farea), "Factory floor bought.");
+    case "autoPm": return r(F.setAutoPm(s, n, a.value), "Auto service saved.");
     case "pm": return r(F.preventiveMaintenance(s, n), "Machine serviced.");
     case "prCreate": { const x = F.createPR(s, { vendor: f.vendor, terms: f.terms, carrier: f.carrier, lines: rawLines(f) }); return r(x, "Requisition created. Approve it to place the order."); }
     case "poNow": { const x = F.placeRawOrder(s, { vendor: f.vendor, terms: f.terms, carrier: f.carrier, lines: rawLines(f) }); if (x.ok) f.rq = {}; return r(x, `Ordered. Arrives day ${x.eta}.`); }

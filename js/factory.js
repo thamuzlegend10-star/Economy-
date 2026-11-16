@@ -16,7 +16,7 @@ import { hire, crew, factoryPayroll, recruitFee } from "./hr.js";
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
 export const RAWM = Object.fromEntries(D.RAW.map(r => [r.id, r]));
-export const JUICE = Object.fromEntries(D.JUICES.map(j => [j.id, j]));
+export const JUICE = Object.fromEntries(D.GOODS.map(j => [j.id, j]));   // every finished good, juices and gadgets
 export const MACHINE = Object.fromEntries(D.MACHINES.map(m => [m.id, m]));
 export const VENDOR = Object.fromEntries(D.RAW_VENDORS.map(v => [v.id, v]));
 export const TERM = Object.fromEntries(D.TERMS.map(t => [t.id, t]));
@@ -24,14 +24,14 @@ export const TERM = Object.fromEntries(D.TERMS.map(t => [t.id, t]));
 export function newFactory() {
   const fx = { raw: { qty: {}, val: {} }, fg: { qty: {}, val: {} }, machines: [], mseq: 0, area: 0, annexArea: 0, prs: [], prSeq: 0, pos: [], poSeq: 0, payables: [], paySeq: 0, today: null };
   for (const r of D.RAW) { fx.raw.qty[r.id] = 0; fx.raw.val[r.id] = 0; }
-  for (const j of D.JUICES) { fx.fg.qty[j.id] = 0; fx.fg.val[j.id] = 0; }
+  for (const j of D.GOODS) { fx.fg.qty[j.id] = 0; fx.fg.val[j.id] = 0; }
   return fx;
 }
 export const ensureFactory = s => (s.fx = s.fx || newFactory());
 
 // ---------- derived numbers ----------
 export const rawUnitsUsedSpace = s => D.RAW.reduce((a, r) => a + s.fx.raw.qty[r.id] * r.space, 0);
-export const fgSpace = s => D.JUICES.reduce((a, j) => a + s.fx.fg.qty[j.id] * j.space, 0);
+export const fgSpace = s => D.GOODS.reduce((a, j) => a + s.fx.fg.qty[j.id] * j.space, 0);
 export const machineEfficiency = m => clamp(0.4 + 0.6 * (m.health / 100), 0.4, 1);
 export const bomCost = (id, s) => {
   const j = JUICE[id]; let cost = 0;
@@ -49,7 +49,11 @@ export const factoryRentPerM2 = s => c(D.FACTORY.rentPerM2 * getLocation(s.locat
 export const SITE = Object.fromEntries(D.FACTORY.sites.map(x => [x.id, x]));
 export const siteOf = m => (m && m.site === "annex" ? "annex" : "main");
 export const siteArea = (s, site) => site === "annex" ? ensureFactory(s).annexArea || 0 : ensureFactory(s).area;
-export const factoryRent = s => c(factoryRentPerM2(s) * (ensureFactory(s).area + (ensureFactory(s).annexArea || 0) * SITE.annex.rentMult));
+export const ownedArea = s => Math.min(ensureFactory(s).owned || 0, ensureFactory(s).area);
+export const factoryRent = s => c(factoryRentPerM2(s) * (ensureFactory(s).area - ownedArea(s) + (ensureFactory(s).annexArea || 0) * SITE.annex.rentMult));
+// Owned floor space: bought outright (capital asset, no rent) and charged a daily property tax and upkeep instead.
+export const landCost = (s, m2) => c(m2 * D.FACTORY.landPerM2 * getLocation(s.location).rent);
+export const propertyTaxPerDay = s => c(ownedArea(s) * D.FACTORY.landPerM2 * getLocation(s.location).rent * D.FACTORY.taxRate / 365);
 export const factoryUtilities = s => c(D.FACTORY.utilitiesPerM2 * (ensureFactory(s).area + (ensureFactory(s).annexArea || 0)));
 export const machineSpace = s => ensureFactory(s).machines.reduce((a, m) => a + MACHINE[m.type].space, 0);
 export const machineSpaceAt = (s, site) => ensureFactory(s).machines.filter(m => siteOf(m) === site).reduce((a, m) => a + MACHINE[m.type].space, 0);
@@ -95,18 +99,21 @@ export function buyMachine(s, { type, site = "main" } = {}) {
   const t = MACHINE[type], fx = ensureFactory(s);
   const m = { id: ++fx.mseq, type, site: site === "annex" ? "annex" : "main", name: `${t.name} ${fx.mseq}${site === "annex" ? " (annex)" : ""}`, health: D.MAINT.startHealth, status: "idle", ageDays: 0, cost: q.total, deprec: 0, job: null, downDays: 0, pmToday: false, emergency: 0 };
   fx.machines.push(m); hire(s, "factory", t.operators);
-  // Assign a default standing run (apple juice at full capacity) so the machine starts producing immediately.
-  const _dj = D.JUICES[0]; if (_dj) m.job = { juice: _dj.id, qty: t.perDay };
+  // Assign a default standing run (first good of its line at full capacity) so the machine starts producing immediately.
+  const _dj = D.GOODS.find(g => g.line === (t.line || "juice")); if (_dj) m.job = { juice: _dj.id, qty: t.perDay };
   post(s.ledger, s.day, `Bought ${m.name} (price and setup capitalised)`, [{ acct: "machinery", dr: q.total }, { acct: "cash", cr: q.total }], "machine:" + m.id);
   log(s, `Bought ${m.name} for $${q.total.toFixed(2)}. Default: ${_dj ? _dj.name : ''} at full capacity.`);
   return ok({ machine: m });
 }
 const findMachine = (s, id) => ensureFactory(s).machines.find(m => m.id === id);
 // Production run: every day this machine makes up to qty bottles of the juice, as long as raw materials and health allow.
+// A machine belongs to one product line: juice machines bottle juice, electronics machines assemble gadgets.
+export const canMake = (m, goodId) => !!JUICE[goodId] && (JUICE[goodId].line || "juice") === (MACHINE[m.type].line || "juice");
 export function setRun(s, { machine, juice, qty } = {}) {
   const m = findMachine(s, machine); if (!m) return err("Unknown machine.");
   if (!qty || qty <= 0) { m.job = null; return ok({ machine: m }); }
   if (!JUICE[juice]) return err("Unknown juice.");
+  if (!canMake(m, juice)) return err(`${MACHINE[m.type].name} cannot make ${JUICE[juice].name}.`);
   const t = MACHINE[m.type]; qty = clamp(Math.round(Number(qty)) || 0, 0, t.perDay);
   m.job = qty ? { juice, qty } : null; return ok({ machine: m });
 }
@@ -120,7 +127,8 @@ export function workOf(m) {
 }
 export function queueBatch(s, { machine, juice, qty } = {}) {
   if (s.ended) return err("The game is over."); const m = findMachine(s, machine); if (!m) return err("Unknown machine."); if (!JUICE[juice]) return err("Unknown juice.");
-  qty = Math.round(Number(qty)); if (!Number.isFinite(qty) || qty < 100) return err("A batch is at least 100 bottles.");
+  if (!canMake(m, juice)) return err(`${MACHINE[m.type].name} cannot make ${JUICE[juice].name}.`);
+  qty = Math.round(Number(qty)); if (!Number.isFinite(qty) || qty < 100) return err("A batch is at least 100 units.");
   m.queue = m.queue || []; if (m.queue.length >= QUEUE_MAX) return err(`The queue holds ${QUEUE_MAX} batches.`);
   const id = (fx => (fx.bseq = (fx.bseq || 0) + 1))(ensureFactory(s)); m.queue.push({ id, juice, qty, done: 0, added: s.day, started: null }); return ok({ batch: m.queue[m.queue.length - 1] });
 }
@@ -132,6 +140,26 @@ export const queuedBottles = (s, juice) => ensureFactory(s).machines.reduce((a, 
 export const batchDaysLeft = (s, m) => { const per = MACHINE[m.type].perDay * machineEfficiency(m); return Math.ceil((m.queue || []).reduce((a, b) => a + (b.qty - b.done), 0) / Math.max(1, per)); };
 
 // ---------- maintenance ----------
+export function buyFactoryLand(s, m2) {
+  if (!modOn(s, "factory")) return err(offMsg("factory"));
+  if (s.ended) return err("The game is over."); const fx = ensureFactory(s); m2 = Math.round(Number(m2));
+  if (!Number.isFinite(m2) || m2 < 1) return err("Choose how many m² to buy.");
+  const add = fx.area ? m2 : Math.max(m2, D.FACTORY.minArea), room = D.FACTORY.maxArea - fx.area;
+  if (add > room) return err(room > 0 ? `You can add at most ${room} m² (factories are at most ${D.FACTORY.maxArea} m²).` : "The factory is at its size limit.");
+  const cost = landCost(s, add), cash = balance(s.ledger, "cash");
+  if (cost > cash + 0.004) return err(`Not enough cash: land and building cost $${cost.toFixed(2)}.`);
+  post(s.ledger, s.day, `Bought ${add} m² of factory land and building`, [{ acct: "land_building", dr: cost }, { acct: "cash", cr: cost }], "land:" + s.day + ":" + (fx.owned || 0));
+  fx.area += add; fx.owned = (fx.owned || 0) + add;
+  log(s, `Bought ${add} m² of factory floor for $${cost.toFixed(2)}. No rent on it; property tax is $${propertyTaxPerDay(s).toFixed(2)} a day.`);
+  return ok({ area: fx.area, owned: fx.owned, cost });
+}
+export const AUTO_PM = [null, 50, 60, 70, 80];
+export function setAutoPm(s, machineId, value) {
+  const m = findMachine(s, machineId); if (!m) return err("Unknown machine.");
+  const v = value === "" || value == null || value === "off" ? null : Number(value);
+  if (v !== null && !AUTO_PM.includes(v)) return err("Choose Off, 50, 60, 70 or 80 percent.");
+  m.autoPm = v; return ok({ autoPm: v });
+}
 export function preventiveMaintenance(s, machineId) {
   if (s.ended) return err("The game is over.");
   const m = findMachine(s, machineId); if (!m) return err("Unknown machine.");
@@ -250,7 +278,8 @@ export function factoryDay(s) {
     if (dep > 0) { post(s.ledger, s.day, `Depreciation ${m.name}`, [{ acct: "depreciation", dr: dep }, { acct: "acc_deprec", cr: dep }], "dep:" + m.id + ":" + s.day); m.deprec = c(m.deprec + dep); }
     // downtime from an earlier breakdown
     if (m.downDays > 0) { m.downDays--; m.status = m.downDays > 0 ? "broken" : "idle"; if (m.downDays === 0) m.health = 80; continue; }
-    const w = workOf(m); if (!w) { m.status = "idle"; continue; }
+    if (m.autoPm != null && !m.pmToday && m.health <= m.autoPm) { const q = preventiveMaintenance(s, m.id); if (q.ok) fx.today.auto = (fx.today.auto || 0) + 1; }
+    const w = workOf(m); if (!w) { m.status = "idle"; if (m.pmToday) m.health = D.MAINT.restoreTo; continue; }
     const j = JUICE[w.juice], serviceLoss = m.pmToday ? t.pmDays : 0;
     const base = w.batch ? t.perDay : Math.min(w.qty, t.perDay), cap = Math.floor(base * machineEfficiency(m) * cw.out * (1 - serviceLoss)), n = Math.min(cap, w.batch ? w.batch.qty - w.batch.done : Infinity, bottlesPossible(s, j.id));   // a batch uses full machine capacity, so its last bottles do not trail off
     if (n <= 0) { m.status = "idle"; fx.today.idle++; if (m.pmToday) m.health = D.MAINT.restoreTo; continue; }
@@ -276,6 +305,7 @@ export function factoryDay(s) {
   // conversion costs: operator wages, factory rent and utilities. On a day that made goods they are added to the cost of those goods; otherwise they are expenses.
   const labour = factoryPayroll(s), rent = factoryRent(s), util = factoryUtilities(s), haul = annexHaul(s), madeUnits = Object.values(fx.today.made).reduce((a, b) => a + b, 0);
   const rec = (acct, amt, what) => { if (amt > 0) pay(s, madeUnits > 0 ? "inv_fg" : acct, amt, madeUnits > 0 ? `${what} added to goods made (day ${s.day})` : `${what} (idle factory, day ${s.day})`, "conv:" + acct + ":" + s.day); };
+  const ptax = propertyTaxPerDay(s); if (ptax > 0) pay(s, "property_tax", ptax, `Property tax on owned factory (day ${s.day})`, "ptax:" + s.day);
   rec("cogs_labor", labour, "Factory wages"); rec("rent", rent, "Factory rent"); rec("utilities", util, "Factory utilities"); rec("delivery", haul, "Annex haulage");
   if (labour > 0) ensureFactoryHr(s, labour);
   if (madeUnits > 0) {
