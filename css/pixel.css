@@ -694,3 +694,18 @@ dialog.menu:has(#menuSetup:not([hidden])) { width:min(960px,96vw); }
 @media (max-width:700px) { .cfg-body { grid-template-columns:minmax(0,1fr); } .cfg-sum { position:static; } .cfg-nav { grid-template-columns:repeat(5,44px); justify-content:space-between; } .cfg-tab span { display:none; } .cfg-tab { justify-content:center; padding:6px; } }
 @media (prefers-reduced-motion:reduce) { .cfg-step { animation:none; } }
 .tbl tr.warnr td { color:var(--brass); }
+
+/* Delivery route map and warehouse yard */
+.rm { width:100%; height:auto; display:block; background:var(--surface-2); border-radius:var(--radius); }
+.rm-road { stroke:var(--line); stroke-width:1.5; stroke-dasharray:4 5; }
+.rm-node { fill:var(--surface); stroke:var(--muted); stroke-width:2; }
+.rm-node.home { fill:var(--brass); stroke:var(--brass-ink); }
+.rm-label { fill:var(--muted); font-size:11px; font-family:var(--font); }
+.rm-truck rect { fill:var(--blue); } .rm-truck circle { fill:var(--fg); }
+.rm-truck { transition:transform .6s linear; }
+.yardbox { margin:10px 0; } .yard { width:100%; max-width:420px; height:auto; display:block; }
+.yard-ground { stroke:var(--line); stroke-width:2; }
+.crate { fill:#c9a15a; stroke:#7a5b22; stroke-width:1.5; } .crate.old { fill:#8d7352; stroke:#4d3b22; opacity:.85; }
+.crate-x { stroke:#7a5b22; stroke-width:1; fill:none; opacity:.6; }
+@media (prefers-reduced-motion: reduce) { .rm-truck { transition:none; } }
+.rm-label.home { fill:var(--fg); font-weight:700; }

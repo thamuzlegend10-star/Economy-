@@ -4,6 +4,7 @@ import * as E from "./engine.js";
 import * as D from "./data.js";
 import { getLocation } from "./locations.js";
 import * as Fl from "./fleet.js";
+import { routeMapSvg, yardSvg, activeTrips } from "./routemap.js";
 import { balance } from "./ledger.js";
 
 export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -116,7 +117,7 @@ export function warehouse(s, sub = "stock") {
     + D.JUICES.filter(j => s.fx.fg.qty[j.id] > 0).map(j => `<tr><td><span class="dot" style="background:${j.color}"></span> ${esc(j.name)}</td><td>${num(s.fx.fg.qty[j.id])}</td><td>${money(s.fx.fg.val[j.id])}</td><td>${num(s.fx.fg.qty[j.id] * j.space)}</td></tr>`).join("");
   const over = w.overflow > 0 ? `<div class="err">Over capacity by ${num(w.overflow)} space. Overflow costs ${money2(w.overflow * D.OVERFLOW.perSpacePerDay)} per day. Rent more space or move goods out.</div>` : "";
   return `<div class="card"><b>Warehouse storage: ${pct(w.capacity ? w.used / w.capacity : 0)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, w.capacity ? w.used / w.capacity * 100 : 0)}%"></i></div>
-    <small>${num(w.used)} of ${num(w.capacity)} space used in ${num(w.area)} m². ${num(w.incoming)} more is reserved for deliveries on the way. Rent ${money2(E.whRent(s))} per day, ${E.whTermNow(s).days ? `${E.whTermNow(s).name} term, ${E.whTermLeft(s)} days left` : "daily term"}.</small><div class="row"><button class="ghost" id="whRentOpen">Rent more or change term</button><button class="ghost" id="whRelease">Give up warehouse</button></div><small class="muted">A longer term is cheaper per day. Giving up the warehouse early costs the rent still owed on the term. It must be empty first.</small></div>
+    ${yardSvg(s, w.overflow) ? `<div class="yardbox">${yardSvg(s, w.overflow)}<small class="muted">${(s.whOverDays || 0) > 3 ? "Goods left outside for " + s.whOverDays + " days are spoiling." : "Goods that do not fit wait in the yard."}</small></div>` : ""}<small>${num(w.used)} of ${num(w.capacity)} space used in ${num(w.area)} m². ${num(w.incoming)} more is reserved for deliveries on the way. Rent ${money2(E.whRent(s))} per day, ${E.whTermNow(s).days ? `${E.whTermNow(s).name} term, ${E.whTermLeft(s)} days left` : "daily term"}.</small><div class="row"><button class="ghost" id="whRentOpen">Rent more or change term</button><button class="ghost" id="whRelease">Give up warehouse</button></div><small class="muted">A longer term is cheaper per day. Giving up the warehouse early costs the rent still owed on the term. It must be empty first.</small></div>
     <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In warehouse</th><th>Value</th><th>Space used</th></tr></thead><tbody>${rows}${fxRows}</tbody></table></div>${over}`;
 }
 
@@ -313,9 +314,10 @@ export function fleetScreen(s) {
   const trips = f.trips.slice(-6).reverse().map(x => `<div class="kv1"><div><span>Day ${x.day} · ${esc(x.kind)} · ${num(x.km)} km · ${x.trucks.length} truck${x.trucks.length > 1 ? "s" : ""}</span><b>fuel ${money2(x.fuel)} · loaded ${Math.round((x.load || D.TRANSPORT.loadDays) * 24)} h${x.wait ? `, queued ${Math.round(x.wait * 24)} h` : ""} · arrives day ${x.eta}${x.delay ? " (broke down)" : ""}</b></div></div>`).join("");
   const dk = Fl.dockState(s), bays = dk.free.map((v, i) => `<div class="kv1"><div><span>Bay ${i + 1}</span><b>${v > 0 ? `busy for ${Math.round(v * 24)} h today` : "free"}</b></div></div>`).join(""), hn = s.hr.staff.warehouse.n;
   const dockCard = `<div class="card"><b>Loading dock</b><p class="muted">${D.TRANSPORT.docks} bays, one trip each at a time. A full load takes about ${Math.round(Fl.loadTime(s, 400) * 24)} h${hn ? ` with ${hn} warehouse handler${hn > 1 ? "s" : ""}` : "; warehouse handlers load faster"}. If every bay is busy the next trip waits in the queue and arrives later.</p>${bays}</div>`;
+  const mapCard = `<div class="card"><b>Delivery map</b><p class="muted">Your district and the eight nearest cities. Each truck on the road is shown on the way to the city whose distance is closest to its trip, and back. ${activeTrips(s).length ? activeTrips(s).length + " trip(s) on the road." : "No trips on the road now."}</p>${routeMapSvg(s)}</div>`;
   return `<div class="card"><b>My fleet</b><p class="muted">Your own trucks. Each needs a driver (HR). Fuel is paid per km, trucks wear out and break down below ${D.TRANSPORT.breakdownBelow}% health, so service them. Pick My own trucks as the carrier when you order or transfer.</p>
     <div class="kv1"><div><span>Trucks</span><b>${f.trucks.length}</b></div><div><span>Drivers</span><b>${drivers} (${out} on the road)</b></div><div><span>Distance driven</span><b>${num(f.km)} km</b></div><div><span>Fuel paid</span><b>${money2(f.fuelPaid)}</b></div></div></div>
-    <div class="tcos">${buy}</div>${rows ? `<div class="card scroll"><table class="tbl"><thead><tr><th>Truck</th><th>Status</th><th>Health</th><th>Driven</th><th>Book value</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}${dockCard}${trips ? `<div class="card"><b>Recent trips</b>${trips}</div>` : ""}`;
+    ${mapCard}<div class="tcos">${buy}</div>${rows ? `<div class="card scroll"><table class="tbl"><thead><tr><th>Truck</th><th>Status</th><th>Health</th><th>Driven</th><th>Book value</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}${dockCard}${trips ? `<div class="card"><b>Recent trips</b>${trips}</div>` : ""}`;
 }
 
 // Plain-words list of the scenarios for the setup forms: what can happen, how likely, what it does to you, and a hint.

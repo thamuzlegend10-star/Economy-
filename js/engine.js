@@ -424,7 +424,7 @@ function stepOnce(s) {
 }
 
 function overflowDay(s) {
-  const o = whOverflow(s); if (o <= 0) return; const fee = c(o * D.OVERFLOW.perSpacePerDay), cash = Math.max(0, balance(s.ledger, "cash")), paid = c(Math.min(cash, fee)), short = c(fee - paid);
+  const o = whOverflow(s); s.whOverDays = o > 0 ? (s.whOverDays || 0) + 1 : 0; if (o <= 0) return; const fee = c(o * D.OVERFLOW.perSpacePerDay), cash = Math.max(0, balance(s.ledger, "cash")), paid = c(Math.min(cash, fee)), short = c(fee - paid);
   const lines = [{ acct: "overflow", dr: fee }]; if (paid > 0) lines.push({ acct: "cash", cr: paid }); if (short > 0) lines.push({ acct: "overdraft", cr: short });
   post(s.ledger, s.day, `Storage overflow fee (${Math.round(o).toLocaleString("en-US")} space over capacity)`, lines, "ovf:" + s.day);
 }
