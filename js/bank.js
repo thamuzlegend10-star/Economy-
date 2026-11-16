@@ -10,10 +10,32 @@ const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o 
 export const newBank = () => ({ credit: { bal: 0, since: 0 }, loans: [], lseq: 0, interestPaid: 0, hist: [], hrLate: 0, rating: "AAA" });
 // Credit rating (MonsoonSIM style, AAA to DDD): driven by how many of the last 30 days had an overdraft or a payday paid from overdraft. It only ever raises prices, so a clean record costs nothing extra.
 export const RATINGS = [["AAA", 95, 1], ["AA", 85, 1], ["A", 75, 1], ["BBB", 60, 1.1], ["BB", 45, 1.2], ["B", 30, 1.35], ["CCC", 15, 1.5], ["DDD", -Infinity, 1.75]];
+// Extra score inputs (games started after this rule only, flag `rtg`): thin solvency, a losing year and unpaid supplier invoices pull the score down. A clean, funded shop loses nothing.
+export function currentRatio(s) {
+  const L = a => balance(s.ledger, a), assets = L("cash") + L("inventory") + L("inv_raw") + L("inv_fg") + L("receivables"), debts = L("payables") + L("overdraft") + L("credit") + L("wages_payable") + L("tax_payable");
+  return debts > 0.004 ? c(assets / debts) : null;
+}
+export function overduePayables(s) { return s.fx && s.fx.payables ? s.fx.payables.filter(p => p.due < s.day).length : 0; }
+export function roaPct(s) {
+  const L = a => balance(s.ledger, a), assets = L("cash") + L("inventory") + L("inv_raw") + L("inv_fg") + L("receivables") + L("machinery") + L("acc_deprec") + L("land_building");
+  const net = ["sales", "sales_b2b", "sales_ecom", "sales_service"].reduce((a, x) => a + L(x), 0) - ["cogs", ...OPEX_ACCTS].reduce((a, x) => a + L(x), 0);
+  return assets > 1 ? net / assets * 100 : 0;
+}
+const OPEX_ACCTS = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor", "bad_debt", "shrinkage", "property_tax"];
+export function scoreExtras(s) {
+  if (!s.rtg) return 0; let x = 0; const cr = currentRatio(s), roa = roaPct(s);
+  if (cr != null && cr < 1) x += Math.min(20, (1 - cr) * 20);          // current ratio under 1: up to 20 points
+  if (s.day >= 5 && roa < 0) x += Math.min(10, -roa);                  // losing money on assets: up to 10 points
+  return x + 10 * Math.min(3, overduePayables(s));                     // 10 points per overdue invoice, at most 30
+}
 export function creditScore(s) {
-  const b = ensureBank(s); return clamp(100 - 10 * (b.hist || []).reduce((a, x) => a + x, 0) - (balance(s.ledger, "overdraft") > 0 ? 5 : 0), 0, 100);
+  const b = ensureBank(s); return clamp(100 - 10 * (b.hist || []).reduce((a, x) => a + x, 0) - (balance(s.ledger, "overdraft") > 0 ? 5 : 0) - scoreExtras(s), 0, 100);
 }
 export const creditRating = s => { const sc = creditScore(s); return RATINGS.find(r => sc >= r[1]); };
+export const CEILING = { AAA: 1, AA: 0.9, A: 0.8, BBB: 0.6, BB: 0.45, B: 0.3, CCC: 0.15, DDD: 0 };   // share of the credit line the bank allows
+export const creditLimit = s => (s.rtg ? Math.round(D.BANK.credit.limit * CEILING[creditRating(s)[0]]) : D.BANK.credit.limit);
+export const RANK = Object.fromEntries(RATINGS.map((r, i) => [r[0], i]));
+export const ratingAtLeast = (s, min) => RANK[creditRating(s)[0]] <= RANK[min];
 export const rateFactor = s => creditRating(s)[2];
 export const ensureBank = s => (s.bank = s.bank || newBank());
 function payOut(s, acct, amount, memo, ref) {
@@ -22,7 +44,7 @@ function payOut(s, acct, amount, memo, ref) {
   const lines = [{ acct, dr: amount }]; if (paid > 0) lines.push({ acct: "cash", cr: paid }); if (short > 0) lines.push({ acct: "overdraft", cr: short });
   post(s.ledger, s.day, memo, lines, ref);
 }
-export const creditRoom = s => c(D.BANK.credit.limit - ensureBank(s).credit.bal);
+export const creditRoom = s => c(Math.max(0, creditLimit(s) - ensureBank(s).credit.bal));
 export function drawCredit(s, amount) {
   if (s.ended) return err("The game is over."); amount = Math.round(Number(amount));
   if (!Number.isFinite(amount) || amount < 1) return err("Enter an amount."); if (amount > creditRoom(s)) return err(`The credit line has $${creditRoom(s).toLocaleString("en-US")} left.`);

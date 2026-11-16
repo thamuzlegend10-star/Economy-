@@ -53,7 +53,7 @@ export function cleanSetup(o = {}) {
     location: typeof o.location === "string" && hasLocation(o.location) && o.location !== "default" ? o.location : "id-medan-central",
     area: n(o.area, D.AREA, D.AREA.def), secPerDay: n(o.secPerDay, D.SECONDS_PER_DAY, D.SECONDS_PER_DAY.def),
     days: isInf ? 0 : n(o.days, D.DAYS, D.DAYS.def), capital: n(o.capital, D.CAPITAL, D.CAPITAL.def),
-    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal", bkDays: D.BK_DAYS.includes(Number(o.bkDays)) ? Number(o.bkDays) : 3, level: D.LEVELS.some(x => x.id === o.level) ? o.level : "advanced", b2bShip: o.b2bShip === "deliver" ? "deliver" : "pickup",
+    seed: Number.isFinite(o.seed) ? o.seed | 0 : Math.floor(Math.random() * 2147483648), scenario: D.SCENARIOS.some(x => x.id === o.scenario) ? o.scenario : "free", mods: cleanMods(o.mods), difficulty: D.DIFFICULTY[o.difficulty] ? o.difficulty : "normal", rtg: true, kpi10: o.kpi10 === true, bkDays: D.BK_DAYS.includes(Number(o.bkDays)) ? Number(o.bkDays) : 3, level: D.LEVELS.some(x => x.id === o.level) ? o.level : "advanced", b2bShip: o.b2bShip === "deliver" ? "deliver" : "pickup",
     elastSet: Object.fromEntries(D.PRODUCTS.filter(p => o.elastSet && ["low", "high"].includes(o.elastSet[p.id])).map(p => [p.id, o.elastSet[p.id]])),
   };
 }
@@ -65,7 +65,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
   const s = { v: D.SAVE_VERSION, ...o, cal: true, qcOn: o.level !== "beginner", intelFee: !o.level || o.level === "advanced", shelfOn: !o.level || o.level === "advanced", rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
-    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi(), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), jshop: newJshop(), mail: newMail(), scn: newScn(o.scenario, o.seed), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
+    ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi({ kpi10: o.kpi10 === true }), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), jshop: newJshop(), mail: newMail(), scn: newScn(o.scenario, o.seed), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
   for (const sp of ALL_SUP) { s.supIdx[sp.id] = 1; }

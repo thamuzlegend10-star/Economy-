@@ -329,7 +329,7 @@ $("scnList").addEventListener("click", e => { const b = e.target.closest("[data-
 $("sStart").onclick = () => {
   const c = { ...setupValues(), scenario: $("sScn").value }; $("sAreaN").value = $("sArea").value = c.area; $("sSec").value = c.secPerDay;
   if (c.days) $("sDays").value = c.days;
-  adopt(E.newGame(c)); if ($("sTg").value) Kp.applyPreset(s, $("sTg").value, false); closeMenu(); toast("Shop open. Order stock in Shop, Buy stock.", "ok");
+  adopt(E.newGame({ ...c, kpi10: true })); if ($("sTg").value) Kp.applyPreset(s, $("sTg").value, false); closeMenu(); toast("Shop open. Order stock in Shop, Buy stock.", "ok");
 };
 
 function adopt(state, keepLive = false) {
@@ -358,7 +358,7 @@ async function enterLive(role) {
   if (role === "guest" && !Lv.validCode(code)) { toast("A room code is six digits.", "err"); return; }
   leaveLive();
   live = Lv.createLive(Lv.supabaseTransport(), { onChange: renderLive,
-    onStart: (settings, at) => { adopt(E.newGame(settings), true); if (settings.targets) Kp.applyPreset(s, settings.targets, true); liveStartAt = at; liveFirst = false; closeMenu(); toast(role === "host" ? "Starting for everyone…" : "The host started the game.", "ok"); renderHud(); },
+    onStart: (settings, at) => { adopt(E.newGame({ ...settings, kpi10: true }), true); if (settings.targets) Kp.applyPreset(s, settings.targets, true); liveStartAt = at; liveFirst = false; closeMenu(); toast(role === "host" ? "Starting for everyone…" : "The host started the game.", "ok"); renderHud(); },
     onHold: () => { renderHud(); renderAll(true); }, onEvent: ev => { if (!s || s.ended) return; const r = Sn.inject(s, ev); if (r.ok) { toast("Event from the host: " + (ev.title || ev.kind), "ok"); save(); renderAll(true); } } });
   toast("Connecting…", "ok");
   try { await (role === "host" ? live.host(name) : live.join(name, code)); } catch (e) { toast(e.message, "err"); live = null; return; }

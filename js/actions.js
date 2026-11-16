@@ -114,7 +114,7 @@ export function act(s, f, name, a = {}) {
     case "targets": return r(Kp.setTargets(s, f.tg || {}), "Targets saved.");
     case "targetsClear": f.tg = {}; return r(Kp.setTargets(s, {}), "Targets cleared.");
     case "targetsPreset": { const p = Kp.presetTargets(s, id); if (!p) return r(null); f.tg = { ...p }; return r(Kp.setTargets(s, p), "Targets set."); }
-    case "weightsReset": f.w = {}; return r(Kp.setWeights(s, Object.fromEntries(D.KPIS.map(k => [k.id, k.weight]))), "Default weights restored.");
+    case "weightsReset": f.w = {}; return r(Kp.setWeights(s, Object.fromEntries(Kp.kpiSet(s).map(k => [k.id, k.weight]))), "Default weights restored.");
   }
   return { ok: false, error: "Unknown action." };
 }

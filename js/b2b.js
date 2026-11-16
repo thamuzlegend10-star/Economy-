@@ -9,6 +9,7 @@ import { log, PRODUCT } from "./engine.js";
 import { JUICE } from "./factory.js";
 import { salesEdge } from "./hr.js";
 import { mailPost } from "./mail.js";
+import { creditRating, ratingAtLeast } from "./bank.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
@@ -78,7 +79,7 @@ function mkTender(s, b, kind) {
   if (!want.length) return null;                                     // this buyer only wants goods from a department that is off
   const pid = want[ri(b, 0, want.length - 1)];
   const qty = Math.round(rr(b, buyer.qty[0], buyer.qty[1]) / 100) * 100;
-  return { id: ++b.seq, kind, buyer: buyer.id, pid, qty, ceiling: c(refPrice(pid) * buyer.ceiling), due: s.day + ri(b, buyer.dueDays[0], buyer.dueDays[1]), penalty: buyer.penalty, posted: s.day, bid: null };
+  return { id: ++b.seq, kind, buyer: buyer.id, pid, qty, ceiling: c(refPrice(pid) * buyer.ceiling), due: s.day + ri(b, buyer.dueDays[0], buyer.dueDays[1]), penalty: buyer.penalty, posted: s.day, bid: null, ...(s.rtg && kind === "tender" && qty * refPrice(pid) * buyer.ceiling >= D.B2B.tier1Value ? { minRating: "BBB" } : {}) };
 }
 function open(s, b) {
   const t = mkTender(s, b, "tender"); if (!t) return; t.closes = s.day + D.B2B.openDays; b.open.push(t);
@@ -95,6 +96,7 @@ export function placeBid(s, { tender, price } = {}) {
   if (!modOn(s, "b2b")) return err(offMsg("b2b"));
   const b = ensureB2B(s), t = b.open.find(x => x.id === tender); if (!t) return err("This tender is closed.");
   if (t.kind !== "tender") return err("Fixed deals are accepted, not bid on.");
+  if (t.minRating && !ratingAtLeast(s, t.minRating)) return err(`This tender needs a credit rating of ${t.minRating} or better. Yours is ${creditRating(s)[0]}.`);
   price = c(Number(price)); if (!Number.isFinite(price) || price <= 0) return err("Enter a price per unit.");
   if (price > t.ceiling) return err(`The buyer's ceiling is $${t.ceiling.toFixed(2)} per unit.`);
   t.bid = price; return ok({ tender: t });

@@ -137,6 +137,7 @@ export const MRP = { horizonDays: 7, safetyDays: 2, orderCost: 80, holdRate: 0.0
 // ---------- B2B ----------
 // Institutional buyers post tenders. qty is drawn from [min,max], ceiling is a multiple of the product reference price.
 export const B2B = {
+  tier1Value: 60000,   // a tender worth at least this much needs a BBB credit rating or better
   buyers: [
     { id: "hotel",  name: "Grand Harbour Hotels", want: ["apple", "orange", "milk"],      qty: [4000, 20000],  ceiling: 1.05, penalty: 0.12, dueDays: [4, 8], terms: 7, risk: 0.01, km: 8 },
     { id: "uni",    name: "City University",       want: ["noodles", "milk", "earbuds"],  qty: [3000, 25000],  ceiling: 0.98, penalty: 0.10, dueDays: [5, 10], terms: 14, risk: 0, km: 12 },
@@ -216,6 +217,20 @@ export const KPIS = [
   { id: "solvency",    name: "Cash and solvency",    unit: "x", weight: 0.10 },
 ];
 
+
+// The 10-indicator matrix (games started with `kpi10`): ten equal weights. Lower-is-better KPIs (DSI, OPEX ratio) are flipped when scored. OEE counts only while the factory is on.
+export const KPIS10 = [
+  { id: "netProfit",    name: "Net profit",            unit: "$",   weight: 0.1 },
+  { id: "dsi",          name: "Days sales in inventory", unit: "days", weight: 0.1, lower: true },
+  { id: "opexRatio",    name: "Operating expense ratio", unit: "%",  weight: 0.1, lower: true },
+  { id: "roa",          name: "Return on assets",      unit: "%",   weight: 0.1 },
+  { id: "serviceLevel", name: "Service level",         unit: "%",   weight: 0.1 },
+  { id: "marketShare",  name: "Market share",          unit: "%",   weight: 0.1 },
+  { id: "csi",          name: "Customer satisfaction", unit: "pts", weight: 0.1 },
+  { id: "morale",       name: "Staff morale",          unit: "%",   weight: 0.1 },
+  { id: "solvency",     name: "Cash and solvency",     unit: "x",   weight: 0.1 },
+  { id: "oee",          name: "Machine utilisation (OEE)", unit: "%", weight: 0.1 },
+];
 
 // Economy: how strongly rival prices pull the price shoppers expect, and how fast confidence, the price level and tastes wander and return to normal.
 export const MARKET = { rivalBase: 0.3, rivalPerCompetition: 0.7, rivalMax: 0.85,

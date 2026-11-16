@@ -43,9 +43,11 @@ export const ACCOUNTS = {
   bad_debt:  { type:"expense",   name:"Bad debt written off" },
   shrinkage: { type:"expense",   name:"Spoilage and stock loss" },
   claims:    { type:"asset",     name:"Supplier claims (damaged goods)" },
+  land_building: { type:"asset", name:"Land and buildings (owned factory)" },
+  property_tax: { type:"expense", name:"Property tax and building upkeep" },
 };
 const DEBIT_NORMAL = new Set(["asset", "expense"]);
-export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor", "bad_debt", "shrinkage"];
+export const OPEX = ["rent", "utilities", "wages", "interest", "tax", "marketing", "delivery", "fees", "repairs", "depreciation", "maintenance", "penalties", "overflow", "cogs_labor", "bad_debt", "shrinkage", "property_tax"];
 export const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const MAX_ENTRIES = 1500, MAX_OLD = 14000;   // recent entries in full; older ones kept as one short text row each, so the whole game stays browsable
 // Cash-flow buckets (direct method). The counter-account of every cash movement decides the bucket.
