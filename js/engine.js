@@ -3,7 +3,7 @@
 import { newLedger, post, balance, totals, round2, ACCOUNTS } from "./ledger.js";
 import { getLocation, hasLocation } from "./locations.js";
 import * as D from "./data.js";
-import { newFactory, factoryArrivals, factoryDay, rawUnitsUsedSpace, fgSpace } from "./factory.js";
+import { newFactory, ensureFactory, factoryArrivals, factoryDay, rawUnitsUsedSpace, fgSpace } from "./factory.js";
 import { newB2B, b2bDay } from "./b2b.js";
 import { newMrp, mrpDay } from "./mrp.js";
 import { trackArrival } from "./bi.js";
@@ -179,7 +179,7 @@ export function quote(s, supId, pid, qty) {
 
 // A purchase order can carry several products from one supplier. It is all-or-nothing: one quote, one payment, one shipping fee,
 // and one shipment record per product (so each product's delivery shows on its own line).
-export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired", lock = null) {
+export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired", lock = null, terms = "cod") {
   const wh = dest === "wh", sp = SUPPLIER[supId];
   if (!sp || (wh ? !D.WH_SUPPLIERS.includes(sp) : !D.SUPPLIERS.includes(sp))) return err("Unknown supplier.");
   if (wh && s.wh.area <= 0) return err("Rent a warehouse first.");
@@ -196,9 +196,9 @@ export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired", 
     if (l.qty < min) return err(`This supplier sells in bulk only: at least ${min.toLocaleString("en-US")} units of each product.`);
   }
   const km = distanceKm(s.location, sp), L = getLocation(s.location), days = Math.max(1, Math.ceil(km / sp.speed + sp.prep));
-  const errors = [];
+  const errors = [], T = D.TERMS.find(x => x.id === terms) || D.TERMS[0];   // payment terms: Net terms cost a little more per unit and the goods bill is paid later
   const out = items.map(l => {
-    const p = PRODUCT[l.pid], disc = discountFor(l.qty, table), baseUnit = unitCost(s, sp, l.pid), unit = lock && lock[l.pid] > 0 ? lock[l.pid] : c(baseUnit * (1 - disc)), goods = c(unit * l.qty);
+    const p = PRODUCT[l.pid], disc = discountFor(l.qty, table), baseUnit = unitCost(s, sp, l.pid), unit = c((lock && lock[l.pid] > 0 ? lock[l.pid] : c(baseUnit * (1 - disc))) * T.price), goods = c(unit * l.qty);
     const ship = c(sp.rate * km * l.qty * p.space * L.logistics);
     return { pid: l.pid, qty: l.qty, discount: disc, baseUnit, unit, goods, ship, space: l.qty * p.space };
   });
@@ -209,15 +209,16 @@ export function quoteMulti(s, supId, lines, dest = "retail", carrier = "hired", 
     plan = planTrip(s, { km, space, prep: sp.prep });
     if (!plan.ok) errors.push(plan.error); else { dd = plan.days; fee = 0; ship = plan.fuel; total = c(goods + ship); for (const l of out) l.ship = c(plan.fuel * l.space / (space || 1)); }
   }
-  if (total > cash + 0.004) errors.push(`Not enough cash: need $${total.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
+  const credit = T.days > 0 ? goods : 0, need = c(total - credit);
+  if (need > cash + 0.004) errors.push(`Not enough cash: need $${need.toFixed(2)}, have $${c(cash).toFixed(2)}.`);
   if (space > free) errors.push(`Not enough ${wh ? "warehouse " : ""}storage: this needs ${Math.round(space).toLocaleString("en-US")} space, ${Math.max(0, Math.floor(free)).toLocaleString("en-US")} free (stock and shipments on the way count). Rent more space or order less.`);
-  return { supplier: supId, dest, carrier, plan, km, days: dd, eta: s.day + dd, lines: out, fee, goods, ship, total, space, reliability: sp.reliability, errors, ok: !errors.length };
+  return { supplier: supId, dest, carrier, plan, km, days: dd, eta: s.day + dd, lines: out, fee, goods, ship, total, terms: T.id, credit, due: s.day + T.days, need, space, reliability: sp.reliability, errors, ok: !errors.length };
 }
 
-export function placeOrders(s, { supplier, lines, dest = "retail", carrier = "hired", lock = null } = {}) {
+export function placeOrders(s, { supplier, lines, dest = "retail", carrier = "hired", lock = null, terms = "cod" } = {}) {
   if (s.ended) return err("The game is over.");
   if (dest === "wh" && !modOn(s, "warehouse")) return err(offMsg("warehouse"));
-  const q = quoteMulti(s, supplier, lines, dest, carrier, lock);
+  const q = quoteMulti(s, supplier, lines, dest, carrier, lock, terms);
   if (q.error) return err(q.error);
   if (!q.ok) return err(q.errors[0]);
   const own = q.carrier === "own", haul = own ? dispatch(s, q.plan, "supplier pickup") : 0;
@@ -226,9 +227,10 @@ export function placeOrders(s, { supplier, lines, dest = "retail", carrier = "hi
     const o = { id: ++s.orderSeq, sup: supplier, dest, pid: l.pid, qty: l.qty, unit: l.unit, goods: l.goods, ship: c(l.ship + (i === 0 ? q.fee : 0)), placed: s.day, eta: q.eta + late, delayed: late > 0, km: q.km, carrier: q.carrier };
     s.orders.push(o); s.stats.orders++; s.stats.prod[l.pid].ship = c(s.stats.prod[l.pid].ship + o.ship); made.push(o);
   });
-  post(s.ledger, s.day, `Purchase order ${made.map(o => "#" + o.id).join(", ")} from ${SUPPLIER[supplier].name}${dest === "wh" ? " (to warehouse)" : ""}`, own ? [{ acct: "transit", dr: q.goods }, { acct: "cash", cr: q.goods }] : [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, { acct: "cash", cr: q.total }], "order:" + made[0].id);
+  post(s.ledger, s.day, `Purchase order ${made.map(o => "#" + o.id).join(", ")} from ${SUPPLIER[supplier].name}${dest === "wh" ? " (to warehouse)" : ""}`, own ? [{ acct: "transit", dr: q.goods }, q.credit ? { acct: "payables", cr: q.goods } : { acct: "cash", cr: q.goods }] : [{ acct: "transit", dr: q.goods }, { acct: "delivery", dr: q.ship }, ...(q.credit ? [{ acct: "cash", cr: q.ship }, { acct: "payables", cr: q.goods }] : [{ acct: "cash", cr: q.total }])], "order:" + made[0].id);
+  if (q.credit) { const fx = ensureFactory(s); fx.payables.push({ id: ++fx.paySeq, po: "S" + made[0].id, label: `stock order ${made.map(o => "#" + o.id).join(", ")}`, amount: q.goods, due: q.due }); }
   s.today.ship = c(s.today.ship + q.ship);
-  log(s, `Ordered ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} for $${q.total.toFixed(2)}${dest === "wh" ? " to the warehouse" : ""}. Arrives day ${q.eta + late}${late ? " (delayed)" : ""}${own ? " by your own truck" : ""}.`);
+  log(s, `Ordered ${made.map(o => `${o.qty.toLocaleString("en-US")} ${PRODUCT[o.pid].name}`).join(", ")} for $${q.total.toFixed(2)}${q.credit ? ` (${D.TERMS.find(x => x.id === q.terms).name}: goods bill $${q.credit.toFixed(2)} due day ${q.due})` : ""}${dest === "wh" ? " to the warehouse" : ""}. Arrives day ${q.eta + late}${late ? " (delayed)" : ""}${own ? " by your own truck" : ""}.`);
   return ok({ orders: made, order: made[0], total: q.total, eta: q.eta + late });
 }
 

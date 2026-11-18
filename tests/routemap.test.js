@@ -46,3 +46,11 @@ test("factory picture shows both lines and lights the one that has a run", async
   F.buyMachine(s, { type: "smtStandard" });
   const h = R.factorySceneSvg(s); assert.ok(h.includes("Electronics assembly line · 1 machine · running") && h.includes("Juice line · 0 machines · idle"));
 });
+
+test("pallet slots split capacity between shop goods, raw materials and finished goods", () => {
+  const p = R.palletSlots(2000, 4800, 480, 960);          // 100 space per slot
+  assert.deepEqual([p.raw, p.fg, p.goods, p.empty], [5, 10, 6, 27]);
+  const q = R.palletSlots(2400, 4800, 0, 0); assert.equal(q.goods, 24); assert.equal(q.empty, 24);
+  const full = R.palletSlots(9999, 4800, 1000, 1000); assert.equal(full.goods + full.raw + full.fg + full.empty, 48);
+  assert.equal(R.palletSlots(10, 0, 0, 0).goods, 0);
+});

@@ -314,7 +314,7 @@ export function factoryDay(s) {
   }
   // supplier invoices due today
   for (const p of fx.payables.filter(x => x.due <= s.day)) {
-    pay(s, "payables", p.amount, `Paid supplier invoice (raw order #${p.po})`, "inv:" + p.id);
+    pay(s, "payables", p.amount, `Paid supplier invoice (${p.label || "raw order #" + p.po})`, "inv:" + p.id);
     // pay() debits the account argument; for payables that reduces the liability, as intended
   }
   fx.payables = fx.payables.filter(x => x.due > s.day);

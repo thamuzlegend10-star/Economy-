@@ -732,3 +732,8 @@ dialog.menu:has(#menuSetup:not([hidden])) { width:min(960px,96vw); }
 .topbar .hud .k-rate[data-tier="gold"] b { color:#8a6a00 !important; } .topbar .hud .k-rate[data-tier="green"] b { color:#2f6b1c !important; }
 .topbar .hud .k-rate[data-tier="orange"] b { color:#b45f06 !important; } .topbar .hud .k-rate[data-tier="red"] b { color:#a3202a !important; }
 .topbar .hud .k-rate { text-align:left; border:1px solid #d6c49c; }
+
+.palbox { margin:10px 0 6px; } .pal { width:100%; max-width:420px; height:auto; display:block; }
+.slot { stroke:#7a6a45; stroke-width:1; } .slot.goods { fill:#c9a15a; } .slot.raw { fill:#6f9a7a; } .slot.fg { fill:#d96a3b; } .slot.empty { fill:transparent; stroke-dasharray:3 3; }
+.legend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:.78rem; color:var(--muted); margin-top:4px; } .legend span { display:inline-flex; align-items:center; gap:5px; }
+.legend i.slot { display:inline-block; width:12px; height:10px; border-radius:2px; border:1px solid #7a6a45; }

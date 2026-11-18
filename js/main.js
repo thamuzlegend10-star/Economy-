@@ -202,6 +202,7 @@ $("poDlg").addEventListener("change", e => {
   const t = e.target, pid = t.dataset && t.dataset.pid, B = PB(), wh = ui.poMode === "wh", ch = wh ? D.WH_QTY : D.QTY_CHOICES, lo = wh ? D.WH.minQty : 1, hi = wh ? D.WH.maxQty : D.MAX_QTY;
   if (t.id === "poSup") B.sup = t.value;
   else if (t.id === "poCarrier") B.carrier = t.value;
+  else if (t.id === "poTerms") B.terms = t.value;
   else if (pid && t.id.startsWith("poQty-")) { if (t.value === "custom") { const n = B.qty[pid]; B.qty[pid] = n > 0 && !ch.includes(n) ? n : (wh ? D.WH.minQty : 500); } else B.qty[pid] = Number(t.value); }
   else if (pid && t.id.startsWith("poCustom-")) { const v = Math.round(Number(t.value)); B.qty[pid] = v >= 1 ? Math.min(hi, Math.max(lo, v)) : 0; }
   else return;
@@ -211,7 +212,7 @@ $("poDlg").addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || !s) return;
   if (t.id === "poX" || t.id === "poCancel") $("poDlg").close();
   else if (t.id === "poSubmit") {
-    const B = PB(), r = E.placeOrders(s, { supplier: B.sup, dest: ui.poMode === "wh" ? "wh" : "retail", carrier: B.carrier, lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: B.qty[p.id] || 0 })) });
+    const B = PB(), r = E.placeOrders(s, { supplier: B.sup, dest: ui.poMode === "wh" ? "wh" : "retail", carrier: B.carrier, terms: B.terms || "cod", lines: D.PRODUCTS.map(p => ({ pid: p.id, qty: B.qty[p.id] || 0 })) });
     if (!r.ok) { toast(r.error, "err"); renderPo(); return; }
     $("poDlg").close(); toast(`Ordered ${r.orders.length} item${r.orders.length > 1 ? "s" : ""}. Arrives day ${r.eta}.`, "ok"); save(); goto("shipping", "tx");
   }

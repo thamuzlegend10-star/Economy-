@@ -75,3 +75,17 @@ export function factorySceneSvg(s) {
 <line class="fsc-div" x1="14" y1="112" x2="586" y2="112"/>
 <g><rect class="bin" x="20" y="132" width="26" height="30" rx="3"/><rect class="bin" x="52" y="132" width="26" height="30" rx="3"/><path class="arm${run("gadget") ? " go" : ""}" d="M104 168 V140 L130 120 L150 130"/><circle class="joint" cx="104" cy="168" r="6"/><rect class="belt" x="130" y="164" width="450" height="8"/>${boards}<text class="fsc-t" x="20" y="192">Electronics assembly line · ${n("gadget")} machine${n("gadget") === 1 ? "" : "s"} · ${run("gadget") ? "running" : "idle"}</text></g></svg>`;
 }
+
+// Warehouse pallet slots: 48 slots stand for the whole capacity. Shop goods, factory raw materials and finished goods fill slots by the space they use.
+import { rawUnitsUsedSpace, fgSpace } from "./factory.js";
+export function palletSlots(used, capacity, raw, fg) {
+  const total = 48, per = capacity > 0 ? capacity / total : 0, n = v => (per > 0 ? Math.min(total, Math.ceil(Math.max(0, v) / per - 1e-9)) : 0);
+  const r = n(raw), f = Math.min(total - r, n(fg)), g = Math.min(total - r - f, n(used - raw - fg));
+  return { goods: g, raw: r, fg: f, empty: Math.max(0, total - r - f - g), per };
+}
+export function palletSvg(w, s) {
+  if (!w || !w.capacity) return "";
+  const p = palletSlots(w.used, w.capacity, rawUnitsUsedSpace(s), fgSpace(s)), kinds = [["goods", p.goods], ["raw", p.raw], ["fg", p.fg], ["empty", p.empty]];
+  let i = 0, cells = ""; for (const [k, count] of kinds) for (let j = 0; j < count; j++, i++) cells += `<rect class="slot ${k}" x="${8 + (i % 16) * 22}" y="${8 + Math.floor(i / 16) * 20}" width="18" height="15" rx="2"/>`;
+  return `<svg class="pal" viewBox="0 0 368 76" role="img" aria-label="Pallet slots: ${p.goods} with shop goods, ${p.raw} with raw materials, ${p.fg} with finished goods, ${p.empty} empty">${cells}</svg><div class="legend"><span><i class="slot goods"></i>Shop goods</span><span><i class="slot raw"></i>Raw materials</span><span><i class="slot fg"></i>Finished goods</span><span><i class="slot empty"></i>Empty</span></div>`;
+}

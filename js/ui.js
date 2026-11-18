@@ -4,7 +4,7 @@ import * as E from "./engine.js";
 import * as D from "./data.js";
 import { getLocation } from "./locations.js";
 import * as Fl from "./fleet.js";
-import { routeMapSvg, yardSvg, activeTrips, tripListHtml } from "./routemap.js";
+import { routeMapSvg, yardSvg, activeTrips, tripListHtml, palletSvg } from "./routemap.js";
 import { balance } from "./ledger.js";
 
 export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -119,7 +119,7 @@ export function warehouse(s, sub = "stock") {
     + D.JUICES.filter(j => s.fx.fg.qty[j.id] > 0).map(j => `<tr><td><span class="dot" style="background:${j.color}"></span> ${esc(j.name)}</td><td>${num(s.fx.fg.qty[j.id])}</td><td>${money(s.fx.fg.val[j.id])}</td><td>${num(s.fx.fg.qty[j.id] * j.space)}</td></tr>`).join("");
   const over = w.overflow > 0 ? `<div class="err">Over capacity by ${num(w.overflow)} space. Overflow costs ${money2(w.overflow * D.OVERFLOW.perSpacePerDay)} per day. Rent more space or move goods out.</div>` : "";
   return `<div class="card"><b>Warehouse storage: ${pct(w.capacity ? w.used / w.capacity : 0)} used</b><div class="meter ${warn}"><i style="width:${Math.min(100, w.capacity ? w.used / w.capacity * 100 : 0)}%"></i></div>
-    ${yardSvg(s, w.overflow) ? `<div class="yardbox">${yardSvg(s, w.overflow)}<small class="muted">${(s.whOverDays || 0) > 3 ? "Goods left outside for " + s.whOverDays + " days are spoiling." : "Goods that do not fit wait in the yard."}</small></div>` : ""}<small>${num(w.used)} of ${num(w.capacity)} space used in ${num(w.area)} m². ${num(w.incoming)} more is reserved for deliveries on the way. Rent ${money2(E.whRent(s))} per day, ${E.whTermNow(s).days ? `${E.whTermNow(s).name} term, ${E.whTermLeft(s)} days left` : "daily term"}.</small><div class="row"><button class="ghost" id="whRentOpen">Rent more or change term</button><button class="ghost" id="whRelease">Give up warehouse</button></div><small class="muted">A longer term is cheaper per day. Giving up the warehouse early costs the rent still owed on the term. It must be empty first.</small></div>
+    <div class="palbox">${palletSvg(w, s)}</div>${yardSvg(s, w.overflow) ? `<div class="yardbox">${yardSvg(s, w.overflow)}<small class="muted">${(s.whOverDays || 0) > 3 ? "Goods left outside for " + s.whOverDays + " days are spoiling." : "Goods that do not fit wait in the yard."}</small></div>` : ""}<small>${num(w.used)} of ${num(w.capacity)} space used in ${num(w.area)} m². ${num(w.incoming)} more is reserved for deliveries on the way. Rent ${money2(E.whRent(s))} per day, ${E.whTermNow(s).days ? `${E.whTermNow(s).name} term, ${E.whTermLeft(s)} days left` : "daily term"}.</small><div class="row"><button class="ghost" id="whRentOpen">Rent more or change term</button><button class="ghost" id="whRelease">Give up warehouse</button></div><small class="muted">A longer term is cheaper per day. Giving up the warehouse early costs the rent still owed on the term. It must be empty first.</small></div>
     <div class="card scroll"><table class="tbl"><thead><tr><th>Product</th><th>In warehouse</th><th>Value</th><th>Space used</th></tr></thead><tbody>${rows}${fxRows}</tbody></table></div>${over}`;
 }
 
@@ -224,8 +224,9 @@ export function orderForm(s, b) {
   const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? "selected" : ""}>${esc(label)}</option>`;
   const sups = list0.map(x => { const km = E.distanceKm(s.location, x), days = Math.max(1, Math.ceil(km / x.speed + x.prep)); return opt(x.id, `${x.name} · ${num(km)} km · ${dayWord(days)}`, b.sup); }).join("");
   const lines = D.PRODUCTS.map(p => ({ pid: p.id, qty: b.qty[p.id] || 0 }));
-  const q = E.quoteMulti(s, b.sup, lines, wh ? "wh" : "retail", b.carrier || "hired");
-  const carr = `<label class="fld"><span>Carrier</span><select id="poCarrier"><option value="hired" ${b.carrier !== "own" ? "selected" : ""}>Transport company</option><option value="own" ${b.carrier === "own" ? "selected" : ""}>My own trucks (${Fl.ensureFleet(s).trucks.length})</option></select></label>`;
+  const q = E.quoteMulti(s, b.sup, lines, wh ? "wh" : "retail", b.carrier || "hired", null, b.terms || "cod");
+  const terms = `<label class="fld"><span>Payment terms</span><select id="poTerms">${D.TERMS.map(t => opt(t.id, t.name + (t.price > 1 ? ` · +${Math.round((t.price - 1) * 1000) / 10}% price` : ""), b.terms || "cod")).join("")}</select></label>`;
+  const carr = terms + `<label class="fld"><span>Carrier</span><select id="poCarrier"><option value="hired" ${b.carrier !== "own" ? "selected" : ""}>Transport company</option><option value="own" ${b.carrier === "own" ? "selected" : ""}>My own trucks (${Fl.ensureFleet(s).trucks.length})</option></select></label>`;
   const rows = D.PRODUCTS.map(p => {
     const n = b.qty[p.id] || 0, custom = n > 0 && !choices.includes(n);
     const cur = custom ? "custom" : n;
@@ -238,7 +239,8 @@ export function orderForm(s, b) {
       ${q.lines.map(l => `<div class="ln"><span>${esc(E.PRODUCT[l.pid].name)} ${num(l.qty)} × ${money2(l.unit)}${l.discount ? ` (bulk −${Math.round(l.discount * 100)}%)` : ""}</span><b>${money2(l.goods)}</b></div>`).join("")}
       <div class="ln"><span>Goods</span><b>${money2(q.goods)}</b></div>
       <div class="ln"><span>${q.carrier === "own" ? `Fuel (${num(q.km)} km, own truck)` : `Shipping (${num(q.km)} km, one fee)`}</span><b>${money2(q.ship)}</b></div>
-      <div class="ln tot"><span>Total, paid now</span><b>${money2(q.total)}</b></div>
+      ${q.credit ? `<div class="ln"><span>Order total</span><b>${money2(q.total)}</b></div><div class="ln"><span>Goods bill, due day ${q.due}</span><b>${money2(q.credit)}</b></div>` : ""}
+      <div class="ln tot"><span>Total, paid now</span><b>${money2(q.need != null ? q.need : q.total)}</b></div>
       <div class="ln"><span>Estimated delivery</span><b>${dayWord(q.days)}, day ${q.eta}</b></div>
       <div class="ln"><span>Storage needed</span><b>${num(q.space)} of ${num(Math.max(0, wh ? E.whFree(s) : E.spaceFree(s)))} free</b></div></div>
     ${q.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}
@@ -247,7 +249,7 @@ export function orderForm(s, b) {
     <label class="fld"><span>Supplier</span><select id="poSup">${sups}</select></label>${carr}
     <div class="fld"><span>Items and quantity</span>${rows}</div>
     ${sum}
-    <div class="po-actions"><button class="ghost" id="poCancel" type="button">Cancel</button><button id="poSubmit" type="button" ${q.ok ? "" : "disabled"}>Submit${q.total ? " · " + money2(q.total) : ""}</button></div>`;
+    <div class="po-actions"><button class="ghost" id="poCancel" type="button">Cancel</button><button id="poSubmit" type="button" ${q.ok ? "" : "disabled"}>Submit${q.total ? " · " + money2(q.need != null ? q.need : q.total) : ""}</button></div>`;
 }
 
 export function ship(s, ui = {}) {
