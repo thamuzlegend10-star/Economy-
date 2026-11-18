@@ -158,7 +158,7 @@ export function setAutoPm(s, machineId, value) {
   const m = findMachine(s, machineId); if (!m) return err("Unknown machine.");
   const v = value === "" || value == null || value === "off" ? null : Number(value);
   if (v !== null && !AUTO_PM.includes(v)) return err("Choose Off, 50, 60, 70 or 80 percent.");
-  m.autoPm = v; return ok({ autoPm: v });
+  m.autoPmThreshold = v; return ok({ autoPmThreshold: v });
 }
 export function preventiveMaintenance(s, machineId) {
   if (s.ended) return err("The game is over.");
@@ -278,7 +278,7 @@ export function factoryDay(s) {
     if (dep > 0) { post(s.ledger, s.day, `Depreciation ${m.name}`, [{ acct: "depreciation", dr: dep }, { acct: "acc_deprec", cr: dep }], "dep:" + m.id + ":" + s.day); m.deprec = c(m.deprec + dep); }
     // downtime from an earlier breakdown
     if (m.downDays > 0) { m.downDays--; m.status = m.downDays > 0 ? "broken" : "idle"; if (m.downDays === 0) m.health = 80; continue; }
-    if (m.autoPm != null && !m.pmToday && m.health <= m.autoPm) { const q = preventiveMaintenance(s, m.id); if (q.ok) fx.today.auto = (fx.today.auto || 0) + 1; }
+    if (m.autoPmThreshold != null && !m.pmToday && m.health <= m.autoPmThreshold) { const q = preventiveMaintenance(s, m.id); if (q.ok) fx.today.auto = (fx.today.auto || 0) + 1; }
     const w = workOf(m); if (!w) { m.status = "idle"; if (m.pmToday) m.health = D.MAINT.restoreTo; continue; }
     const j = JUICE[w.juice], serviceLoss = m.pmToday ? t.pmDays : 0;
     const base = w.batch ? t.perDay : Math.min(w.qty, t.perDay), cap = Math.floor(base * machineEfficiency(m) * cw.out * (1 - serviceLoss)), n = Math.min(cap, w.batch ? w.batch.qty - w.batch.done : Infinity, bottlesPossible(s, j.id));   // a batch uses full machine capacity, so its last bottles do not trail off

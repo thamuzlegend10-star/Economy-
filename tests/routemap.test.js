@@ -30,3 +30,19 @@ test("yard shows crates only when stock overflows, and spoils after three days",
   s.whOverDays = 2; assert.ok(!R.yardSvg(s, 60).includes("crate old"));
   s.whOverDays = 4; assert.ok(R.yardSvg(s, 60).includes("crate old"));
 });
+
+test("trip list shows progress, ETA and a breakdown warning", () => {
+  const s = mk(), f = ensureFleet(s), km = R.cityNodes(s)[2].km;
+  f.trips.push({ id: 7, day: s.day, kind: "order", km, trucks: [], rounds: 1, fuel: 0, eta: s.day + 3, delay: 0 });
+  let h = R.tripListHtml(s); assert.ok(h.includes("arrives in 3 days") && h.includes("meter") && !h.includes("Breakdown"));
+  f.trips[0].delay = 2; h = R.tripListHtml(s); assert.ok(h.includes("Breakdown on the road: 2 days late"));
+  assert.ok(R.routeMapSvg(s).includes("rm-warn"), "a broken-down trip is marked on the map");
+});
+
+test("factory picture shows both lines and lights the one that has a run", async () => {
+  const F = await import("../js/factory.js");
+  const s = mk(); F.rentFactory(s, 300);
+  assert.ok(R.factorySceneSvg(s).includes("0 machines") && R.factorySceneSvg(s).includes("idle"));
+  F.buyMachine(s, { type: "smtStandard" });
+  const h = R.factorySceneSvg(s); assert.ok(h.includes("Electronics assembly line · 1 machine · running") && h.includes("Juice line · 0 machines · idle"));
+});

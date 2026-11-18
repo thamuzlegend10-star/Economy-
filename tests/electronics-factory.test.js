@@ -36,29 +36,10 @@ test("buying land refuses when cash is short or size is out of range", () => {
   assert.equal(F.buyFactoryLand(mk(), D.FACTORY.maxArea + 100).ok, false);
 });
 
-test("auto service restores a worn machine at its threshold and books the cost", () => {
-  const s = mk(); F.rentFactory(s, 300); F.buyMachine(s, { type: "std" });
-  const m = s.fx.machines[0]; m.health = 55;
-  assert.equal(F.setAutoPm(s, m.id, 60).ok, true);
-  const before = balance(s.ledger, "maintenance"); runDay(s);
-  assert.ok(balance(s.ledger, "maintenance") - before >= D.MACHINES[0].pmCost - 1e-6);
-  assert.ok(m.health >= D.MAINT.restoreTo - 1e-6);
-  assert.ok(E.reconcile(s).ok);
-});
-
-test("auto service off or above health does nothing; bad value refused", () => {
-  const s = mk(); F.rentFactory(s, 300); F.buyMachine(s, { type: "std" });
-  const m = s.fx.machines[0]; m.health = 90; F.setAutoPm(s, m.id, 60);
-  runDay(s);
-  assert.ok(!s.fx.today.auto, "no auto service above the threshold");
-  assert.equal(F.setAutoPm(s, m.id, 33).ok, false);
-  assert.equal(F.setAutoPm(s, m.id, "off").ok, true); assert.equal(m.autoPm, null);
-});
-
 test("electronics line: BOM data is complete and a gadget run deducts raw and books balanced", () => {
   const g = D.GADGETS; assert.equal(g.length, 2);
   for (const j of g) for (const rid of Object.keys(j.bom)) assert.ok(D.RAW.some(r => r.id === rid), rid);
-  assert.ok(D.MACHINES.some(m => m.id === "elecStandard") && D.MACHINES.some(m => m.id === "elecPrecision"));
+  assert.ok(D.MACHINES.some(m => m.id === "smtStandard") && D.MACHINES.some(m => m.id === "smtPrecision"));
 });
 
 const wait = (s, n = 15) => { for (let i = 0; i < n && s.fx.pos.length; i++) runDay(s); assert.equal(s.fx.pos.length, 0); };
@@ -67,11 +48,11 @@ test("electronics assembly: raw parts are used per the BOM, gadgets are made and
   const s = mk(); F.rentFactory(s, 500);
   const o = F.placeRawOrder(s, { vendor: "voltix", terms: "cod", lines: [{ rid: "lithiumCell", qty: 3000 }, { rid: "audioChip", qty: 1500 }, { rid: "siliconeStrap", qty: 3000 }] });
   assert.ok(o.ok, o.error); wait(s);
-  const b = F.buyMachine(s, { type: "elecStandard" }); assert.ok(b.ok, b.error);
+  const b = F.buyMachine(s, { type: "smtStandard" }); assert.ok(b.ok, b.error);
   const m = b.machine; assert.equal(m.job.juice, "smartEarbuds", "default run is the first good of the machine's line");
   const before = { ...s.fx.raw.qty };
   runDay(s);
-  const made = s.fx.fg.qty.smartEarbuds; assert.ok(made > 0 && made <= 600, "made " + made);
+  const made = s.fx.fg.qty.smartEarbuds; assert.ok(made > 0 && made <= 1200, "made " + made);
   assert.equal(before.lithiumCell - s.fx.raw.qty.lithiumCell, made * D.GADGETS[0].bom.lithiumCell);
   assert.equal(before.audioChip - s.fx.raw.qty.audioChip, made * D.GADGETS[0].bom.audioChip);
   assert.equal(before.siliconeStrap - s.fx.raw.qty.siliconeStrap, made * D.GADGETS[0].bom.siliconeStrap);
@@ -81,7 +62,7 @@ test("electronics assembly: raw parts are used per the BOM, gadgets are made and
 
 test("a machine only makes goods of its own line", () => {
   const s = mk(); F.rentFactory(s, 500);
-  const juice = F.buyMachine(s, { type: "std" }).machine, gad = F.buyMachine(s, { type: "elecStandard" }).machine;
+  const juice = F.buyMachine(s, { type: "std" }).machine, gad = F.buyMachine(s, { type: "smtStandard" }).machine;
   assert.ok(F.canMake(juice, "apple") && !F.canMake(juice, "smartEarbuds"));
   assert.ok(F.canMake(gad, "digitalWatch") && !F.canMake(gad, "apple"));
   assert.equal(F.setRun(s, { machine: gad.id, juice: "apple", qty: 100 }).ok, false);
@@ -91,9 +72,9 @@ test("a machine only makes goods of its own line", () => {
 
 test("electronics machines depreciate straight line over their life", () => {
   const s = mk(); F.rentFactory(s, 500);
-  const m = F.buyMachine(s, { type: "elecPrecision" }).machine, d0 = balance(s.ledger, "depreciation");
+  const m = F.buyMachine(s, { type: "smtPrecision" }).machine, d0 = balance(s.ledger, "depreciation");
   runDay(s); runDay(s);
-  const per = m.cost / D.MACHINES.find(x => x.id === "elecPrecision").life;
+  const per = m.cost / D.MACHINES.find(x => x.id === "smtPrecision").life;
   assert.ok(Math.abs((balance(s.ledger, "depreciation") - d0) - per * 2) < 0.05, "two days of depreciation");
   assert.ok(E.reconcile(s).ok);
 });

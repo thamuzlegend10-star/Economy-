@@ -51,3 +51,11 @@ test("new big tenders carry the rating rule only in games that have it", () => {
   for (let d = 0; d < 60; d++) { old.day = d + 1; bo.open = []; B.b2bDay(old); o += bo.open.filter(x => x.minRating).length; }
   assert.equal(o, 0); assert.ok(seen >= 0);
 });
+
+test("ten rating tiers run from AAA to DDD, each worse tier costs more, and the header badge colour follows the tier", async () => {
+  const B = await import("../js/bank.js"), U = await import("../js/ui.js");
+  assert.deepEqual(B.RATINGS.map(r => r[0]), ["AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "DDD"]);
+  for (let i = 1; i < B.RATINGS.length; i++) assert.ok(B.RATINGS[i][2] >= B.RATINGS[i - 1][2] && B.RATINGS[i][1] < B.RATINGS[i - 1][1]);
+  assert.ok(B.CEILING.CC < B.CEILING.CCC && B.CEILING.C < B.CEILING.CC && B.CEILING.DDD === 0);
+  assert.deepEqual(["AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "DDD"].map(U.ratingTone), ["gold", "gold", "green", "green", "orange", "orange", "red", "red", "red", "red"]);
+});

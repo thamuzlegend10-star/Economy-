@@ -46,7 +46,7 @@ export function act(s, f, name, a = {}) {
     case "advMake": { const x = Fc.juiceAdvice(s, id); if (!x.qty) return { ok: false, error: "No production is advised for this juice right now." }; const ms = s.fx.machines.slice().sort((p, q) => F.batchDaysLeft(s, p) - F.batchDaysLeft(s, q)); if (!ms.length) return { ok: false, error: "Buy a machine first." }; return r(F.queueBatch(s, { machine: ms[0].id, juice: id, qty: x.qty }), `Queued ${x.qty.toLocaleString("en-US")} on ${ms[0].name}.`); }
     case "setjob": return r(F.setRun(s, { machine: n, juice: a.juice, qty: num(a.qty) }), a.qty > 0 ? "Production run set." : "Production stopped.");
     case "buyLand": return r(F.buyFactoryLand(s, f.farea), "Factory floor bought.");
-    case "autoPm": return r(F.setAutoPm(s, n, a.value), "Auto service saved.");
+    case "autoPmThreshold": return r(F.setAutoPm(s, n, a.value), "Auto service saved.");
     case "pm": return r(F.preventiveMaintenance(s, n), "Machine serviced.");
     case "prCreate": { const x = F.createPR(s, { vendor: f.vendor, terms: f.terms, carrier: f.carrier, lines: rawLines(f) }); return r(x, "Requisition created. Approve it to place the order."); }
     case "poNow": { const x = F.placeRawOrder(s, { vendor: f.vendor, terms: f.terms, carrier: f.carrier, lines: rawLines(f) }); if (x.ok) f.rq = {}; return r(x, `Ordered. Arrives day ${x.eta}.`); }

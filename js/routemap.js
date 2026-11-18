@@ -42,7 +42,8 @@ export function routeMapSvg(s) {
   const trucks = trips.map(t => {
     const d = destFor(nodes, t.km); if (!d) return ""; const a = home, b = P(d), pr = tripProgress(s, t), leg = pr < 0.5 ? pr * 2 : (1 - pr) * 2;
     const x = Math.round(a.x + (b.x - a.x) * leg), y = Math.round(a.y + (b.y - a.y) * leg), van = t.trucks.some(id => { const tk = f.trucks.find(q => q.id === id); return tk && tk.type === "van"; });
-    return `<g class="rm-truck" transform="translate(${x} ${y})"><rect x="${van ? -6 : -8}" y="-5" width="${van ? 12 : 16}" height="10" rx="2"/><circle cx="${van ? -3 : -4}" cy="6" r="2"/><circle cx="${van ? 3 : 5}" cy="6" r="2"/></g>`;
+    const warn = t.delay ? `<g class="rm-warn" transform="translate(0 -14)"><circle r="8"/><text y="4">!</text></g>` : "";
+    return `<g class="rm-truck" transform="translate(${x} ${y})">${warn}<rect x="${van ? -6 : -8}" y="-5" width="${van ? 12 : 16}" height="10" rx="2"/><circle cx="${van ? -3 : -4}" cy="6" r="2"/><circle cx="${van ? 3 : 5}" cy="6" r="2"/></g>`;
   }).join("");
   return `<svg class="rm" viewBox="0 0 ${W} ${H}" role="img" aria-label="Delivery map: your district and the eight nearest cities, with trucks on the road">${lines}${dots}${trucks}</svg>`;
 }
@@ -54,4 +55,23 @@ export function yardSvg(s, overflow) {
   const y = yardInfo(s, overflow); if (!y.crates) return "";
   const per = 8, cells = Array.from({ length: y.crates }, (_, i) => { const col = i % per, row = Math.floor(i / per); return `<rect class="crate${y.old ? " old" : ""}" x="${12 + col * 44}" y="${74 - row * 28}" width="38" height="24" rx="3"/><path class="crate-x" d="M${12 + col * 44} ${74 - row * 28} l38 24 M${50 + col * 44} ${74 - row * 28} l-38 24"/>`; }).join("");
   return `<svg class="yard" viewBox="0 0 372 104" role="img" aria-label="${y.crates} crates stand in the yard${y.old ? ", left out for more than " + YARD_DAYS + " days" : ""}"><line class="yard-ground" x1="0" y1="100" x2="372" y2="100"/>${cells}</svg>`;
+}
+
+// Trip list under the map: progress bar, ETA, and a warning when a breakdown delayed the trip.
+export function tripListHtml(s) {
+  return activeTrips(s).map(t => { const pr = Math.round(tripProgress(s, t) * 100), left = Math.max(0, t.eta - s.day);
+    return `<div class="trip"><div class="trip-top"><span>Trip ${t.id} · ${t.kind} · ${Math.round(t.km).toLocaleString("en-US")} km</span><b>${left ? "arrives in " + left + " day" + (left > 1 ? "s" : "") : "arrives today"}</b></div><div class="meter"><i style="width:${pr}%"></i></div>${t.delay ? `<small class="warnr">Breakdown on the road: ${t.delay} day${t.delay > 1 ? "s" : ""} late.</small>` : ""}</div>`; }).join("");
+}
+
+// Factory floor picture: juice bottling line on top, electronics assembly line below. A line is lit when one of its machines has a run set.
+export function factorySceneSvg(s) {
+  const fx = s.fx; if (!fx || !fx.machines) return "";
+  const lines = { juice: [], gadget: [] }; for (const m of fx.machines) (lines[(D.MACHINES.find(x => x.id === m.type) || {}).line || "juice"] || lines.juice).push(m);
+  const run = l => lines[l].some(m => m.job), n = l => lines[l].length;
+  const bottles = Array.from({ length: 9 }, (_, i) => `<rect class="bt${run("juice") ? " go" : ""}" style="animation-delay:${-i * .4}s" x="${150 + i * 46}" y="52" width="10" height="22" rx="3"/>`).join("");
+  const boards = Array.from({ length: 7 }, (_, i) => `<rect class="pcb${run("gadget") ? " go" : ""}" style="animation-delay:${-i * .5}s" x="${150 + i * 56}" y="150" width="26" height="14" rx="2"/>`).join("");
+  return `<svg class="fsc" viewBox="0 0 600 200" role="img" aria-label="Factory floor: ${n("juice")} juice machine(s) above, ${n("gadget")} electronics machine(s) below"><rect class="fsc-bg" width="600" height="200" rx="10"/>
+<g><rect class="tank" x="20" y="22" width="34" height="56" rx="6"/><rect class="tank" x="62" y="30" width="34" height="48" rx="6"/><path class="pipe" d="M54 40 H62 M96 52 H130 V70 H570"/><rect class="belt" x="130" y="74" width="450" height="8"/>${bottles}<text class="fsc-t" x="20" y="102">Juice line · ${n("juice")} machine${n("juice") === 1 ? "" : "s"} · ${run("juice") ? "running" : "idle"}</text></g>
+<line class="fsc-div" x1="14" y1="112" x2="586" y2="112"/>
+<g><rect class="bin" x="20" y="132" width="26" height="30" rx="3"/><rect class="bin" x="52" y="132" width="26" height="30" rx="3"/><path class="arm${run("gadget") ? " go" : ""}" d="M104 168 V140 L130 120 L150 130"/><circle class="joint" cx="104" cy="168" r="6"/><rect class="belt" x="130" y="164" width="450" height="8"/>${boards}<text class="fsc-t" x="20" y="192">Electronics assembly line · ${n("gadget")} machine${n("gadget") === 1 ? "" : "s"} · ${run("gadget") ? "running" : "idle"}</text></g></svg>`;
 }

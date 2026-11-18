@@ -114,8 +114,8 @@ export const GOODS = [...JUICES.map(j => ({ line: "juice", ...j })), ...GADGETS]
 export const MACHINES = [
   { id: "std",  name: "Standard machine",   perDay: 1000, price: 12000, setup: 800,  life: 300, wear: 1.2, pmCost: 450,  pmDays: 0.25, operators: 1, space: 40, line: "juice" },
   { id: "fast", name: "High-speed machine", perDay: 3000, price: 32000, setup: 1800, life: 300, wear: 2.0, pmCost: 1100, pmDays: 0.33, operators: 2, space: 90, line: "juice" },
-  { id: "elecStandard",  name: "Electronics assembly line", perDay: 600,  price: 18000, setup: 1200, life: 300, wear: 1.4, pmCost: 650,  pmDays: 0.25, operators: 1, space: 40, line: "gadget" },
-  { id: "elecPrecision", name: "Precision assembly cell",   perDay: 1800, price: 45000, setup: 2600, life: 300, wear: 2.2, pmCost: 1500, pmDays: 0.33, operators: 2, space: 90, line: "gadget" },
+  { id: "smtStandard",  name: "SMT assembly line",         perDay: 1200, price: 24000, setup: 1500, life: 300, wear: 1.4, pmCost: 650,  pmDays: 0.25, operators: 2, space: 50, line: "gadget" },
+  { id: "smtPrecision", name: "Precision SMT cell",         perDay: 3500, price: 62000, setup: 3200, life: 300, wear: 2.2, pmCost: 1500, pmDays: 0.33, operators: 3, space: 100, line: "gadget" },
 ];
 export const AUTO_PM = [50, 60, 70, 80];   // health percent at which a machine services itself; null = off
 export const MAINT = { breakdownBelow: 30, breakdownChance: 0.25, emergencyMult: 3, downMin: 1, downMax: 2, restoreTo: 100, startHealth: 100 };
@@ -295,7 +295,7 @@ export const TRUCKS = [
 export const TRANSPORT = { loadDays: 0.25, docks: 2, loadSpacePerDay: 400, handlerBoost: 0.5, localKm: 15, breakdownBelow: 30, breakdownChance: 0.25, repairMult: 3, downMin: 1, downMax: 2, restoreTo: 100, tripLog: 30 };
 
 // Branch shops: extra outlets in other places. They sell from the main shop's stock at the main shop's prices.
-export const BRANCH = { max: 3, areas: [40, 80, 150], fitoutPerM2: 120, staffPerDay: 70, transferPerUnit: 0.08, demandShare: 0.55 };
+export const BRANCH = { max: 9, areas: [40, 80, 150], fitoutPerM2: 120, staffPerDay: 70, transferPerUnit: 0.08, demandShare: 0.55 };
 
 // Marketing audiences. Each product category is bought by a mix of age groups. Each channel suits some groups better. A campaign aimed at one group
 // (focus) reaches that group focus x affinity as hard, and the other groups only a little (off). An unfocused campaign reaches everyone equally.

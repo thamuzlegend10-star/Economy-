@@ -661,7 +661,7 @@ body { font-variant-numeric:tabular-nums; }
 .card.warns { min-height:190px; align-content:start; } .warnrow { min-height:40px; }
 .live .logbox { min-height:76px; max-height:158px; overflow:hidden; }
 @media (min-width:900px) {
-  .topbar .hud { display:grid; grid-template-columns:260px 200px 200px; justify-content:center; }
+  .topbar .hud { display:grid; grid-template-columns:260px 200px 200px 190px; justify-content:center; }
   .topbar .hud .pill { min-width:0; white-space:nowrap; overflow:hidden; }
 }
 .mailrow { min-height:135px; }
@@ -709,3 +709,26 @@ dialog.menu:has(#menuSetup:not([hidden])) { width:min(960px,96vw); }
 .crate-x { stroke:#7a5b22; stroke-width:1; fill:none; opacity:.6; }
 @media (prefers-reduced-motion: reduce) { .rm-truck { transition:none; } }
 .rm-label.home { fill:var(--fg); font-weight:700; }
+
+/* Credit rating badge in the header */
+.k-rate { cursor:pointer; text-align:left; font:inherit; color:inherit; border:0; }
+.k-rate b { letter-spacing:.04em; }
+.k-rate[data-tier="gold"] b { color:#ffd400; } .k-rate[data-tier="green"] b { color:var(--mint); }
+.k-rate[data-tier="orange"] b { color:#ff9a3c; } .k-rate[data-tier="red"] b { color:var(--coral); }
+.k-rate:focus-visible { outline:2px solid var(--brass); outline-offset:2px; }
+
+.trip { margin-top:10px; } .trip-top { display:flex; justify-content:space-between; gap:8px; font-size:.85rem; } .trip-top b { white-space:nowrap; }
+.rm-warn circle { fill:var(--coral); } .rm-warn text { fill:#fff; font:700 10px var(--font); text-anchor:middle; }
+.fsc { width:100%; height:auto; display:block; border-radius:var(--radius); }
+.fsc-bg { fill:var(--surface-2); } .fsc-div { stroke:var(--line); stroke-dasharray:4 5; } .fsc-t { fill:var(--muted); font-size:11px; font-family:var(--font); }
+.tank { fill:#9fb2c4; stroke:#56697a; stroke-width:1.5; } .pipe { stroke:#56697a; stroke-width:3; fill:none; }
+.belt { fill:#4c5133; } .bt { fill:#e0a02a; } .pcb { fill:#2f7a4f; } .bin { fill:#b9a77f; stroke:#7a6a45; } .joint { fill:#56697a; }
+.arm { stroke:#56697a; stroke-width:5; fill:none; stroke-linecap:round; transform-origin:104px 168px; }
+.bt.go { animation:fsc-belt 3.6s linear infinite; } .pcb.go { animation:fsc-belt2 4s linear infinite; } .arm.go { animation:fsc-arm 1.6s ease-in-out infinite alternate; }
+@keyframes fsc-belt { from { transform:translateX(0); } to { transform:translateX(-46px); } }
+@keyframes fsc-belt2 { from { transform:translateX(0); } to { transform:translateX(-56px); } }
+@keyframes fsc-arm { from { transform:rotate(-8deg); } to { transform:rotate(10deg); } }
+@media (prefers-reduced-motion: reduce) { .bt.go, .pcb.go, .arm.go { animation:none; } }
+.topbar .hud .k-rate[data-tier="gold"] b { color:#8a6a00 !important; } .topbar .hud .k-rate[data-tier="green"] b { color:#2f6b1c !important; }
+.topbar .hud .k-rate[data-tier="orange"] b { color:#b45f06 !important; } .topbar .hud .k-rate[data-tier="red"] b { color:#a3202a !important; }
+.topbar .hud .k-rate { text-align:left; border:1px solid #d6c49c; }

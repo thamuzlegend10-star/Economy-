@@ -23,7 +23,9 @@ test("opening a branch checks place, size, limit and cash, and pays the fit-out"
   assert.equal(Math.round(cash0 - balance(s.ledger, "cash")), Br.fitout(80));
   assert.equal(Br.openBranch(s, { location: "id-jakarta-central", area: 80 }).ok, false);   // same place twice
   assert.ok(Br.openBranch(s, { location: "sg-central", area: 40 }).ok); assert.ok(Br.openBranch(s, { location: "my-kl-centre", area: 40 }).ok);
-  assert.match(Br.openBranch(s, { location: "jp-tokyo-central", area: 40 }).error, /up to 3/);
+  const b = Br.ensureBranches(s); while (b.list.length < D.BRANCH.max) b.list.push({ id: 900 + b.list.length, location: "stub" + b.list.length });   // fill to the cap
+  assert.match(Br.openBranch(s, { location: "jp-tokyo-central", area: 40 }).error, /up to 9/);
+  b.list.length = 3;
   assert.ok(totals(s.ledger).balanced);
   const poor = mk({ capital: 5000 }); assert.match(Br.openBranch(poor, { location: "id-jakarta-central", area: 150 }).error, /Not enough cash/);
 });

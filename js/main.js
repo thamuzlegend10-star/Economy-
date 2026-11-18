@@ -1,4 +1,5 @@
 // Wiring: the game loop, tabs, buttons, setup and dialogs. All rules live in engine.js.
+import { creditRating } from "./bank.js";
 import * as E from "./engine.js";
 import * as D from "./data.js";
 import * as LOC from "./locations.js";
@@ -61,6 +62,7 @@ function renderHud() {
   document.querySelector(".k-day").classList.toggle("low", !s.ended && tl <= 5);
   flash($("hCash"), UI.money(d.cash));
   const n = $("hNet"); setText(n, UI.money(d.netProfit)); n.className = d.netProfit < 0 ? "neg" : d.netProfit > 0 ? "pos" : "";
+  { const rt = creditRating(s)[0], b = $("hRating"); setText(b, rt); $("hRate").dataset.tier = UI.ratingTone(rt); }
   setHtml($("side"), UI.sideHtml(s));
   setText($("locLabel"), `${LOC.getLocation(s.location).city} · ${s.area} m²`);
   $("bStep").hidden = !(paused && !live && !s.ended && !$("menuDlg").open); $("mRestart").hidden = !s || !!live;
@@ -119,6 +121,7 @@ function afterTick() {
   if (s.ended) { liveReport(); save(); renderAll(true); showFinal(); }
 }
 $("bStep").onclick = () => { if (!s || s.ended || live || !paused) return; E.stepDay(s); afterTick(); renderHud(); };
+$("hRate").onclick = () => { if (s) goto("finance", "bank"); };
 $("mRestart").onclick = () => { if (!s || live) return; if (!confirm("Start this same game again from day 1? Your progress in it is lost.")) return; adopt(E.restartSame(s)); closeMenu(); toast("Back at day 1 with the same setup.", "ok"); };
 let prev = performance.now();
 function loop(now) {

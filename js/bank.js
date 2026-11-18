@@ -9,7 +9,7 @@ const c4 = v => Math.round(v * 1e6) / 1e6, c = round2, clamp = (v, a, b) => Math
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
 export const newBank = () => ({ credit: { bal: 0, since: 0 }, loans: [], lseq: 0, interestPaid: 0, hist: [], hrLate: 0, rating: "AAA" });
 // Credit rating (MonsoonSIM style, AAA to DDD): driven by how many of the last 30 days had an overdraft or a payday paid from overdraft. It only ever raises prices, so a clean record costs nothing extra.
-export const RATINGS = [["AAA", 95, 1], ["AA", 85, 1], ["A", 75, 1], ["BBB", 60, 1.1], ["BB", 45, 1.2], ["B", 30, 1.35], ["CCC", 15, 1.5], ["DDD", -Infinity, 1.75]];
+export const RATINGS = [["AAA", 95, 1], ["AA", 85, 1], ["A", 75, 1], ["BBB", 60, 1.1], ["BB", 45, 1.2], ["B", 30, 1.35], ["CCC", 15, 1.5], ["CC", 10, 1.6], ["C", 5, 1.7], ["DDD", -Infinity, 1.75]];
 // Extra score inputs (games started after this rule only, flag `rtg`): thin solvency, a losing year and unpaid supplier invoices pull the score down. A clean, funded shop loses nothing.
 export function currentRatio(s) {
   const L = a => balance(s.ledger, a), assets = L("cash") + L("inventory") + L("inv_raw") + L("inv_fg") + L("receivables"), debts = L("payables") + L("overdraft") + L("credit") + L("wages_payable") + L("tax_payable");
@@ -32,7 +32,7 @@ export function creditScore(s) {
   const b = ensureBank(s); return clamp(100 - 10 * (b.hist || []).reduce((a, x) => a + x, 0) - (balance(s.ledger, "overdraft") > 0 ? 5 : 0) - scoreExtras(s), 0, 100);
 }
 export const creditRating = s => { const sc = creditScore(s); return RATINGS.find(r => sc >= r[1]); };
-export const CEILING = { AAA: 1, AA: 0.9, A: 0.8, BBB: 0.6, BB: 0.45, B: 0.3, CCC: 0.15, DDD: 0 };   // share of the credit line the bank allows
+export const CEILING = { AAA: 1, AA: 0.9, A: 0.8, BBB: 0.6, BB: 0.45, B: 0.3, CCC: 0.15, CC: 0.08, C: 0.04, DDD: 0 };   // share of the credit line the bank allows
 export const creditLimit = s => (s.rtg ? Math.round(D.BANK.credit.limit * CEILING[creditRating(s)[0]]) : D.BANK.credit.limit);
 export const RANK = Object.fromEntries(RATINGS.map((r, i) => [r[0], i]));
 export const ratingAtLeast = (s, min) => RANK[creditRating(s)[0]] <= RANK[min];
