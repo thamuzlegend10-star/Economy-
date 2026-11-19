@@ -7,7 +7,7 @@ import * as D from "./data.js";
 import { streamNext, seedFrom } from "./rng.js";
 import { log, PRODUCT } from "./engine.js";
 import { JUICE } from "./factory.js";
-import { salesEdge } from "./hr.js";
+import { salesEdge, strikingIn } from "./hr.js";
 import { mailPost } from "./mail.js";
 import { creditRating, ratingAtLeast } from "./bank.js";
 
@@ -128,34 +128,41 @@ function award(s, b, t, price, how) {
 
 // ---------- delivery ----------
 // Who moves the goods. "pickup" (the default, and every older game): the buyer collects, so you pay nothing. "deliver": you ship to the buyer and pay freight.
-export const freightFor = (s, k) => (s.b2bShip === "deliver" ? c(k.qty * refPrice(k.pid) * D.B2B.freightRate * BUYER[k.buyer].km) : 0);
-export function quoteDelivery(s, id) {
+// Units of a contract still to deliver. Contracts made before partial deliveries have no `got`, so the whole quantity is left.
+export const remaining = k => Math.max(0, k.qty - (k.got || 0));
+export const freightFor = (s, k, qty = remaining(k)) => (s.b2bShip === "deliver" ? c(qty * refPrice(k.pid) * D.B2B.freightRate * BUYER[k.buyer].km) : 0);
+// qty is optional: leave it out to deliver everything still owed (the only way before partial deliveries). A smaller qty delivers part now and keeps the contract open for the rest.
+export function quoteDelivery(s, id, qty) {
   const k = ensureB2B(s).active.find(x => x.id === id); if (!k) return err("Unknown contract.");
-  const have = available(s, k.pid), value = c(k.qty * k.price), errors = [];
-  if (have < k.qty) errors.push(`Not enough stock: need ${k.qty.toLocaleString("en-US")}, have ${have.toLocaleString("en-US")} ${PRODUCT[k.pid] ? "in the warehouse" : "at the factory"}.`);
-  return { id, qty: k.qty, value, freight: freightFor(s, k), errors, ok: !errors.length };
+  const left = remaining(k), n = qty === undefined ? left : Math.floor(Number(qty)), have = available(s, k.pid), errors = [];
+  if (!Number.isFinite(n) || n < 1 || n > left) return err(`Deliver between 1 and ${left.toLocaleString("en-US")} units.`);
+  if (PRODUCT[k.pid] && strikingIn(s, "warehouse")) errors.push("Warehouse staff are on strike. The loading dock is closed.");
+  if (have < n) errors.push(`Not enough stock: need ${n.toLocaleString("en-US")}, have ${have.toLocaleString("en-US")} ${PRODUCT[k.pid] ? "in the warehouse" : "at the factory"}.`);
+  return { id, qty: n, left, value: c(n * k.price), freight: freightFor(s, k, n), partial: n < left, errors, ok: !errors.length };
 }
-export function deliver(s, id) {
+export function deliver(s, id, qty) {
   if (s.ended) return err("The game is over.");
-  const b = ensureB2B(s), q = quoteDelivery(s, id); if (q.error) return err(q.error); if (!q.ok) return err(q.errors[0]);
-  const k = b.active.find(x => x.id === id), retail = !!PRODUCT[k.pid], src = retail ? s.wh : s.fx.fg, have = src.qty[k.pid];
-  const cost = k.qty >= have ? src.val[k.pid] : c(src.val[k.pid] / have * k.qty);
-  src.qty[k.pid] -= k.qty; src.val[k.pid] = c(src.val[k.pid] - cost);
-  post(s.ledger, s.day, `B2B delivery #${k.id} to ${BUYER[k.buyer].name}`, [{ acct: "receivables", dr: q.value }, { acct: "sales_b2b", cr: q.value }], "b2b:" + k.id);
-  b.ar = b.ar || []; b.ar.push({ id: k.id, buyer: k.buyer, amount: q.value, issued: s.day, due: s.day + D.B2B.buyers.find(y => y.id === k.buyer).terms });
-  post(s.ledger, s.day, `Cost of B2B delivery #${k.id}`, [{ acct: "cogs", dr: cost }, { acct: retail ? "inventory" : "inv_fg", cr: cost }], "b2b:" + k.id);
+  const b = ensureB2B(s), q = quoteDelivery(s, id, qty); if (q.error) return err(q.error); if (!q.ok) return err(q.errors[0]);
+  const k = b.active.find(x => x.id === id), retail = !!PRODUCT[k.pid], src = retail ? s.wh : s.fx.fg, have = src.qty[k.pid], parts = k.parts || 0, ref = "b2b:" + k.id + (parts ? ":" + parts : ""), tag = parts ? `${k.id}-${parts + 1}` : k.id;
+  const cost = q.qty >= have ? src.val[k.pid] : c(src.val[k.pid] / have * q.qty);
+  src.qty[k.pid] -= q.qty; src.val[k.pid] = c(src.val[k.pid] - cost);
+  post(s.ledger, s.day, `B2B delivery #${tag} to ${BUYER[k.buyer].name}${q.partial ? ` (part: ${q.qty.toLocaleString("en-US")} of ${q.left.toLocaleString("en-US")} left)` : ""}`, [{ acct: "receivables", dr: q.value }, { acct: "sales_b2b", cr: q.value }], ref);
+  b.ar = b.ar || []; b.ar.push({ id: tag, buyer: k.buyer, amount: q.value, issued: s.day, due: s.day + D.B2B.buyers.find(y => y.id === k.buyer).terms });
+  post(s.ledger, s.day, `Cost of B2B delivery #${tag}`, [{ acct: "cogs", dr: cost }, { acct: retail ? "inventory" : "inv_fg", cr: cost }], ref);
   if (q.freight > 0) {
     const cash = Math.max(0, balance(s.ledger, "cash")), paid = c(Math.min(cash, q.freight)), short = c(q.freight - paid);
-    post(s.ledger, s.day, `Freight for B2B delivery #${k.id}`, [{ acct: "delivery", dr: q.freight }, ...(paid > 0 ? [{ acct: "cash", cr: paid }] : []), ...(short > 0 ? [{ acct: "overdraft", cr: short }] : [])], "b2b:frt:" + k.id);
+    post(s.ledger, s.day, `Freight for B2B delivery #${k.id}`, [{ acct: "delivery", dr: q.freight }, ...(paid > 0 ? [{ acct: "cash", cr: paid }] : []), ...(short > 0 ? [{ acct: "overdraft", cr: short }] : [])], "b2b:frt:" + tag);
   }
+  k.got = (k.got || 0) + q.qty; k.parts = parts + 1; k.revenue = c((k.revenue || 0) + q.value);
+  if (q.partial) { log(s, `Part delivery #${tag}: ${q.qty.toLocaleString("en-US")} ${itemInfo(k.pid).name} to ${BUYER[k.buyer].name}, ${remaining(k).toLocaleString("en-US")} still owed by day ${k.due}.`); return ok({ revenue: q.value, cogs: cost, partial: true, left: remaining(k) }); }
   const onTime = s.day <= k.due;
   if (onTime) { b.ontime++; b.rep = clamp(b.rep + D.B2B.reputationGain, 0, 100); } else { b.late++; }
-  k.status = "done"; b.history.push({ ...k, result: onTime ? "on time" : "late", revenue: q.value, day: s.day }); b.active = b.active.filter(x => x !== k);
+  k.status = "done"; b.history.push({ ...k, result: onTime ? "on time" : "late", revenue: k.revenue, day: s.day }); b.active = b.active.filter(x => x !== k);
   log(s, `Delivered #${k.id}: ${k.qty.toLocaleString("en-US")} ${itemInfo(k.pid).name}, invoice $${q.value.toFixed(2)} paid on day ${s.day + D.B2B.buyers.find(y => y.id === k.buyer).terms} (${D.B2B.buyers.find(y => y.id === k.buyer).terms} days credit)${onTime ? "" : " (late)"}.`);
   return ok({ revenue: q.value, cogs: cost });
 }
 function late(s, b, k) {
-  k.lateDays++; const value = c(k.qty * k.price);
+  k.lateDays++; const value = c(remaining(k) * k.price);   // fines count only the units still owed
   if (k.lateDays > 5) {                                        // breach: contract cancelled, full penalty, big reputation hit
     const fee = c(value * k.penalty); payPenalty(s, fee, `Contract #${k.id} breached`);
     k.status = "breached"; b.late++; b.rep = clamp(b.rep - D.B2B.reputationLoss * 2, 0, 100); b.history.push({ ...k, result: "breached", penaltyPaid: fee, day: s.day });

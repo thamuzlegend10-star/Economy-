@@ -276,6 +276,7 @@ export const SCENARIOS = [
 ];
 
 // Effect sizes of staff on the rest of the business (tunable). Everything is neutral until people are hired.
+export const STRIKE = { below: 35, recover: 50, bonusDays: 2, settleMorale: 55 };   // strike starts under 35% morale or on an unpaid payday; ends at 50% or when settled
 export const HR_EFFECTS = { moraleOutput: 0.15, retailBoost: 0.10, transferCut: 0.15, salesEdge: 0.06, moraleDrift: 0.1, skillMin: 0.5, skillMax: 1.6 };
 // Business warning thresholds used by the warnings panel.
 export const WARN = { cashLow: 3000, csiLow: 60, moraleLow: 40, healthLow: 40, storageHigh: 0.9, stockDays: 1.5 };

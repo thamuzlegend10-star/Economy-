@@ -71,7 +71,9 @@ export function act(s, f, name, a = {}) {
     case "unbid": return r(B.withdrawBid(s, n), "Bid withdrawn.");
     case "accept": return r(B.acceptDeal(s, n), "Deal accepted. Deliver it from the Contracts tab.");
     case "deliver": return r(B.deliver(s, n), "Delivered and paid.");
+    case "deliverPart": { const k = B.ensureB2B(s).active.find(x => x.id === n); return r(B.deliver(s, n, k ? Math.min(B.remaining(k), B.available(s, k.pid)) : 0), "Part delivered. The rest stays owed."); }
     // HR
+    case "settleStrike": return r(H.settleStrike(s), "Strike settled. Staff are back at work.");
     case "hire": return r(H.hire(s, id, 1), "Hired. Recruitment fee paid.");
     case "hirePick": { const [role, idx] = String(id).split(":"); const x = H.hireCandidate(s, role, idx); return r(x, x.ok ? `Hired ${x.name}. Recruitment fee paid.` : ""); }
     case "hireTemp": return r(H.hire(s, id, 1, "temp", Number(f.tempDays) || 14), "Temp hired for the contract period.");

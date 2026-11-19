@@ -16,7 +16,7 @@ import { newScn, scenarioDay, eventMult, delayed as scnDelayed } from "./scenari
 import { newTax, taxDay, taxOwed } from "./accounting.js";
 import { receivable } from "./b2b.js";
 import { ensureFleet, newFleet as newFleetState, planTrip, dispatch, fleetDay } from "./fleet.js";
-import { newHr, hrDay, retailBoost, transferDiscount } from "./hr.js";
+import { newHr, hrDay, retailBoost, transferDiscount, strikingIn } from "./hr.js";
 import { branchDay } from "./branch.js";
 import { curDay, exchangeFactor } from "./currency.js";
 import { stockDay } from "./stock.js";
@@ -64,7 +64,7 @@ export const capacityOf = area => Math.floor(area * D.SPACE_PER_M2);
 
 export function newGame(opts = {}) {
   const o = cleanSetup(opts);
-  const s = { v: D.SAVE_VERSION, ...o, cal: true, qcOn: o.level !== "beginner", intelFee: !o.level || o.level === "advanced", shelfOn: !o.level || o.level === "advanced", rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
+  const s = { v: D.SAVE_VERSION, ...o, cal: true, strikeRule: o.level !== "beginner", qcOn: o.level !== "beginner", intelFee: !o.level || o.level === "advanced", shelfOn: !o.level || o.level === "advanced", rng: o.seed | 0, day: 1, dayStep: 0, steps: 0, acc: 0, flushAcc: 0, stepsPerDay: Math.round(o.secPerDay / STEP), ended: null,
     ledger: newLedger(), fx: newFactory(), b2b: newB2B(o.seed), mrp: newMrp(), hr: newHr(o.seed), mkt: newMkt(), ecom: newEcom(o.seed), srv: newSrv(), bank: newBank(), kpi: newKpi({ kpi10: o.kpi10 === true }), fleet: newFleetState(o.seed), tax: newTax(), econ: newEcon(o.seed), jshop: newJshop(), mail: newMail(), scn: newScn(o.scenario, o.seed), wh: { area: 0, qty: {}, val: {} }, qty: {}, val: {}, prices: {}, accum: {}, demand: {}, orders: [], orderSeq: 0, supIdx: {}, overdraftDays: 0,
     today: null, history: [], stats: { prod: {}, units: 0, lost: 0, orders: 0 }, feed: [], feedSeq: 0, log: [] };
   for (const p of D.PRODUCTS) { s.wh.qty[p.id] = 0; s.wh.val[p.id] = 0; s.qty[p.id] = 0; s.val[p.id] = 0; s.accum[p.id] = 0; s.prices[p.id] = priceFit(p, p.ref * 1.05); s.stats.prod[p.id] = { units: 0, rev: 0, cogs: 0, ship: 0, lost: 0 }; }
@@ -313,6 +313,7 @@ export function releaseWarehouse(s) {
 // Send goods from the warehouse to the shop. One trip fee plus a charge per space unit; arrives after one day; all-or-nothing.
 export function quoteTransfer(s, lines, carrier = "hired") {
   if (s.wh.area <= 0) return err("Rent a warehouse first.");
+  if (strikingIn(s, "warehouse")) return err("Warehouse staff are on strike. The loading dock is closed.");
   const seen = new Set(), items = [];
   for (const l of Array.isArray(lines) ? lines : []) {
     const qty = Math.round(Number(l && l.qty));

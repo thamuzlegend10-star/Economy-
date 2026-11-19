@@ -87,12 +87,40 @@ export function setTraining(s, v) { const t = D.HR.trainingBudget; ensureHr(s).t
 export const retailNeed = s => Math.max(1, Math.round(s.area / 60));
 export function retailBoost(s) {            // up to +10% shoppers served when the shop is fully staffed with skilled, happy people
   const h = ensureHr(s), st = h.staff.retail; if (!st.n) return 1;
+  if (strikingIn(s, "retail")) return 0.5;                 // half the checkouts are shut
   return 1 + D.HR_EFFECTS.retailBoost * Math.min(1, st.n / retailNeed(s)) * clamp(st.skill, D.HR_EFFECTS.skillMin, D.HR_EFFECTS.skillMax) * (0.5 + h.morale / 200);
+}
+// ---------- labour strikes ----------
+// Only games that carry the `strikeRule` flag (new games above beginner level) can strike, so older saves play as before.
+// A strike starts when morale falls under D.STRIKE.below or a payday had to be paid from overdraft. It ends when morale is back
+// above D.STRIKE.recover and wages are settled, or when you settle it (a bonus of D.STRIKE.bonusDays days of payroll).
+// While it lasts: strikers in the factory make nothing, strikers in the warehouse close the loading dock, strikers in the shop close half the checkouts.
+export const strikeOf = s => (s.strikeRule && s.hr && s.hr.strike) || null;
+export const strikingIn = (s, role) => { const k = strikeOf(s); return !!(k && k.depts.includes(role)); };
+function strikeDay(s, h, paydayShort) {
+  if (!s.strikeRule) return;
+  const k = h.strike, depts = ["factory", "warehouse", "retail"].filter(r => h.staff[r].n > 0);
+  if (!k) {
+    if (!depts.length || !(h.morale < D.STRIKE.below || paydayShort)) return;
+    const why = paydayShort ? "wages were not paid in cash on payday" : `morale fell to ${Math.round(h.morale)}%`;
+    h.strike = { since: s.day, why, depts }; h.strikes = (h.strikes || 0) + 1;
+    mailPost(s, { from: "HR", subject: "Staff are on strike", body: `${depts.map(r => ROLE[r].name).join(", ")} stopped work because ${why}. Factory machines stand still, the warehouse dock is closed and half the shop checkouts are shut. Pay a settlement in HR, or raise morale above ${D.STRIKE.recover}% and keep cash for wages.`, goto: ["hr", ""], level: "bad" });
+    log(s, `Strike: ${depts.map(r => ROLE[r].name.toLowerCase()).join(", ")} stopped work (${why}).`); return;
+  }
+  k.depts = depts.length ? depts : k.depts; k.days = (k.days || 0) + 1;
+  if (h.morale >= D.STRIKE.recover && !paydayShort) endStrike(s, h, "morale recovered");
+}
+function endStrike(s, h, how) { const k = h.strike; h.strike = null; mailPost(s, { from: "HR", subject: "The strike is over", body: `Staff are back at work (${how}) after ${(k && k.days) || 0} day(s).`, goto: ["hr", ""], level: "good" }); log(s, `Strike over (${how}).`); }
+export function settleStrike(s) {
+  const h = ensureHr(s); if (!strikeOf(s)) return err("Nobody is on strike.");
+  const fee = round2(dailyPayroll(s) * D.STRIKE.bonusDays); payOut(s, "wages", fee, "Strike settlement bonus", "strike:" + s.day);
+  h.morale = Math.max(h.morale, D.STRIKE.settleMorale); endStrike(s, h, "settled with a bonus"); return ok({ fee });
 }
 export const operatorsNeeded = s => (s.fx ? s.fx.machines.reduce((a, m) => a + D.MACHINES.find(t => t.id === m.type).operators, 0) : 0);
 export function crew(s) {                  // factory output and wear factors
   const need = operatorsNeeded(s); if (!need) return { out: 1, wear: 1, coverage: 1 };
   const h = ensureHr(s), st = h.staff.factory, coverage = Math.min(1, st.n / need);
+  if (strikingIn(s, "factory")) return { coverage, out: 0, wear: 1 };
   return { coverage, out: (0.5 + 0.5 * coverage) * (0.9 + 0.1 * clamp(st.skill, 0.5, 1.6)) * (1 - D.HR_EFFECTS.moraleOutput + D.HR_EFFECTS.moraleOutput * h.morale / 100), wear: clamp(1.2 - 0.2 * st.skill, 0.6, 1.3) };
 }
 export const transferDiscount = s => D.HR_EFFECTS.transferCut * Math.min(1, ensureHr(s).staff.warehouse.n / 2) * (0.5 + ensureHr(s).morale / 200);
@@ -108,12 +136,13 @@ export function hrDay(s) {
     const rest = c(payroll - factoryPayroll(s));            // factory wages are paid by the factory (they become part of the goods made)
     if (rest > 0) { post(s.ledger, s.day, `Wages earned, day ${s.day}`, [{ acct: "wages", dr: rest }, { acct: "wages_payable", cr: rest }], "hr:acc:" + s.day); h.accrued = c(h.accrued + rest); }
   }
-  const pd = payday(s);
+  const pd = payday(s); let paidShort = false;
   if (h.accrued > 0 && (pd.days === 1 || s.day % pd.days === 0)) {
     const owed = h.accrued, cash = Math.max(0, balance(s.ledger, "cash")), paid = c(Math.min(cash, owed)), short = c(owed - paid), lines = [{ acct: "wages_payable", dr: owed }];
     if (paid > 0) lines.push({ acct: "cash", cr: paid }); if (short > 0) lines.push({ acct: "overdraft", cr: short });
     post(s.ledger, s.day, `Payday: wages for ${pd.id === "daily" ? "day " + s.day : "the period"}`, lines, "hr:pay:" + s.day);
     h.paidTotal = c(h.paidTotal + owed); h.accrued = 0; h.lastPay = s.day;
+    if (short > 0) paidShort = true;
     if (short > 0) { h.late++; h.morale = c(clamp(h.morale - 4, 0, 100)); mailPost(s, { from: "HR", subject: "Payday paid from overdraft", body: `Cash was short by ${short.toFixed(2)} on payday. Staff noticed. Keep cash for wages.`, goto: ["hr", ""], level: "warn" }); }
   }
   const people = headcount(s);
@@ -122,14 +151,15 @@ export function hrDay(s) {
     for (const r of D.HR_ROLES) { const st = h.staff[r.id]; if (st.n) st.skill = c(clamp(st.skill + h.training / (D.HR.trainingPerSkill * people) * 0.05, 0.5, 2)); }
   }
   // morale drifts toward a target set by pay and training; overwork (too few operators) hurts
+  strikeDay(s, h, paidShort);
   const cv = crew(s), target = clamp(55 + 60 * (h.wageMult - 1) + Math.min(15, h.training / 40) - pd.morale - (cv.coverage < 1 ? 15 * (1 - cv.coverage) : 0), 0, 100);
   h.morale = c(clamp(h.morale + (target - h.morale) * D.HR_EFFECTS.moraleDrift, 0, 100));
   // turnover: unhappy staff quit
   for (const r of D.HR_ROLES) { const st = h.staff[r.id], p = D.HR.turnoverBase * (1 + Math.max(0, 60 - h.morale) / 30) * quitFactor(s, r.id); for (let i = permN(s, r.id); i > 0; i--) if (streamNext(h) < p) { const cr = syncCrew(s, r.id), who = cr.length ? cr.splice(hash(s.day, st.n, cr.length) % cr.length, 1)[0] : null; st.n--; h.quits++; mailPost(s, { from: "HR", subject: `${who ? who.name : "A " + ROLE[r.id].name.toLowerCase().replace(/s$/, "")} resigned`, body: `${who ? who.name + " (" + ROLE[r.id].name.toLowerCase().replace(/s$/, "") + ", since day " + who.since + ") left. " : ""}Morale is ${Math.round(h.morale)}%. Raise wages or training to keep people.`, goto: ["hr", ""], level: "warn" }); log(s, `A ${ROLE[r.id].name.toLowerCase().replace(/s$/, "")} quit.`); } }
 }
-function payOut(s, acct, amount, memo) {
+function payOut(s, acct, amount, memo, ref) {
   amount = c(amount); if (amount <= 0) return;
   const cash = Math.max(0, balance(s.ledger, "cash")), paid = c(Math.min(cash, amount)), short = c(amount - paid);
   const lines = [{ acct, dr: amount }]; if (paid > 0) lines.push({ acct: "cash", cr: paid }); if (short > 0) lines.push({ acct: "overdraft", cr: short });
-  post(s.ledger, s.day, memo, lines, "hr:" + s.day + ":" + acct);
+  post(s.ledger, s.day, memo, lines, ref || "hr:" + s.day + ":" + acct);
 }

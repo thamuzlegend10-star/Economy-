@@ -5,6 +5,7 @@ import * as D from "./data.js";
 import { streamNext, seedFrom } from "./rng.js";
 import { log } from "./engine.js";
 import { mailPost } from "./mail.js";
+import { strikingIn } from "./hr.js";
 
 const c = round2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const err = error => ({ ok: false, error }), ok = (o = {}) => ({ ok: true, ...o });
@@ -44,6 +45,7 @@ export function serviceTruck(s, id) {
 // ---------- planning and dispatch ----------
 // km: one-way distance. space: total storage space to carry. prep: days before the goods are ready. Returns what a trip would cost and how long it takes.
 export function planTrip(s, { km, space, prep = 0 } = {}) {
+  if (strikingIn(s, "warehouse")) return err("Warehouse staff are on strike. The loading dock is closed.");
   const f = ensureFleet(s); if (!f.trucks.length) return err("You have no trucks. Buy one in Shipping, Fleet.");
   const idle = idleTrucks(s).sort((a, b) => TRUCK[b.type].capacity - TRUCK[a.type].capacity); if (!idle.length) return err("All your trucks are busy or broken down.");
   if (driversFree(s) <= 0) return err("No free driver. Hire a driver in HR.");
