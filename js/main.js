@@ -91,7 +91,9 @@ function viewFor() {
   if (m === "shipping") return UI.ship(s, ui);
   return UI.soon(...SOON[m]);
 }
-function flash(el, v) { if (!el || el.textContent === v) return; const had = el.textContent !== ""; el.textContent = v; if (!had || matchMedia("(prefers-reduced-motion: reduce)").matches) return; el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+// Number change: a short scale bump. Transform only, so it runs on the compositor (cash changes on every refresh, and an animation restarted that often kept the browser recalculating styles every frame, so a bump runs at most once every 3 seconds), and the Web Animations API restarts it without forcing a page layout.
+const BUMP = [{ transform: "scale(1)" }, { transform: "scale(1.08)", offset: 0.35 }, { transform: "scale(1)" }];
+function flash(el, v) { if (!el || el.textContent === v) return; const had = el.textContent !== ""; el.textContent = v; const now = performance.now(); if (!had || !el.animate || now - (el._bt || 0) < 3000 || matchMedia("(prefers-reduced-motion: reduce)").matches) return; el._bt = now; el.style.display = "inline-block"; if (el._b) el._b.cancel(); el._b = el.animate(BUMP, { duration: 500, easing: "cubic-bezier(.22,1,.36,1)" }); }
 const setHtml = (el, h) => { if (el._h !== h || (h && !el.firstElementChild)) { el._h = h; el.innerHTML = h; } }, setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
 function renderNav() { if (s && (tabOff(s.mods, ui.main) || E.levelOf(s).hideTabs.includes(ui.main))) ui.main = "home"; document.body.dataset.screen = ui.main; const n = UI.navHtml(ui, s && s.mods, s && E.levelOf(s)); setHtml($("tabs"), n.main); setHtml($("subtabs"), n.sub); $("subtabs").hidden = !n.sub; }
 // A short rise-in when the screen changes (not on the 400 ms refresh, which only patches numbers).
