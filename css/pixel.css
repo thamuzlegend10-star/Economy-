@@ -109,7 +109,7 @@ dialog h2 { font:700 1.4rem/1.2 var(--font); letter-spacing:0; text-transform:no
 .broadcast-bar { position:fixed; bottom:0; left:0; right:0; width:100%; height:28px; background:#0b1428; border-top:1px solid #1e2d4f; overflow:hidden; display:flex; align-items:center; z-index:100; box-shadow:0 -2px 10px rgba(0,0,0,.5); }
 .broadcast-label { flex-shrink:0; padding:0 8px; font-size:10px; font-weight:700; letter-spacing:.08em; color:#0a0e19; background:#f2a93b; height:100%; display:flex; align-items:center; }
 .ticker-wrap { flex:1; overflow:hidden; height:100%; display:flex; align-items:center; }
-.ticker-content { white-space:nowrap; display:inline-block; animation:tickerScroll 28s linear infinite; font-size:11px; color:#c8d4ec; padding-left:100%; will-change:transform; }
+.ticker-content { will-change:transform; white-space:nowrap; display:inline-block; animation:tickerScroll 28s linear infinite; font-size:11px; color:#c8d4ec; padding-left:100%; will-change:transform; }
 .ticker-content:hover { animation-play-state:paused; }
 @keyframes tickerScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-100%)} }
 /* machine diagnostic badges */
@@ -397,7 +397,7 @@ details.adv[open] > summary::before { content:"-"; }
 @keyframes fade { from { opacity:0; } to { opacity:1; } }
 @keyframes pop { from { opacity:0; transform:scale(.97) translateY(6px); } to { opacity:1; transform:none; } }
 @keyframes slideUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
-.view.enter > * { animation:rise .34s var(--ease) both; }
+.view.enter > *:nth-child(-n+6) { animation:rise .34s var(--ease) both; }
 .view.enter > *:nth-child(2) { animation-delay:.04s; } .view.enter > *:nth-child(3) { animation-delay:.08s; } .view.enter > *:nth-child(4) { animation-delay:.12s; } .view.enter > *:nth-child(n+5) { animation-delay:.16s; }
 dialog[open] { animation:pop .26s var(--ease); } dialog[open]::backdrop { animation:fade .26s ease-out; }
 button, .tile, .card { transition:transform .16s var(--ease), border-color .16s, background-color .16s, color .16s; }
@@ -434,20 +434,16 @@ button:active:not(:disabled) { transform:scale(.97); }
 @keyframes toastOut { to { opacity:0; transform:translateY(10px) scale(.96); } }
 @keyframes sheet { from { transform:translateY(100%); } to { transform:none; } }
 @keyframes tabIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
-.view.enter.fwd > * { animation-name:slideR; }
-.view.enter.back > * { animation-name:slideL; }
-.view.enter > * { animation-duration:.38s; }
-.view.enter .kv > div, .view.enter tbody tr, .view.enter .price, .view.enter .hbar { animation:rise .36s var(--ease) both; }
-.view.enter .kv > div:nth-child(2), .view.enter tbody tr:nth-child(2), .view.enter .price:nth-child(2) { animation-delay:.05s; }
-.view.enter .kv > div:nth-child(3), .view.enter tbody tr:nth-child(3), .view.enter .price:nth-child(3) { animation-delay:.1s; }
-.view.enter .kv > div:nth-child(n+4), .view.enter tbody tr:nth-child(n+4), .view.enter .price:nth-child(n+4) { animation-delay:.15s; }
-.view.enter .meter i { transform-origin:left; animation:grow .7s var(--ease) both; animation-delay:.15s; }
+.view.enter.fwd > *:nth-child(-n+6) { animation-name:slideR; }
+.view.enter.back > *:nth-child(-n+6) { animation-name:slideL; }
+.view.enter > *:nth-child(-n+6) { animation-duration:.38s; }
+/* Per-row and per-bar entrance animations were removed: dozens of animated nodes on every screen change cost frames on phones. The cards still rise in. */
 .bump { animation:bump .5s var(--ease); display:inline-block; }
 #subtabs button { animation:tabIn .25s var(--ease) both; transition:background-color .2s, color .2s, box-shadow .2s, transform .16s var(--ease); }
 #subtabs button:hover { transform:translateY(-1px); }
 #subtabs button.on { box-shadow:inset 0 -2px 0 var(--brass); }
 dialog { transition:opacity .22s ease, transform .22s var(--ease), overlay .22s allow-discrete, display .22s allow-discrete; }
-dialog::backdrop { backdrop-filter:blur(3px); background:rgba(5,7,12,.55); transition:opacity .22s, overlay .22s allow-discrete, display .22s allow-discrete; }
+dialog::backdrop { background:rgba(5,7,12,.66); transition:opacity .22s, overlay .22s allow-discrete, display .22s allow-discrete; }
 dialog:not([open]) { opacity:0; transform:translateY(10px) scale(.98); }
 dialog:not([open])::backdrop { opacity:0; }
 @starting-style { dialog[open] { opacity:0; transform:translateY(10px) scale(.98); } dialog[open]::backdrop { opacity:0; } }
@@ -737,3 +733,6 @@ dialog.menu:has(#menuSetup:not([hidden])) { width:min(960px,96vw); }
 .slot { stroke:#7a6a45; stroke-width:1; } .slot.goods { fill:#c9a15a; } .slot.raw { fill:#6f9a7a; } .slot.fg { fill:#d96a3b; } .slot.empty { fill:transparent; stroke-dasharray:3 3; }
 .legend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:.78rem; color:var(--muted); margin-top:4px; } .legend span { display:inline-flex; align-items:center; gap:5px; }
 .legend i.slot { display:inline-block; width:12px; height:10px; border-radius:2px; border:1px solid #7a6a45; }
+
+/* Keep a number update in the side panel or header from re-laying out the whole page. */
+#side, .hud .pill { contain:layout style; }

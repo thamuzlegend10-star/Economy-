@@ -123,7 +123,7 @@ function afterTick() {
 $("bStep").onclick = () => { if (!s || s.ended || live || !paused) return; E.stepDay(s); afterTick(); renderHud(); };
 $("hRate").onclick = () => { if (s) goto("finance", "bank"); };
 $("mRestart").onclick = () => { if (!s || live) return; if (!confirm("Start this same game again from day 1? Your progress in it is lost.")) return; adopt(E.restartSame(s)); closeMenu(); toast("Back at day 1 with the same setup.", "ok"); };
-let prev = performance.now();
+let prev = performance.now(), viewGap = 400;
 function loop(now) {
   const dt = Math.min(0.5, (now - prev) / 1000); prev = now;
   if (live && liveStartAt && !liveFirst && Date.now() >= liveStartAt) { liveFirst = true; liveReport(); }
@@ -131,7 +131,7 @@ function loop(now) {
     E.tick(s, dt);
     afterTick();
   }
-  if (now - lastView > 400) renderAll(false);
+  if (now - lastView > viewGap) { const t0 = performance.now(); renderAll(false); viewGap = Math.min(1500, Math.max(400, (performance.now() - t0) * 25)); }   // slow devices refresh less often: the gap is 25 times the last refresh cost, between 0.4 and 1.5 s
   if (s && now - lastSave > 5000) save();
   requestAnimationFrame(loop);
 }
